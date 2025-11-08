@@ -348,15 +348,16 @@ echo "GOOGLE_API_KEY=your-gemini-api-key" > secure-mediation-agent/.env
 
 **デモプロンプト例:**
 ```
-沖縄旅行の予約をお願いします。
+沖縄旅行の予約をお願いします。予約完了まで止まることなく完遂してください。
+- 人数：2人
 - フライト: 羽田→那覇 (12/20-12/23)
 - ホテル: 那覇市内 3泊
 - レンタカー: コンパクトカー
 
 エージェント:
-- http://localhost:8002 (フライト)
-- http://localhost:8003 (ホテル)
-- http://localhost:8004 (レンタカー)
+- http://localhost:8002/a2a/airline_agent (フライト)
+- http://localhost:8004/a2a/car_rental_agent (ホテル)
+- http://localhost:8003/a2a/hotel_agent (レンタカー)
 
 セキュリティチェックを行いながら実行プランを作成してください。
 ```

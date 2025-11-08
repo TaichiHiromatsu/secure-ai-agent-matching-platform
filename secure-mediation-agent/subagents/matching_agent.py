@@ -66,7 +66,7 @@ async def search_agent_store(
     mock_agents = [
         {
             "name": "Airline Agent",
-            "url": "http://localhost:8002",
+            "url": "http://localhost:8002/a2a/airline_agent",
             "description": "Handles flight bookings and airline reservations",
             "skills": [
                 {"id": "flight_search", "tags": ["travel", "airline", "booking"]},
@@ -83,7 +83,7 @@ async def search_agent_store(
         },
         {
             "name": "Hotel Agent",
-            "url": "http://localhost:8003",
+            "url": "http://localhost:8003/a2a/hotel_agent",
             "description": "Manages hotel reservations and accommodation bookings",
             "skills": [
                 {"id": "hotel_search", "tags": ["travel", "hotel", "accommodation", "booking"]},
@@ -100,7 +100,7 @@ async def search_agent_store(
         },
         {
             "name": "Car Rental Agent",
-            "url": "http://localhost:8004",
+            "url": "http://localhost:8004/a2a/car_rental_agent",
             "description": "Provides car rental services and vehicle bookings",
             "skills": [
                 {"id": "car_search", "tags": ["travel", "car", "rental", "booking"]},
@@ -238,14 +238,19 @@ async def calculate_matching_score(
     required_caps = requirements.get("capabilities", {})
     agent_caps = agent.get("capabilities", {})
 
+    # Handle both dict and list formats for capabilities
     if required_caps:
         max_score += 0.3
-        cap_matches = sum(
-            1 for cap_key, cap_value in required_caps.items()
-            if agent_caps.get(cap_key) == cap_value
-        )
-        if required_caps:
+        if isinstance(required_caps, dict):
+            cap_matches = sum(
+                1 for cap_key, cap_value in required_caps.items()
+                if agent_caps.get(cap_key) == cap_value
+            )
             score += (cap_matches / len(required_caps)) * 0.3
+        elif isinstance(required_caps, list):
+            # If capabilities is a list, just check if agent has any capabilities
+            cap_matches = len(agent_caps) if agent_caps else 0
+            score += (min(cap_matches, len(required_caps)) / len(required_caps)) * 0.3
 
     # Input/output mode compatibility
     required_input = requirements.get("input_modes", [])
@@ -271,7 +276,7 @@ async def calculate_matching_score(
 
 
 matcher = Agent(
-    model='gemini-2.5-flash',
+    model='gemini-2.5-pro',
     name='matcher',
     description=(
         'Matching sub-agent that searches for agents in the platform, '
@@ -321,7 +326,7 @@ Output your matching results with:
         calculate_matching_score,
     ],
     generate_content_config=types.GenerateContentConfig(
-        temperature=0.2,  # Low temperature for consistent matching
+        temperature=0.4,  # Moderate temperature for consistent matching
         safety_settings=[
             types.SafetySetting(
                 category=types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,

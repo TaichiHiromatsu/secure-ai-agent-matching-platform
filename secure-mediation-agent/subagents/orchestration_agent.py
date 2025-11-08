@@ -19,7 +19,6 @@ from datetime import datetime
 from typing import Any
 
 from google.adk import Agent
-from google.adk.agents.remote_a2a_agent import RemoteA2aAgent
 from google.genai import types
 
 
@@ -81,28 +80,40 @@ async def invoke_a2a_agent(
     Returns:
         JSON string with agent response.
     """
-    try:
-        # Construct the agent card URL
-        # The agent_url should be like: http://localhost:8002/a2a/airline_agent
-        # The agent card is at: http://localhost:8002/a2a/airline_agent/.well-known/agent-card.json
-        agent_card_url = f"{agent_url.rstrip('/')}/.well-known/agent-card.json"
+    from google.adk.agents.remote_a2a_agent import RemoteA2aAgent
+    from google.adk.agents.invocation_context import InvocationContext
+    from google.genai.types import Content, Part
 
-        # Create a RemoteA2aAgent instance with the agent card URL
+    try:
+        # Format the input as a message
+        message_text = f"{task}\n\n入力データ:\n{json.dumps(input_data, indent=2, ensure_ascii=False)}"
+
+        # Create RemoteA2aAgent instance
         remote_agent = RemoteA2aAgent(
-            name=f"remote_agent_{agent_url.split('/')[-1]}",
-            description=f"Remote A2A agent at {agent_url}",
-            agent_card=agent_card_url,
+            agent_card_url=f"{agent_url.rstrip('/')}/.well-known/agent.json"
         )
 
-        # Format the input as a message
-        message = f"{task}\n\nInput data: {json.dumps(input_data, ensure_ascii=False)}"
+        # Create user content
+        user_content = Content(
+            role="user",
+            parts=[Part(text=message_text)]
+        )
 
-        # Invoke the agent
-        response = await remote_agent.run(message)
+        # Create InvocationContext with required fields
+        context = InvocationContext(
+            user_content=user_content,
+            session_service=None,  # To be filled
+            invocation_id=None,  # To be filled
+            agent=None,  # To be filled
+            session=None,  # To be filled
+        )
+
+        # Invoke the remote agent
+        response = await remote_agent.run_async(context)
 
         result = {
             "agent_url": agent_url,
-            "output": str(response),
+            "output": response,
             "success": True,
             "timestamp": datetime.now().isoformat(),
         }
@@ -263,17 +274,16 @@ Execution Process:
 
 When executing steps:
 - Always check dependencies first using check_step_dependencies
-- Use invoke_a2a_agent to communicate with remote agents
+- Use execute_plan_step to execute each step which internally calls invoke_a2a_agent
 - Record every execution using record_execution_log
 - Store outputs using the execution context
 - If a step fails, determine if you can continue or must stop
 
-A2A Protocol Guidelines:
-- Fetch agent cards from /.well-known/agent.json
-- Verify protocol version compatibility (v0.3)
-- Send properly formatted requests
-- Handle timeouts and errors gracefully
-- Respect agent capabilities and input/output modes
+A2A Communication:
+- invoke_a2a_agent uses HTTP to communicate with remote A2A agents
+- Provide clear task descriptions and input data in Japanese
+- Handle responses and errors gracefully
+- Respect agent timeouts (120 seconds)
 
 Error Handling:
 - If a step fails but is not critical, log and continue
@@ -282,8 +292,8 @@ Error Handling:
 - Suggest corrective actions when possible
 
 Use the provided tools:
-- execute_plan_step: Execute a single step
-- invoke_a2a_agent: Call an A2A agent
+- execute_plan_step: Execute a single step by calling the A2A agent
+- invoke_a2a_agent: Directly invoke an A2A agent via HTTP
 - check_step_dependencies: Verify dependencies
 - record_execution_log: Log execution details
 - get_step_output: Retrieve previous step outputs
