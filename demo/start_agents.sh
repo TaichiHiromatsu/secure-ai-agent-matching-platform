@@ -14,19 +14,19 @@ echo ""
 
 # Start Airline Agent (port 8002) as A2A server
 echo "Starting Airline Agent (A2A) on port 8002..."
-uv run adk api_server --a2a --port 8002 external-agents/trusted-agents/airline-agent &
+uv run adk api_server --a2a --port 8002 external-agents/trusted-agents/airline_agent &
 AIRLINE_PID=$!
 sleep 2
 
 # Start Hotel Agent (port 8003) as A2A server
 echo "Starting Hotel Agent (A2A) on port 8003..."
-uv run adk api_server --a2a --port 8003 external-agents/trusted-agents/hotel-agent &
+uv run adk api_server --a2a --port 8003 external-agents/trusted-agents/hotel_agent &
 HOTEL_PID=$!
 sleep 2
 
 # Start Car Rental Agent (port 8004) as A2A server
 echo "Starting Car Rental Agent (A2A) on port 8004..."
-uv run adk api_server --a2a --port 8004 external-agents/trusted-agents/car-rental-agent &
+uv run adk api_server --a2a --port 8004 external-agents/trusted-agents/car_rental_agent &
 CAR_PID=$!
 sleep 2
 
