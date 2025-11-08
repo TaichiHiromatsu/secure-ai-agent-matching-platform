@@ -15,14 +15,22 @@
 """Main Secure Mediation Agent that coordinates all sub-agents."""
 
 from google.adk import Agent
+from google.adk.tools import agent_tool
 from google.genai import types
 
 # Import sub-agents
-from secure_mediation_agent.subagents.planning_agent import planning_agent
-from secure_mediation_agent.subagents.matching_agent import matching_agent
-from secure_mediation_agent.subagents.orchestration_agent import orchestration_agent
-from secure_mediation_agent.subagents.anomaly_detection_agent import anomaly_detection_agent
-from secure_mediation_agent.subagents.final_anomaly_detection_agent import final_anomaly_detection_agent
+from subagents.planning_agent import planning_agent
+from subagents.matching_agent import matching_agent
+from subagents.orchestration_agent import orchestration_agent
+from subagents.anomaly_detection_agent import anomaly_detection_agent
+from subagents.final_anomaly_detection_agent import final_anomaly_detection_agent
+
+# Wrap sub-agents as tools
+planning_tool = agent_tool.AgentTool(agent=planning_agent)
+matching_tool = agent_tool.AgentTool(agent=matching_agent)
+orchestration_tool = agent_tool.AgentTool(agent=orchestration_agent)
+anomaly_detection_tool = agent_tool.AgentTool(agent=anomaly_detection_agent)
+final_anomaly_detection_tool = agent_tool.AgentTool(agent=final_anomaly_detection_agent)
 
 
 root_agent = Agent(
@@ -140,11 +148,11 @@ Remember: You are the guardian of this platform. Your primary duty is security,
 but you must balance it with usability. Be helpful, but never compromise safety.
 """,
     tools=[
-        planning_agent,
-        matching_agent,
-        orchestration_agent,
-        anomaly_detection_agent,
-        final_anomaly_detection_agent,
+        planning_tool,
+        matching_tool,
+        orchestration_tool,
+        anomaly_detection_tool,
+        final_anomaly_detection_tool,
     ],
     generate_content_config=types.GenerateContentConfig(
         temperature=0.3,  # Balanced temperature for security and flexibility

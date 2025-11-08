@@ -19,10 +19,12 @@ import asyncio
 import sys
 import os
 
-# Add parent directory to path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+# Add parent directory and secure-mediation-agent to path
+parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, parent_dir)
+sys.path.insert(0, os.path.join(parent_dir, 'secure-mediation-agent'))
 
-from secure_mediation_agent.agent import root_agent
+from agent import root_agent
 
 
 async def demo_okinawa_trip():
