@@ -65,7 +65,7 @@ async def search_agent_store(
     # Mock implementation: Return the three external agents available locally
     mock_agents = [
         {
-            "name": "Airline Agent",
+            "name": "airline_agent",
             "url": "http://localhost:8002/a2a/airline_agent",
             "description": "Handles flight bookings and airline reservations",
             "skills": [
@@ -82,7 +82,7 @@ async def search_agent_store(
             "defaultOutputModes": ["text"],
         },
         {
-            "name": "Hotel Agent",
+            "name": "hotel_agent",
             "url": "http://localhost:8003/a2a/hotel_agent",
             "description": "Manages hotel reservations and accommodation bookings",
             "skills": [
@@ -99,7 +99,7 @@ async def search_agent_store(
             "defaultOutputModes": ["text"],
         },
         {
-            "name": "Car Rental Agent",
+            "name": "car_rental_agent",
             "url": "http://localhost:8004/a2a/car_rental_agent",
             "description": "Provides car rental services and vehicle bookings",
             "skills": [
