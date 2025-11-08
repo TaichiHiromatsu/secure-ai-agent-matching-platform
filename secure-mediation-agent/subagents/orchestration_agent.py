@@ -18,7 +18,6 @@ import json
 from datetime import datetime
 from typing import Any
 
-import httpx
 from google.adk import Agent
 from google.genai import types
 
@@ -71,52 +70,55 @@ async def invoke_a2a_agent(
     task: str,
     input_data: dict[str, Any],
 ) -> str:
-    """Invoke an A2A agent with the given task and input.
+    """Invoke an A2A agent with the given task and input using RemoteA2aAgent.
 
     Args:
-        agent_url: Base URL of the agent.
+        agent_url: Base URL of the agent (e.g., "http://localhost:8002/a2a/airline_agent").
         task: Task description or prompt.
         input_data: Input data for the agent.
 
     Returns:
         JSON string with agent response.
     """
+    from google.adk.agents.remote_a2a_agent import RemoteA2aAgent
+    from google.adk.agents.invocation_context import InvocationContext
+    from google.genai.types import Content, Part
+
     try:
-        # First, fetch the agent card to understand capabilities
-        card_url = f"{agent_url.rstrip('/')}/.well-known/agent.json"
+        # Format the input as a message
+        message_text = f"{task}\n\n入力データ:\n{json.dumps(input_data, indent=2, ensure_ascii=False)}"
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            # Get agent card
-            card_response = await client.get(card_url)
-            card_response.raise_for_status()
-            agent_card = card_response.json()
+        # Create RemoteA2aAgent instance
+        remote_agent = RemoteA2aAgent(
+            agent_card_url=f"{agent_url.rstrip('/')}/.well-known/agent.json"
+        )
 
-            # Prepare the request payload according to A2A protocol
-            # This is a simplified version - actual A2A protocol may have different structure
-            payload = {
-                "task": task,
-                "input": input_data,
-                "protocol_version": agent_card.get("protocolVersion", "0.3"),
-            }
+        # Create user content
+        user_content = Content(
+            role="user",
+            parts=[Part(text=message_text)]
+        )
 
-            # Invoke the agent
-            # Assuming the agent has an endpoint at /invoke or similar
-            invoke_url = f"{agent_url.rstrip('/')}/invoke"
-            agent_response = await client.post(
-                invoke_url,
-                json=payload,
-                headers={"Content-Type": "application/json"},
-            )
-            agent_response.raise_for_status()
+        # Create InvocationContext with required fields
+        context = InvocationContext(
+            user_content=user_content,
+            session_service=None,  # To be filled
+            invocation_id=None,  # To be filled
+            agent=None,  # To be filled
+            session=None,  # To be filled
+        )
 
-            result = {
-                "agent_name": agent_card.get("name", "unknown"),
-                "output": agent_response.json(),
-                "success": True,
-                "timestamp": datetime.now().isoformat(),
-            }
+        # Invoke the remote agent
+        response = await remote_agent.run_async(context)
 
-            return json.dumps(result, indent=2, ensure_ascii=False)
+        result = {
+            "agent_url": agent_url,
+            "output": response,
+            "success": True,
+            "timestamp": datetime.now().isoformat(),
+        }
+
+        return json.dumps(result, indent=2, ensure_ascii=False)
 
     except Exception as e:
         error_result = {
@@ -241,15 +243,17 @@ async def get_step_output(
     }, indent=2, ensure_ascii=False)
 
 
-orchestration_agent = Agent(
-    model='gemini-2.0-flash-exp',
-    name='orchestration_agent',
+orchestrator = Agent(
+    model='gemini-2.5-flash',
+    name='orchestrator',
     description=(
         'Orchestration sub-agent that executes plans step-by-step, '
         'manages A2A agent communication, and tracks execution state.'
     ),
     instruction="""
 You are an orchestration specialist in a secure AI agent mediation platform.
+
+**IMPORTANT: Always respond in Japanese (日本語) to the user.**
 
 Your responsibilities:
 1. **Execute Plans Step-by-Step**: Follow the execution plan precisely
@@ -270,17 +274,16 @@ Execution Process:
 
 When executing steps:
 - Always check dependencies first using check_step_dependencies
-- Use invoke_a2a_agent to communicate with remote agents
+- Use execute_plan_step to execute each step which internally calls invoke_a2a_agent
 - Record every execution using record_execution_log
 - Store outputs using the execution context
 - If a step fails, determine if you can continue or must stop
 
-A2A Protocol Guidelines:
-- Fetch agent cards from /.well-known/agent.json
-- Verify protocol version compatibility (v0.3)
-- Send properly formatted requests
-- Handle timeouts and errors gracefully
-- Respect agent capabilities and input/output modes
+A2A Communication:
+- invoke_a2a_agent uses HTTP to communicate with remote A2A agents
+- Provide clear task descriptions and input data in Japanese
+- Handle responses and errors gracefully
+- Respect agent timeouts (120 seconds)
 
 Error Handling:
 - If a step fails but is not critical, log and continue
@@ -289,8 +292,8 @@ Error Handling:
 - Suggest corrective actions when possible
 
 Use the provided tools:
-- execute_plan_step: Execute a single step
-- invoke_a2a_agent: Call an A2A agent
+- execute_plan_step: Execute a single step by calling the A2A agent
+- invoke_a2a_agent: Directly invoke an A2A agent via HTTP
 - check_step_dependencies: Verify dependencies
 - record_execution_log: Log execution details
 - get_step_output: Retrieve previous step outputs

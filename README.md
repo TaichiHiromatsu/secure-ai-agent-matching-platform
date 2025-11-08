@@ -262,6 +262,9 @@ secure-ai-agent-matching-platform/
 │   ├── agent.py                      # メイン仲介エージェント
 │   ├── models.py                     # データモデル (A2A準拠)
 │   ├── agent-card.json               # A2Aエージェントカード
+│   ├── artifacts/                    # 生成物 (gitignore)
+│   │   ├── plans/                    # 📝 実行プラン (Markdown)
+│   │   └── logs/                     # 📋 実行ログ
 │   └── subagents/                    # サブエージェント
 │       ├── planning_agent.py         # Planner
 │       ├── matching_agent.py         # Matcher
@@ -275,13 +278,17 @@ secure-ai-agent-matching-platform/
 │       ├── hotel-agent/              # 🏨 ホテルエージェント
 │       └── car-rental-agent/         # 🚗 レンタカーエージェント
 │
-├── demo/                             # デモスクリプト
-│   ├── okinawa_trip_demo.py          # 沖縄旅行デモ
-│   └── simple_demo.py                # シンプルデモ
-│
-├── artifacts/                        # 生成物
-│   ├── plans/                        # 📝 実行プラン (Markdown)
-│   └── logs/                         # 📋 実行ログ
+├── demo/                             # 🎬 デモスクリプト・ガイド
+│   ├── README.md                     # デモスクリプトの使い方
+│   ├── DEMO_GUIDE.md                 # 詳細デモガイド
+│   ├── demo.sh                       # メインデモスクリプト
+│   ├── stop_all.sh                   # 全エージェント停止
+│   ├── quick_test.sh                 # 接続確認
+│   ├── start_agents.sh               # 外部エージェント起動
+│   ├── run_web.sh                    # Web UI起動
+│   ├── run_cli.sh                    # CLI起動
+│   ├── okinawa_trip_demo.py          # 沖縄旅行デモ (Python)
+│   └── simple_demo.py                # シンプルデモ (Python)
 │
 ├── docs/                             # ドキュメント
 │   ├── SETUP.md                      # セットアップ手順 (Mac OS)
@@ -296,43 +303,63 @@ secure-ai-agent-matching-platform/
 
 ## 🚀 クイックスタート
 
-### 📋 前提条件 (Mac OS)
+### 📋 前提条件
 
+#### Geniac Prize審査員の方へ
+以下の動作確認環境で検証済みです：
+- **OS**: macOS Sequoia 15.3.2 (x64)
+- **プロセッサ**: Apple M3 Max (x64)
+- **メモリ**: 36GB
+- **ストレージ**: Macintosh HD 1TB
+- **システムの種類**: 64ビット オペレーティング システム、x64ベース プロセッサ
+- **利用ブラウザ**: Microsoft Edge for Business (公式ビルド) (arm64)
+
+#### 一般の環境要件
 - **OS**: macOS 12.0 以降
 - **Python**: 3.12 以上
 - **Homebrew**: インストール済み
-- **Google Cloud アカウント**: Gemini API キー取得済み
+- **Google Cloud アカウント**: Gemini API キー取得済み（Geniac Prize審査員の方は別途共有しているAPI Keyを使用）
 
-### ⚡ 5分でデモ実行
+### ⚡ デモ実行
 
-**詳細な手順は [docs/SETUP.md](docs/SETUP.md) を参照してください。**
+**詳細な手順は [demo/README.md](demo/README.md) または [demo/DEMO_GUIDE.md](demo/DEMO_GUIDE.md) を参照してください。**
 
 ```bash
 # 1. リポジトリをクローン
 git clone <repository-url>
 cd secure-ai-agent-matching-platform
 
-# 2. 依存関係をインストール
-pip install google-adk httpx
+# 2. uvをインストール
+curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# 3. 環境変数を設定
-export GOOGLE_API_KEY="your-gemini-api-key"
+# 3. 依存関係をインストール
+uv sync
 
-# 4. 各エージェントを起動 (別々のターミナルで)
-# ターミナル1: 仲介エージェント
-adk serve secure-mediation-agent/agent.py --port 8001
+# 4. 環境変数を設定
+# ⚠️ Geniac Prize審査員の方: 別途共有しているGemini API Keyをご利用ください
+echo "GOOGLE_API_KEY=your-gemini-api-key" > secure-mediation-agent/.env
 
-# ターミナル2: 航空会社エージェント
-adk serve external-agents/trusted-agents/airline-agent/agent.py --port 8002
+# 5. デモスクリプトで全エージェントを起動（必ず ./ を付ける）
+./demo/demo.sh
 
-# ターミナル3: ホテルエージェント
-adk serve external-agents/trusted-agents/hotel-agent/agent.py --port 8003
+# ✅ ブラウザで http://localhost:8000 が自動的に開きます
+# ✅ Web UIでデモプロンプトを入力してください
+```
 
-# ターミナル4: レンタカーエージェント
-adk serve external-agents/trusted-agents/car-rental-agent/agent.py --port 8004
+**デモプロンプト例:**
+```
+沖縄旅行の予約をお願いします。予約完了まで止まることなく完遂してください。
+- 人数：2人
+- フライト: 羽田→那覇 (12/20-12/23)
+- ホテル: 那覇市内 3泊
+- レンタカー: コンパクトカー
 
-# 5. デモを実行 (ターミナル5)
-python demo/okinawa_trip_demo.py
+エージェント:
+- http://localhost:8002/a2a/airline_agent (フライト)
+- http://localhost:8004/a2a/car_rental_agent (ホテル)
+- http://localhost:8003/a2a/hotel_agent (レンタカー)
+
+セキュリティチェックを行いながら実行プランを作成してください。
 ```
 
 ---

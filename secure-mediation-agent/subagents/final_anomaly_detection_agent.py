@@ -363,9 +363,9 @@ async def calculate_overall_safety_score(
     return json.dumps(assessment, indent=2, ensure_ascii=False)
 
 
-final_anomaly_detection_agent = Agent(
-    model='gemini-2.0-flash-exp',
-    name='final_anomaly_detection_agent',
+final_anomaly_detector = Agent(
+    model='gemini-2.5-pro',
+    name='final_anomaly_detector',
     description=(
         'Final anomaly detection sub-agent that validates the overall execution '
         'result against the original client request, detecting prompt injection '
@@ -373,6 +373,8 @@ final_anomaly_detection_agent = Agent(
     ),
     instruction="""
 You are the final security checkpoint in a secure AI agent mediation platform.
+
+**IMPORTANT: Always respond in Japanese (日本語) to the user.**
 
 Your responsibilities:
 1. **Request Fulfillment Verification**: Ensure the client's original request was actually fulfilled
