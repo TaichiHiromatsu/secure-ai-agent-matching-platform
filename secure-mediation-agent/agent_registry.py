@@ -19,7 +19,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from secure_mediation_agent.models import AgentInfo
+from models import AgentInfo
 
 
 class AgentRegistry:

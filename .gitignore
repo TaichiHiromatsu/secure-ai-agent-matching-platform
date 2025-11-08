@@ -47,7 +47,10 @@ env/
 # Logs
 *.log
 logs/
-artifacts/logs/*.log
+/tmp/*.log
+
+# Artifacts (generated files from mediation agent)
+secure-mediation-agent/artifacts/
 
 # Jupyter Notebook
 .ipynb_checkpoints
@@ -62,6 +65,5 @@ htmlcov/
 .dmypy.json
 dmyp.json
 
-# Geniac Prize submission artifacts (keep structure, ignore content for demo)
-# artifacts/plans/*.md
-# artifacts/logs/*.log
+# PID files for demo scripts
+*.pid

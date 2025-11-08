@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Airline booking agent."""
+"""Hotel booking agent."""
 
-from airline_agent.agent import root_agent
-
-__all__ = ['root_agent']
+from . import agent
