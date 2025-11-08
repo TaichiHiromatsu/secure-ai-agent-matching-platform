@@ -1,36 +1,29 @@
 {
-  "name": "airline_booking_agent",
-  "description": "Airline booking agent that can search for flights and make reservations. Provides comprehensive flight search, booking, and cancellation services for domestic and international travel.",
-  "url": "http://localhost:8002",
-  "version": "1.0.0",
-  "protocolVersion": "0.3",
-  "capabilities": {
-    "flight_search": true,
-    "booking": true,
-    "cancellation": true,
-    "multi_passenger": true
-  },
+  "capabilities": {},
+  "defaultInputModes": ["text/plain"],
+  "defaultOutputModes": ["application/json"],
+  "description": "An agent specialized in handling flight bookings and airline reservations. Provides comprehensive flight search, booking, and cancellation services.",
+  "name": "airline_agent",
   "skills": [
     {
       "id": "flight_search",
       "name": "Flight Search",
-      "description": "Search for available flights between cities with flexible date and passenger options",
-      "tags": ["travel", "flight", "search", "booking"]
+      "description": "Search for available flights based on origin, destination, dates, and preferences",
+      "tags": ["travel", "airline", "booking", "search"]
     },
     {
       "id": "flight_booking",
       "name": "Flight Booking",
-      "description": "Book flights for single or multiple passengers with instant confirmation",
-      "tags": ["travel", "flight", "booking", "reservation"]
+      "description": "Book flights and manage airline reservations",
+      "tags": ["travel", "airline", "booking", "reservation"]
     },
     {
       "id": "booking_cancellation",
       "name": "Booking Cancellation",
-      "description": "Cancel existing flight bookings with refund processing",
-      "tags": ["travel", "flight", "cancellation", "refund"]
+      "description": "Cancel existing flight bookings and process refunds",
+      "tags": ["travel", "airline", "cancellation", "refund"]
     }
   ],
-  "defaultInputModes": ["text/plain"],
-  "defaultOutputModes": ["application/json"],
-  "supportsAuthenticatedExtendedCard": false
+  "url": "http://localhost:8002/a2a/airline_agent",
+  "version": "1.0.0"
 }

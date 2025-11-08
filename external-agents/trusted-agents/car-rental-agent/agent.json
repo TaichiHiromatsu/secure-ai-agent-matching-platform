@@ -1,0 +1,29 @@
+{
+  "capabilities": {},
+  "defaultInputModes": ["text/plain"],
+  "defaultOutputModes": ["application/json"],
+  "description": "An agent specialized in providing car rental services and vehicle bookings. Offers car search, rental booking, and cancellation services.",
+  "name": "car_rental_agent",
+  "skills": [
+    {
+      "id": "car_search",
+      "name": "Car Rental Search",
+      "description": "Search for available rental cars based on location, dates, and vehicle preferences",
+      "tags": ["travel", "car", "rental", "booking", "search"]
+    },
+    {
+      "id": "car_booking",
+      "name": "Car Rental Booking",
+      "description": "Book rental cars and manage vehicle reservations",
+      "tags": ["travel", "car", "rental", "booking", "reservation"]
+    },
+    {
+      "id": "booking_cancellation",
+      "name": "Booking Cancellation",
+      "description": "Cancel existing car rental bookings and process refunds",
+      "tags": ["travel", "car", "cancellation", "refund"]
+    }
+  ],
+  "url": "http://localhost:8004/a2a/car_rental_agent",
+  "version": "1.0.0"
+}

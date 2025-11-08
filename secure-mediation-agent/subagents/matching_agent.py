@@ -47,39 +47,124 @@ async def fetch_agent_card(agent_url: str) -> dict[str, Any]:
         }
 
 
-async def search_agent_registry(
+async def search_agent_store(
     query: str,
-    registry_urls: list[str],
 ) -> str:
-    """Search multiple agent registries for matching agents.
+    """Search multiple agent stores for matching agents.
 
     Args:
         query: Search query describing needed capabilities.
-        registry_urls: List of agent registry URLs to search.
 
     Returns:
         JSON string with search results.
     """
-    all_agents = []
+    # TODO: Replace this mock implementation with actual agent store integration
+    # when the agent store service is implemented.
+    # For now, we use the external-agents in the local environment as mock data.
 
-    for registry_url in registry_urls:
-        try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                # Assuming registry has a search endpoint
-                response = await client.get(
-                    f"{registry_url}/search",
-                    params={"q": query},
-                )
-                response.raise_for_status()
-                agents = response.json().get("agents", [])
-                all_agents.extend(agents)
+    # Mock implementation: Return the three external agents available locally
+    mock_agents = [
+        {
+            "name": "Airline Agent",
+            "url": "http://localhost:8002",
+            "description": "Handles flight bookings and airline reservations",
+            "skills": [
+                {"id": "flight_search", "tags": ["travel", "airline", "booking"]},
+                {"id": "flight_booking", "tags": ["travel", "airline", "booking"]},
+            ],
+            "capabilities": {
+                "booking": True,
+                "search": True,
+                "cancellation": True,
+            },
+            "trust_score": 0.9,
+            "defaultInputModes": ["text"],
+            "defaultOutputModes": ["text"],
+        },
+        {
+            "name": "Hotel Agent",
+            "url": "http://localhost:8003",
+            "description": "Manages hotel reservations and accommodation bookings",
+            "skills": [
+                {"id": "hotel_search", "tags": ["travel", "hotel", "accommodation", "booking"]},
+                {"id": "hotel_booking", "tags": ["travel", "hotel", "accommodation", "booking"]},
+            ],
+            "capabilities": {
+                "booking": True,
+                "search": True,
+                "cancellation": True,
+            },
+            "trust_score": 0.85,
+            "defaultInputModes": ["text"],
+            "defaultOutputModes": ["text"],
+        },
+        {
+            "name": "Car Rental Agent",
+            "url": "http://localhost:8004",
+            "description": "Provides car rental services and vehicle bookings",
+            "skills": [
+                {"id": "car_search", "tags": ["travel", "car", "rental", "booking"]},
+                {"id": "car_booking", "tags": ["travel", "car", "rental", "booking"]},
+            ],
+            "capabilities": {
+                "booking": True,
+                "search": True,
+                "cancellation": True,
+            },
+            "trust_score": 0.8,
+            "defaultInputModes": ["text"],
+            "defaultOutputModes": ["text"],
+        },
+    ]
 
-        except Exception as e:
-            # Log error but continue with other registries
-            print(f"Error searching registry {registry_url}: {e}")
-            continue
+    # Simple keyword-based filtering for mock implementation
+    query_lower = query.lower()
+    filtered_agents = []
 
-    return json.dumps({"agents": all_agents, "count": len(all_agents)}, ensure_ascii=False)
+    for agent in mock_agents:
+        # Check if query matches agent name, description, or skill tags
+        matches = False
+        if any(keyword in agent["description"].lower() for keyword in query_lower.split()):
+            matches = True
+        for skill in agent["skills"]:
+            if any(keyword in tag for tag in skill["tags"] for keyword in query_lower.split()):
+                matches = True
+                break
+
+        if matches:
+            filtered_agents.append(agent)
+
+    # If no specific matches, return all agents (broad search)
+    if not filtered_agents:
+        filtered_agents = mock_agents
+
+    return json.dumps(
+        {"agents": filtered_agents, "count": len(filtered_agents)},
+        ensure_ascii=False,
+        indent=2,
+    )
+
+    # TODO: Uncomment this when agent store is ready
+    # all_agents = []
+    #
+    # for store_url in store_urls:
+    #     try:
+    #         async with httpx.AsyncClient(timeout=10.0) as client:
+    #             # Assuming store has a search endpoint
+    #             response = await client.get(
+    #                 f"{store_url}/search",
+    #                 params={"q": query},
+    #             )
+    #             response.raise_for_status()
+    #             agents = response.json().get("agents", [])
+    #             all_agents.extend(agents)
+    #
+    #     except Exception as e:
+    #         # Log error but continue with other stores
+    #         print(f"Error searching store {store_url}: {e}")
+    #         continue
+    #
+    # return json.dumps({"agents": all_agents, "count": len(all_agents)}, ensure_ascii=False)
 
 
 async def rank_agents_by_trust(
@@ -185,9 +270,9 @@ async def calculate_matching_score(
     return score / max_score
 
 
-matching_agent = Agent(
-    model='gemini-2.0-flash-exp',
-    name='matching_agent',
+matcher = Agent(
+    model='gemini-2.5-flash',
+    name='matcher',
     description=(
         'Matching sub-agent that searches for agents in the platform, '
         'evaluates their capabilities, and ranks them by trust scores.'
@@ -195,8 +280,10 @@ matching_agent = Agent(
     instruction="""
 You are a matching specialist in a secure AI agent mediation platform.
 
+**IMPORTANT: Always respond in Japanese (日本語) to the user.**
+
 Your responsibilities:
-1. **Search Agent Registry**: Find agents that match the client's requirements
+1. **Search Agent Store**: Find agents that match the client's requirements
 2. **Evaluate Capabilities**: Assess if agents have the needed skills and capabilities
 3. **Rank by Trust**: Prioritize agents with higher trust scores
 4. **Fetch Agent Cards**: Retrieve detailed agent information from A2A endpoints
@@ -217,7 +304,7 @@ Trust Score Guidelines:
 
 Always use the available tools to:
 - fetch_agent_card: Get agent details from A2A endpoints
-- search_agent_registry: Query agent registries
+- search_agent_store: Query agent stores
 - rank_agents_by_trust: Sort and filter by trust scores
 - calculate_matching_score: Evaluate agent-requirement fit
 
@@ -229,7 +316,7 @@ Output your matching results with:
 """,
     tools=[
         fetch_agent_card,
-        search_agent_registry,
+        search_agent_store,
         rank_agents_by_trust,
         calculate_matching_score,
     ],
