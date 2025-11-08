@@ -50,7 +50,7 @@ async def execute_plan_step(
 
     try:
         # Invoke the A2A agent
-        response = await invoke_a2a_agent(agent_url, task_description, input_data)
+        response = await invoke_a2a_agent(agent_url, agent_name, task_description, input_data)
         response_data = json.loads(response)
 
         result["status"] = "completed"
@@ -67,58 +67,144 @@ async def execute_plan_step(
 
 async def invoke_a2a_agent(
     agent_url: str,
+    agent_name: str,
     task: str,
     input_data: dict[str, Any],
 ) -> str:
-    """Invoke an A2A agent with the given task and input using RemoteA2aAgent.
+    """Invoke an A2A agent with the given task and input using A2A client.
 
     Args:
         agent_url: Base URL of the agent (e.g., "http://localhost:8002/a2a/airline_agent").
+        agent_name: Name of the agent.
         task: Task description or prompt.
         input_data: Input data for the agent.
 
     Returns:
         JSON string with agent response.
     """
-    from google.adk.agents.remote_a2a_agent import RemoteA2aAgent
-    from google.adk.agents.invocation_context import InvocationContext
-    from google.genai.types import Content, Part
+    import uuid
+    import httpx
+    from a2a.client.card_resolver import A2ACardResolver
+    from a2a.client.client_factory import ClientFactory as A2AClientFactory
+    from a2a.client.client import ClientConfig as A2AClientConfig
+    from a2a.types import TransportProtocol as A2ATransport
+    from a2a.types import Message as A2AMessage
+    from a2a.types import Part as A2APart
 
     try:
-        # Format the input as a message
-        message_text = f"{task}\n\n入力データ:\n{json.dumps(input_data, indent=2, ensure_ascii=False)}"
-
-        # Create RemoteA2aAgent instance
-        remote_agent = RemoteA2aAgent(
-            agent_card_url=f"{agent_url.rstrip('/')}/.well-known/agent.json"
-        )
-
-        # Create user content
-        user_content = Content(
-            role="user",
-            parts=[Part(text=message_text)]
-        )
-
-        # Create InvocationContext with required fields
-        context = InvocationContext(
-            user_content=user_content,
-            session_service=None,  # To be filled
-            invocation_id=None,  # To be filled
-            agent=None,  # To be filled
-            session=None,  # To be filled
-        )
-
-        # Invoke the remote agent
-        response = await remote_agent.run_async(context)
-
-        result = {
-            "agent_url": agent_url,
-            "output": response,
-            "success": True,
-            "timestamp": datetime.now().isoformat(),
+        # Format the input as a clear, actionable message
+        # Map Japanese keys to English parameter names expected by the agent
+        param_mapping = {
+            "出発地": "departure",
+            "目的地": "destination",
+            "出発日": "departure_date",
+            "帰着日": "return_date",
+            "復路日": "return_date",
+            "人数": "passengers",
         }
 
-        return json.dumps(result, indent=2, ensure_ascii=False)
+        # Convert input data to English parameter names
+        mapped_data = {}
+        for jp_key, value in input_data.items():
+            eng_key = param_mapping.get(jp_key, jp_key)
+            mapped_data[eng_key] = value
+
+        # Create a natural language message that clearly instructs the agent
+        message_text = f"""{task}
+
+Please use the following information:
+{json.dumps(mapped_data, indent=2, ensure_ascii=False)}
+
+Please call the appropriate tool with these parameters to complete this task."""
+
+        # Get agent card URL
+        card_url = f"{agent_url.rstrip('/')}/.well-known/agent.json"
+
+        # Create HTTP client and resolve agent card
+        async with httpx.AsyncClient(timeout=httpx.Timeout(timeout=60.0)) as client:
+            # Parse the base URL from agent_url
+            from urllib.parse import urlparse
+            parsed_url = urlparse(agent_url)
+            base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
+            relative_card_path = parsed_url.path + "/.well-known/agent.json"
+
+            # Resolve agent card
+            resolver = A2ACardResolver(httpx_client=client, base_url=base_url)
+            agent_card = await resolver.get_agent_card(relative_card_path=relative_card_path)
+
+            # Create A2A client
+            client_config = A2AClientConfig(
+                httpx_client=client,
+                streaming=False,
+                polling=False,
+                supported_transports=[A2ATransport.jsonrpc],
+            )
+            client_factory = A2AClientFactory(config=client_config)
+            a2a_client = client_factory.create(agent_card)
+
+            # Create A2A message
+            a2a_message = A2AMessage(
+                message_id=str(uuid.uuid4()),
+                parts=[A2APart(text=message_text)],
+                role="user",
+            )
+
+            # Send message and get response
+            responses = []
+            import logging
+            logger = logging.getLogger(__name__)
+
+            async for a2a_response in a2a_client.send_message(request=a2a_message):
+                # Debug: Log the response type and structure
+                logger.info(f"A2A Response type: {type(a2a_response)}")
+                logger.info(f"A2A Response: {a2a_response}")
+
+                # Handle response
+                if isinstance(a2a_response, tuple):
+                    task_obj, update = a2a_response
+                    logger.info(f"Task object: {task_obj}")
+                    logger.info(f"Has artifacts: {bool(task_obj.artifacts)}")
+                    logger.info(f"Has status: {bool(task_obj.status)}")
+                    logger.info(f"Has history: {bool(task_obj.history)}")
+
+                    # Extract message from task
+                    if task_obj.artifacts:
+                        logger.info(f"Extracting from artifacts: {task_obj.artifacts[-1]}")
+                        # Get last artifact's parts
+                        for part in task_obj.artifacts[-1].parts:
+                            logger.info(f"Artifact part: {part}, has text: {hasattr(part, 'text')}")
+                            if hasattr(part, 'text') and part.text:
+                                responses.append(part.text)
+                    elif task_obj.status and task_obj.status.message:
+                        logger.info(f"Extracting from status.message: {task_obj.status.message}")
+                        # Extract from status message
+                        for part in task_obj.status.message.parts:
+                            logger.info(f"Status message part: {part}, has text: {hasattr(part, 'text')}")
+                            if hasattr(part, 'text') and part.text:
+                                responses.append(part.text)
+                    elif task_obj.history:
+                        logger.info(f"Extracting from history: {task_obj.history[-1]}")
+                        # Extract from last history message
+                        for part in task_obj.history[-1].parts:
+                            logger.info(f"History part: {part}, has text: {hasattr(part, 'text')}")
+                            if hasattr(part, 'text') and part.text:
+                                responses.append(part.text)
+                elif hasattr(a2a_response, 'parts'):
+                    logger.info(f"Regular message response with parts: {a2a_response.parts}")
+                    # Regular message response
+                    for part in a2a_response.parts:
+                        logger.info(f"Message part: {part}, has text: {hasattr(part, 'text')}")
+                        if hasattr(part, 'text') and part.text:
+                            responses.append(part.text)
+
+            result = {
+                "agent_url": agent_url,
+                "output": "\n".join(responses) if responses else "No response received",
+                "success": True,
+                "timestamp": datetime.now().isoformat(),
+            }
+
+            return json.dumps(result, indent=2, ensure_ascii=False)
 
     except Exception as e:
         error_result = {
