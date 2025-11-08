@@ -19,10 +19,18 @@ import asyncio
 import sys
 import os
 
-# Add parent directory to path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+# Add parent directory and secure-mediation-agent to path
+parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, parent_dir)
+sys.path.insert(0, os.path.join(parent_dir, 'secure-mediation-agent'))
 
-from secure_mediation_agent.agent import root_agent
+from agent import root_agent
+from google.adk import Runner
+from google.adk.sessions import InMemorySessionService
+from google.genai import types
+
+# Create session service
+session_service = InMemorySessionService()
 
 
 async def demo_simple_request():
@@ -39,14 +47,33 @@ async def demo_simple_request():
     print("-" * 80)
 
     try:
-        # Send request to the mediation agent
-        response = await root_agent.send_message(client_request)
+        # Create session
+        session = await session_service.create_session(
+            app_name="SecureAgentDemo",
+            user_id="demo_user"
+        )
 
+        # Create runner
+        runner = Runner(agent=root_agent, app_name="SecureAgentDemo", session_service=session_service)
+
+        # Prepare content
+        content = types.Content(role='user', parts=[types.Part(text=client_request)])
+
+        # Run the agent
+        events = runner.run(user_id="demo_user", session_id=session.id, new_message=content)
+
+        # Process events
         print("\nMediation Agent Response:")
-        print(response.text)
+        for event in events:
+            if event.is_final_response() and event.content:
+                for part in event.content.parts:
+                    if part.text:
+                        print(part.text)
 
     except Exception as e:
         print(f"\nError: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 async def demo_complex_request():
@@ -66,13 +93,27 @@ async def demo_complex_request():
     print("-" * 80)
 
     try:
-        response = await root_agent.send_message(client_request)
+        # Create session
+        session = await session_service.create_session(
+            app_name="SecureAgentDemo",
+            user_id="demo_user"
+        )
+
+        runner = Runner(agent=root_agent, app_name="SecureAgentDemo", session_service=session_service)
+        content = types.Content(role='user', parts=[types.Part(text=client_request)])
+        events = runner.run(user_id="demo_user", session_id=session.id, new_message=content)
 
         print("\nMediation Agent Response:")
-        print(response.text)
+        for event in events:
+            if event.is_final_response() and event.content:
+                for part in event.content.parts:
+                    if part.text:
+                        print(part.text)
 
     except Exception as e:
         print(f"\nError: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 async def demo_with_agent_urls():
@@ -96,13 +137,27 @@ async def demo_with_agent_urls():
     print("-" * 80)
 
     try:
-        response = await root_agent.send_message(client_request)
+        # Create session
+        session = await session_service.create_session(
+            app_name="SecureAgentDemo",
+            user_id="demo_user"
+        )
+
+        runner = Runner(agent=root_agent, app_name="SecureAgentDemo", session_service=session_service)
+        content = types.Content(role='user', parts=[types.Part(text=client_request)])
+        events = runner.run(user_id="demo_user", session_id=session.id, new_message=content)
 
         print("\nMediation Agent Response:")
-        print(response.text)
+        for event in events:
+            if event.is_final_response() and event.content:
+                for part in event.content.parts:
+                    if part.text:
+                        print(part.text)
 
     except Exception as e:
         print(f"\nError: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 async def main():

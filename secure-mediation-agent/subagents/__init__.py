@@ -14,11 +14,11 @@
 
 """Sub-agents for the secure mediation agent."""
 
-from secure_mediation_agent.subagents.planning_agent import planning_agent
-from secure_mediation_agent.subagents.matching_agent import matching_agent
-from secure_mediation_agent.subagents.orchestration_agent import orchestration_agent
-from secure_mediation_agent.subagents.anomaly_detection_agent import anomaly_detection_agent
-from secure_mediation_agent.subagents.final_anomaly_detection_agent import final_anomaly_detection_agent
+from .planning_agent import planning_agent
+from .matching_agent import matching_agent
+from .orchestration_agent import orchestration_agent
+from .anomaly_detection_agent import anomaly_detection_agent
+from .final_anomaly_detection_agent import final_anomaly_detection_agent
 
 __all__ = [
     'planning_agent',
