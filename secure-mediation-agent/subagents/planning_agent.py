@@ -35,18 +35,26 @@ async def save_plan_as_artifact(
         plan_id: Unique identifier for the plan.
         client_request: Original client request.
         plan_content: The plan content in markdown format.
-        output_dir: Directory to save the plan artifact.
+        output_dir: Directory to save the plan artifact (relative to project root).
 
     Returns:
         Path to the saved plan file.
     """
+    # Convert to absolute path relative to project root
+    if not os.path.isabs(output_dir):
+        # Get the project root directory (parent of secure-mediation-agent)
+        current_dir = Path(__file__).parent.parent.parent
+        output_dir = current_dir / output_dir
+    else:
+        output_dir = Path(output_dir)
+
     # Create output directory if it doesn't exist
-    Path(output_dir).mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     # Generate filename
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"{plan_id}_{timestamp}.md"
-    filepath = os.path.join(output_dir, filename)
+    filepath = output_dir / filename
 
     # Create markdown document
     markdown_content = f"""# Execution Plan: {plan_id}
@@ -67,7 +75,7 @@ async def save_plan_as_artifact(
     with open(filepath, 'w', encoding='utf-8') as f:
         f.write(markdown_content)
 
-    return filepath
+    return str(filepath)
 
 
 async def create_structured_plan(

@@ -145,7 +145,19 @@ pwd
 ./demo/quick_test.sh
 ```
 
-### Step 3: Web UI (http://localhost:8000) でデモプロンプトを入力
+### Step 3: Web UI (http://localhost:8000) でエージェントを選択してデモプロンプトを入力
+
+#### 3-1. エージェントの選択
+ブラウザでWeb UIが開いたら、まず**secure-mediation-agent**を選択してください：
+
+Web UI左側のエージェント一覧から「**secure-mediation-agent**」を選択
+
+
+![エージェント選択画面](../docs/images/select-agent.png)
+
+**⚠️ 重要:** secure-mediation-agent が選択されていないと、セキュリティチェックが実行されません。
+
+#### 3-2. デモプロンプトの入力
 
 **デモプロンプト例:**
 ```

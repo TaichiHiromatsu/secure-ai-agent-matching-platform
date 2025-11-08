@@ -60,19 +60,19 @@ echo ""
 
 # Start Airline Agent (port 8002) as A2A server
 echo -e "${GREEN}✈️  Starting Airline Agent (A2A) on port 8002...${NC}"
-uv run adk api_server --a2a --port 8002 external-agents/trusted-agents/airline-agent > /tmp/airline-agent.log 2>&1 &
+uv run adk api_server --a2a --port 8002 external-agents/trusted-agents/ > /tmp/airline-agent.log 2>&1 &
 AIRLINE_PID=$!
 sleep 3
 
 # Start Hotel Agent (port 8003) as A2A server
 echo -e "${GREEN}🏨 Starting Hotel Agent (A2A) on port 8003...${NC}"
-uv run adk api_server --a2a --port 8003 external-agents/trusted-agents/hotel-agent > /tmp/hotel-agent.log 2>&1 &
+uv run adk api_server --a2a --port 8003 external-agents/trusted-agents/ > /tmp/hotel-agent.log 2>&1 &
 HOTEL_PID=$!
 sleep 3
 
 # Start Car Rental Agent (port 8004) as A2A server
 echo -e "${GREEN}🚗 Starting Car Rental Agent (A2A) on port 8004...${NC}"
-uv run adk api_server --a2a --port 8004 external-agents/trusted-agents/car-rental-agent > /tmp/car-agent.log 2>&1 &
+uv run adk api_server --a2a --port 8004 external-agents/trusted-agents/ > /tmp/car-agent.log 2>&1 &
 CAR_PID=$!
 sleep 3
 
@@ -164,19 +164,19 @@ echo "  🏨 Hotel Agent:          http://localhost:8003"
 echo "  🚗 Car Rental Agent:     http://localhost:8004"
 echo "  🛡️  Mediation Agent (UI): http://localhost:8000"
 echo ""
-echo -e "${YELLOW}📝 Example Prompt:${NC}"
+echo -e "${YELLOW}📝 How to Use:${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "1. ブラウザが開いたら、左上の「Select an agent」をクリック"
+echo "2. 「secure-mediation-agent」を選択"
+echo "3. 以下の例をコピーして入力してください:"
+echo ""
 echo "沖縄旅行の予約をお願いします。"
-echo "- フライト: 羽田→那覇 (12/20-12/23)"
-echo "- ホテル: 那覇市内 3泊"
-echo "- レンタカー: コンパクトカー"
 echo ""
-echo "エージェント:"
-echo "- http://localhost:8002 (フライト)"
-echo "- http://localhost:8003 (ホテル)"
-echo "- http://localhost:8004 (レンタカー)"
-echo ""
-echo "セキュリティチェックを行いながら実行プランを作成してください。"
+echo "人数：2人"
+echo "フライト: 羽田→那覇 (12/20-12/23)"
+echo "ホテル: 那覇市内 3泊"
+echo "レンタカー: コンパクトカー"
+echo "予約完了まで完遂してください"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 echo -e "${YELLOW}📚 Logs:${NC}"
