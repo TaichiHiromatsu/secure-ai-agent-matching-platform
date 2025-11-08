@@ -329,15 +329,17 @@ async def should_stop_execution(
     return json.dumps(decision, indent=2, ensure_ascii=False)
 
 
-anomaly_detection_agent = Agent(
-    model='gemini-2.0-flash-exp',
-    name='anomaly_detection_agent',
+anomaly_detector = Agent(
+    model='gemini-2.5-flash',
+    name='anomaly_detector',
     description=(
         'Anomaly detection sub-agent that monitors execution in real-time, '
         'detects plan deviations, and identifies suspicious behaviors.'
     ),
     instruction="""
 You are an anomaly detection specialist in a secure AI agent mediation platform.
+
+**IMPORTANT: Always respond in Japanese (日本語) to the user.**
 
 Your responsibilities:
 1. **Real-time Monitoring**: Watch all agent interactions during execution

@@ -1,0 +1,14 @@
+[project]
+name = "secure-ai-agent-matching-platform"
+version = "0.1.0"
+description = "Secure AI Agent Matching Platform with A2A Protocol"
+requires-python = ">=3.12"
+dependencies = [
+    "google-adk[a2a]",
+    "httpx",
+]
+
+[tool.uv]
+dev-dependencies = []
+
+[tool.uv.sources]

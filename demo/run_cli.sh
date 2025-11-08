@@ -1,7 +1,8 @@
 #!/bin/bash
 # Run ADK CLI with environment variables
 
-cd "$(dirname "$0")"
+# Move to project root
+cd "$(dirname "$0")/.."
 
 # Load environment variables from .env file if it exists
 if [ -f "secure-mediation-agent/.env" ]; then
@@ -12,4 +13,4 @@ fi
 echo "Starting ADK CLI..."
 echo "Type 'exit' to quit"
 echo ""
-adk run secure-mediation-agent
+uv run adk run secure-mediation-agent

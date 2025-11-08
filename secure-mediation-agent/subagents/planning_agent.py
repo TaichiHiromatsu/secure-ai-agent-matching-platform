@@ -96,15 +96,17 @@ async def create_structured_plan(
     return json.dumps(plan, indent=2, ensure_ascii=False)
 
 
-planning_agent = Agent(
-    model='gemini-2.0-flash-exp',
-    name='planning_agent',
+planner = Agent(
+    model='gemini-2.5-pro',
+    name='planner',
     description=(
         'Planning sub-agent that analyzes client requests and creates '
         'step-by-step execution plans using matched agents.'
     ),
     instruction="""
 You are a planning specialist in a secure AI agent mediation platform.
+
+**IMPORTANT: Always respond in Japanese (日本語) to the user.**
 
 Your responsibilities:
 1. **Analyze Client Requests**: Carefully understand what the client wants to achieve
