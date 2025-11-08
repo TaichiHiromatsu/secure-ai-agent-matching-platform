@@ -1,0 +1,43 @@
+{
+  "name": "hotel_booking_agent",
+  "description": "Hotel booking agent that can search for hotels and make reservations. Provides comprehensive hotel search, booking, and cancellation services with detailed hotel information.",
+  "url": "http://localhost:8003",
+  "version": "1.0.0",
+  "protocolVersion": "0.3",
+  "capabilities": {
+    "hotel_search": true,
+    "booking": true,
+    "cancellation": true,
+    "hotel_details": true,
+    "special_requests": true
+  },
+  "skills": [
+    {
+      "id": "hotel_search",
+      "name": "Hotel Search",
+      "description": "Search for available hotels in any location with flexible date and guest options",
+      "tags": ["travel", "hotel", "search", "accommodation"]
+    },
+    {
+      "id": "hotel_booking",
+      "name": "Hotel Booking",
+      "description": "Book hotel rooms with instant confirmation and support for special requests",
+      "tags": ["travel", "hotel", "booking", "reservation"]
+    },
+    {
+      "id": "booking_cancellation",
+      "name": "Booking Cancellation",
+      "description": "Cancel existing hotel bookings with refund processing",
+      "tags": ["travel", "hotel", "cancellation", "refund"]
+    },
+    {
+      "id": "hotel_information",
+      "name": "Hotel Information",
+      "description": "Get detailed information about hotels including amenities, contact details, and policies",
+      "tags": ["travel", "hotel", "information", "details"]
+    }
+  ],
+  "defaultInputModes": ["text/plain"],
+  "defaultOutputModes": ["application/json"],
+  "supportsAuthenticatedExtendedCard": false
+}
