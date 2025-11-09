@@ -71,7 +71,13 @@ async def invoke_a2a_agent(
     task: str,
     input_data: dict[str, Any],
 ) -> str:
-    """Invoke an A2A agent with the given task and input using A2A client.
+    """Invoke an A2A agent with the given task and input using ADK's RemoteA2aAgent.
+
+    This uses Google ADK's built-in RemoteA2aAgent which automatically handles:
+    - Multi-turn conversations
+    - Task state management
+    - Agent card resolution
+    - A2A protocol communication
 
     Args:
         agent_url: Base URL of the agent (e.g., "http://localhost:8002/a2a/airline_agent").
@@ -82,131 +88,100 @@ async def invoke_a2a_agent(
     Returns:
         JSON string with agent response.
     """
+    from google.adk.agents.remote_a2a_agent import RemoteA2aAgent
+    from google.adk import Runner
+    from google.adk.sessions.in_memory_session_service import InMemorySessionService
+    from google.genai import types
+    import logging
     import uuid
-    import httpx
-    from a2a.client.card_resolver import A2ACardResolver
-    from a2a.client.client_factory import ClientFactory as A2AClientFactory
-    from a2a.client.client import ClientConfig as A2AClientConfig
-    from a2a.types import TransportProtocol as A2ATransport
-    from a2a.types import Message as A2AMessage
-    from a2a.types import Part as A2APart
+
+    logger = logging.getLogger(__name__)
 
     try:
-        # Format the input as a clear, actionable message
-        # Map Japanese keys to English parameter names expected by the agent
-        param_mapping = {
-            "出発地": "departure",
-            "目的地": "destination",
-            "出発日": "departure_date",
-            "帰着日": "return_date",
-            "復路日": "return_date",
-            "人数": "passengers",
-        }
-
-        # Convert input data to English parameter names
-        mapped_data = {}
-        for jp_key, value in input_data.items():
-            eng_key = param_mapping.get(jp_key, jp_key)
-            mapped_data[eng_key] = value
-
-        # Create a natural language message that clearly instructs the agent
-        message_text = f"""{task}
-
-Please use the following information:
-{json.dumps(mapped_data, indent=2, ensure_ascii=False)}
-
-Please call the appropriate tool with these parameters to complete this task."""
-
         # Get agent card URL
         card_url = f"{agent_url.rstrip('/')}/.well-known/agent.json"
 
-        # Create HTTP client and resolve agent card
-        async with httpx.AsyncClient(timeout=httpx.Timeout(timeout=60.0)) as client:
-            # Parse the base URL from agent_url
-            from urllib.parse import urlparse
-            parsed_url = urlparse(agent_url)
-            base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
-            relative_card_path = parsed_url.path + "/.well-known/agent.json"
+        # Create RemoteA2aAgent - ADK handles all A2A protocol details
+        remote_agent = RemoteA2aAgent(
+            name=agent_name,
+            agent_card=card_url,
+            timeout=120.0,  # 2 minutes timeout
+        )
 
-            # Resolve agent card
-            resolver = A2ACardResolver(httpx_client=client, base_url=base_url)
-            agent_card = await resolver.get_agent_card(relative_card_path=relative_card_path)
+        # Format the message with task and input data
+        # Keep it simple and natural - let the remote agent interpret the request
+        message_text = f"""{task}
 
-            # Create A2A client
-            client_config = A2AClientConfig(
-                httpx_client=client,
-                streaming=False,
-                polling=False,
-                supported_transports=[A2ATransport.jsonrpc],
-            )
-            client_factory = A2AClientFactory(config=client_config)
-            a2a_client = client_factory.create(agent_card)
+Input data:
+{json.dumps(input_data, indent=2, ensure_ascii=False)}"""
 
-            # Create A2A message
-            a2a_message = A2AMessage(
-                message_id=str(uuid.uuid4()),
-                parts=[A2APart(text=message_text)],
-                role="user",
-            )
+        logger.info(f"Invoking A2A agent {agent_name} at {agent_url}")
+        logger.info(f"Message: {message_text}")
 
-            # Send message and get response
-            responses = []
-            import logging
-            logger = logging.getLogger(__name__)
+        # Generate unique IDs for user and session
+        user_id = f"orchestrator-{uuid.uuid4().hex[:8]}"
+        session_id = f"session-{uuid.uuid4().hex[:8]}"
 
-            async for a2a_response in a2a_client.send_message(request=a2a_message):
-                # Debug: Log the response type and structure
-                logger.info(f"A2A Response type: {type(a2a_response)}")
-                logger.info(f"A2A Response: {a2a_response}")
+        # Create session service and session
+        session_service = InMemorySessionService()
+        await session_service.create_session(
+            app_name="orchestrator",
+            user_id=user_id,
+            session_id=session_id,
+            state={}
+        )
 
-                # Handle response
-                if isinstance(a2a_response, tuple):
-                    task_obj, update = a2a_response
-                    logger.info(f"Task object: {task_obj}")
-                    logger.info(f"Has artifacts: {bool(task_obj.artifacts)}")
-                    logger.info(f"Has status: {bool(task_obj.status)}")
-                    logger.info(f"Has history: {bool(task_obj.history)}")
+        # Create a Runner for the remote agent
+        runner = Runner(
+            agent=remote_agent,
+            app_name="orchestrator",
+            session_service=session_service
+        )
 
-                    # Extract message from task
-                    if task_obj.artifacts:
-                        logger.info(f"Extracting from artifacts: {task_obj.artifacts[-1]}")
-                        # Get last artifact's parts
-                        for part in task_obj.artifacts[-1].parts:
-                            logger.info(f"Artifact part: {part}, has text: {hasattr(part, 'text')}")
-                            if hasattr(part, 'text') and part.text:
-                                responses.append(part.text)
-                    elif task_obj.status and task_obj.status.message:
-                        logger.info(f"Extracting from status.message: {task_obj.status.message}")
-                        # Extract from status message
-                        for part in task_obj.status.message.parts:
-                            logger.info(f"Status message part: {part}, has text: {hasattr(part, 'text')}")
-                            if hasattr(part, 'text') and part.text:
-                                responses.append(part.text)
-                    elif task_obj.history:
-                        logger.info(f"Extracting from history: {task_obj.history[-1]}")
-                        # Extract from last history message
-                        for part in task_obj.history[-1].parts:
-                            logger.info(f"History part: {part}, has text: {hasattr(part, 'text')}")
-                            if hasattr(part, 'text') and part.text:
-                                responses.append(part.text)
-                elif hasattr(a2a_response, 'parts'):
-                    logger.info(f"Regular message response with parts: {a2a_response.parts}")
-                    # Regular message response
-                    for part in a2a_response.parts:
-                        logger.info(f"Message part: {part}, has text: {hasattr(part, 'text')}")
+        # Create the message content
+        new_message = types.Content(
+            parts=[types.Part(text=message_text)],
+            role="user"
+        )
+
+        # Run the agent - ADK automatically handles multi-turn conversations
+        # The run_async method returns an async generator that yields events
+        # We collect all response parts from the agent
+        response_parts = []
+
+        async for event in runner.run_async(
+            user_id=user_id,
+            session_id=session_id,
+            new_message=new_message
+        ):
+            logger.info(f"A2A agent {agent_name} event: {type(event).__name__}")
+
+            # Extract text from different event types
+            if hasattr(event, 'content') and event.content:
+                if isinstance(event.content, str):
+                    response_parts.append(event.content)
+                else:
+                    # Handle Content object with parts
+                    for part in event.content.parts:
                         if hasattr(part, 'text') and part.text:
-                            responses.append(part.text)
+                            response_parts.append(part.text)
 
-            result = {
-                "agent_url": agent_url,
-                "output": "\n".join(responses) if responses else "No response received",
-                "success": True,
-                "timestamp": datetime.now().isoformat(),
-            }
+        logger.info(f"A2A agent {agent_name} completed with {len(response_parts)} response parts")
 
-            return json.dumps(result, indent=2, ensure_ascii=False)
+        # Combine all response parts
+        response_text = "\n".join(response_parts) if response_parts else "No response received"
+
+        result = {
+            "agent_url": agent_url,
+            "output": response_text,
+            "success": True,
+            "timestamp": datetime.now().isoformat(),
+        }
+
+        return json.dumps(result, indent=2, ensure_ascii=False)
 
     except Exception as e:
+        logger.error(f"Error invoking A2A agent {agent_name}: {e}", exc_info=True)
         error_result = {
             "agent_url": agent_url,
             "error": str(e),
