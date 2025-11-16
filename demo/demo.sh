@@ -113,9 +113,12 @@ echo -e "${BLUE}🛡️  Starting Secure Mediation Agent (Web UI)...${NC}"
 echo ""
 echo -e "${GREEN}🌐 Starting Web UI on http://localhost:8000${NC}"
 echo -e "${YELLOW}📝 This will allow reviewers to trace execution in the web interface${NC}"
+echo -e "${YELLOW}🔒 A2A Security Judge implementation available in secure-mediation-agent/security/${NC}"
 sleep 2
 
-uv run adk web --port 8000 --reload> /tmp/mediation-agent.log 2>&1 &
+# Start with standard ADK web (Plugin integration requires ADK version upgrade)
+# Start from project root so secure-mediation-agent folder appears in the list
+uv run adk web --port 8000 --reload > /tmp/mediation-agent.log 2>&1 &
 MEDIATION_PID=$!
 sleep 5
 

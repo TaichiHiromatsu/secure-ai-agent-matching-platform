@@ -52,6 +52,21 @@ logs/
 # Artifacts (generated files from mediation agent)
 secure-mediation-agent/artifacts/
 
+# JSON files (plans, conversations, etc.)
+*.json
+!package.json
+!package-lock.json
+!tsconfig.json
+!.vscode/*.json
+artifacts/**/*.json
+plans/**/*.json
+travel_plans/**/*.json
+
+# Generated plan files
+plans/
+travel_plans/
+artifacts/plans/
+
 # Jupyter Notebook
 .ipynb_checkpoints
 
