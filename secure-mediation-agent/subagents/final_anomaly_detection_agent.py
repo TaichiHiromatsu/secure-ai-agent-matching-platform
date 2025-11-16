@@ -22,6 +22,9 @@ from typing import Any
 from google.adk import Agent
 from google.genai import types
 
+# Import conversation history utilities
+from ..utils.plan_utils import load_all_conversations, load_plan_from_artifact
+
 
 async def verify_request_fulfillment(
     client_request: str,
@@ -431,6 +434,28 @@ Use the provided tools:
 - detect_prompt_injection: Scan for injection attempts
 - detect_hallucination_chain: Find inconsistencies
 - calculate_overall_safety_score: Make final assessment
+- load_all_conversations: Load all conversation histories for a plan_id
+- load_plan_from_artifact: Load original execution plan
+
+**Conversation History Analysis**:
+When you receive a plan_id, you MUST:
+1. Use `load_all_conversations(plan_id)` to retrieve all agent interactions
+2. Use `load_plan_from_artifact(plan_id)` to get the original plan
+3. Analyze FULL multi-turn conversations including:
+   - All text exchanges between orchestrator and external agents
+   - Tool calls made by external agents
+   - Tool responses received
+   - Turn-by-turn progression
+4. Compare actual conversations against planned steps
+5. Look for anomalies across the entire execution timeline
+
+Each conversation history contains:
+- conversation_history: Array of all turns with text, tool_calls, tool_responses
+- tool_calls: Summary of all tools invoked
+- tool_responses: Summary of all tool results
+- planned_agent: Expected agent from plan
+- trust_score: Agent trust level
+- total_turns: Number of conversation turns
 
 Be thorough but balanced. Your goal is security, not obstruction.
 Only reject when there are genuine, significant concerns.
@@ -440,6 +465,8 @@ Only reject when there are genuine, significant concerns.
         detect_prompt_injection,
         detect_hallucination_chain,
         calculate_overall_safety_score,
+        load_all_conversations,  # Load conversation histories for comprehensive analysis
+        load_plan_from_artifact,  # Load original plan for verification
     ],
     generate_content_config=types.GenerateContentConfig(
         temperature=0.2,  # Low temperature for consistent, cautious analysis
