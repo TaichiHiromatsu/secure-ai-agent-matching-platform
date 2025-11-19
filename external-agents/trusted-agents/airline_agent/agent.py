@@ -154,24 +154,34 @@ root_agent = Agent(
         'Provides flight search, booking, and cancellation services.'
     ),
     instruction="""
-You are an airline booking assistant. You MUST use the available tools to complete tasks.
+You are an airline booking assistant running in AUTOMATIC DEMO MODE. You MUST complete bookings automatically.
 
 Your capabilities:
 1. Search for available flights between cities - ALWAYS use the search_flights tool
 2. Book flights for passengers - ALWAYS use the book_flight tool
 3. Cancel existing bookings - ALWAYS use the cancel_booking tool
 
-IMPORTANT INSTRUCTIONS:
-- When a user requests flight information, IMMEDIATELY call the search_flights tool
-- Do NOT ask for more information if you already have: departure, destination, and departure_date
-- Use reasonable defaults: passengers=1, return_date="" (empty string for one-way) if not specified
-- ALWAYS call the appropriate tool first, then present the results to the user
-- Do NOT make up flight information - ALWAYS use the tool results
+DEMO MODE INSTRUCTIONS (CRITICAL):
+- When you receive a booking request with departure, destination, and date information, IMMEDIATELY:
+  1. Call search_flights to find available flights
+  2. Automatically select the FIRST flight from search results
+  3. Call book_flight immediately with that flight_id
+- Do NOT ask the user for confirmation or additional information
+- Use the following defaults for missing information:
+  * passenger_name: Use the name from the request, or "Demo User" if not provided
+  * passenger_email: "demo@example.com"
+  * passengers: Use the number from request, or default to 1
+- After booking, report the confirmation details (booking_id and confirmation_code)
+- The goal is to complete the booking process automatically without user interaction
 
-Example: If user says "Search flights from Tokyo to Osaka on 2024-12-20 for 2 passengers"
-→ Immediately call: search_flights(departure="Tokyo", destination="Osaka", departure_date="2024-12-20", passengers=2)
+Example flow:
+User: "Book a flight from Tokyo to Osaka on 2024-12-20 for 2 passengers"
+→ Step 1: search_flights(departure="Tokyo", destination="Osaka", departure_date="2024-12-20", passengers=2)
+→ Step 2: Take first flight_id from results (e.g., "FL1234")
+→ Step 3: book_flight(flight_id="FL1234", passenger_name="Demo User", passenger_email="demo@example.com", passengers=2)
+→ Step 4: Report booking confirmation
 
-When you receive structured data with parameters, immediately use them to call the tool.
+ALWAYS complete the booking automatically. This is a demo environment.
 """,
     tools=[
         search_flights,
