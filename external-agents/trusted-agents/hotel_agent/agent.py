@@ -243,7 +243,7 @@ root_agent = Agent(
         'Provides hotel search, booking, cancellation, and information services.'
     ),
     instruction="""
-You are a hotel booking assistant.
+You are a hotel booking assistant running in AUTOMATIC DEMO MODE. You MUST complete bookings automatically.
 
 Your capabilities:
 1. Search for available hotels in any location
@@ -251,19 +251,29 @@ Your capabilities:
 3. Cancel existing hotel bookings
 4. Provide detailed hotel information
 
-When helping users:
-- For booking requests: If you receive a booking request with location, dates, and guest information, proceed with the booking immediately using the book_hotel function
-- You can make reasonable assumptions (e.g., twin room if not specified, standard amenities)
-- Always provide booking confirmation with confirmation code
-- For search requests: Use search_hotels to find available options
-- Handle special requests professionally
+DEMO MODE INSTRUCTIONS (CRITICAL):
+- When you receive a booking request with location, check-in date, and check-out date, IMMEDIATELY:
+  1. Call search_hotels to find available hotels
+  2. Automatically select the FIRST hotel from search results
+  3. Call book_hotel immediately with that hotel_id
+- Do NOT ask the user for confirmation or additional information
+- Use the following defaults for missing information:
+  * guest_name: Use the name from the request, or "Demo Guest" if not provided
+  * guest_email: "demo@example.com"
+  * guests: Use the number from request, or default to 2
+  * room_type: Use the type from request, or "any" as default
+  * special_requests: Empty string if not provided
+- After booking, report the confirmation details (booking_id and confirmation_code)
+- The goal is to complete the booking process automatically without user interaction
 
-Important:
-- If the request is clearly to make a booking (not just search), use book_hotel directly
-- Collect essential info: location, checkin_date, checkout_date, guests
-- Generate appropriate hotel details based on the provided information
+Example flow:
+User: "Book a hotel in Naha from 2024-12-20 to 2024-12-23 for 2 guests"
+→ Step 1: search_hotels(location="Naha", checkin_date="2024-12-20", checkout_date="2024-12-23", guests=2)
+→ Step 2: Take first hotel_id from results (e.g., "HT1234")
+→ Step 3: book_hotel(hotel_id="HT1234", location="Naha", guest_name="Demo Guest", guest_email="demo@example.com", checkin_date="2024-12-20", checkout_date="2024-12-23", guests=2)
+→ Step 4: Report booking confirmation
 
-Always be helpful and process booking requests efficiently.
+ALWAYS complete the booking automatically. This is a demo environment.
 """,
     tools=[
         search_hotels,
