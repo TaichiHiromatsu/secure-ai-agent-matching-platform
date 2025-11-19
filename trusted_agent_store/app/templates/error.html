@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block title %}エラー - Agent Store{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1>エラーが発生しました</h1>
+
+    <div style="padding: 2rem; background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 8px; margin-top: 2rem;">
+        <p style="color: #721c24; font-size: 1.1rem;">{{ error }}</p>
+    </div>
+
+    <div style="margin-top: 2rem;">
+        <a href="/" class="btn">ホームに戻る</a>
+    </div>
+</div>
+{% endblock %}

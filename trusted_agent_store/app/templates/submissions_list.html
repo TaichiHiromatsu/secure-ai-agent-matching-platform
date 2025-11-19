@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block title %}審査状況一覧 - Agent Store{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1>エージェント審査状況一覧</h1>
+
+    <div style="margin-top: 2rem;">
+        {% if submissions %}
+        <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+                <tr style="background: #f7fafc; border-bottom: 2px solid #667eea;">
+                    <th style="padding: 1rem; text-align: left;">ID</th>
+                    <th style="padding: 1rem; text-align: left;">Endpoint URL</th>
+                    <th style="padding: 1rem; text-align: left;">ステータス</th>
+                    <th style="padding: 1rem; text-align: left;">登録日時</th>
+                    <th style="padding: 1rem; text-align: center;">操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for sub in submissions %}
+                <tr style="border-bottom: 1px solid #e0e0e0;">
+                    <td style="padding: 1rem; font-family: monospace; font-size: 0.85rem;">
+                        {{ sub.id[:8] }}...
+                    </td>
+                    <td style="padding: 1rem;">
+                        <a href="{{ sub.endpoint_url }}" target="_blank" style="color: #667eea; text-decoration: none;">
+                            {{ sub.endpoint_url[:50] }}{% if sub.endpoint_url|length > 50 %}...{% endif %}
+                        </a>
+                    </td>
+                    <td style="padding: 1rem;">
+                        <span style="
+                            padding: 0.25rem 0.75rem; 
+                            border-radius: 12px; 
+                            font-size: 0.85rem; 
+                            font-weight: 600;
+                            {% if sub.status == 'approved' %}
+                                background: #d4edda; color: #155724;
+                            {% elif sub.status == 'rejected' %}
+                                background: #f8d7da; color: #721c24;
+                            {% elif 'running' in sub.status %}
+                                background: #fff3cd; color: #856404;
+                            {% else %}
+                                background: #d1ecf1; color: #0c5460;
+                            {% endif %}
+                        ">
+                            {{ sub.status }}
+                        </span>
+                    </td>
+                    <td style="padding: 1rem; color: #666; font-size: 0.9rem;">
+                        {{ sub.created_at.strftime('%Y-%m-%d %H:%M') }}
+                    </td>
+                    <td style="padding: 1rem; text-align: center;">
+                        <a href="/review/{{ sub.id }}" class="btn"
+                            style="text-decoration: none; padding: 0.5rem 1rem; font-size: 0.85rem;">
+                            詳細
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div style="padding: 3rem; text-align: center; background: #f7fafc; border-radius: 8px;">
+            <p style="color: #666; font-size: 1.1rem;">まだエージェントが登録されていません</p>
+            <a href="/submit" class="btn" style="margin-top: 1rem; display: inline-block; text-decoration: none;">
+                最初のエージェントを登録
+            </a>
+        </div>
+        {% endif %}
+    </div>
+
+    <div style="margin-top: 2rem;">
+        <button onclick="location.reload()" class="btn btn-secondary">🔄 更新</button>
+    </div>
+</div>
+{% endblock %}

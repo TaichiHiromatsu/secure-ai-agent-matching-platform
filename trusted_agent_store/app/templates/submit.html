@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block title %}エージェント登録 - Agent Store{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1>エージェント登録</h1>
+
+    <form id="submitForm" style="margin-top: 2rem;">
+        <div style="margin-bottom: 1.5rem;">
+            <label for="agentCardUrl" style="display: block; margin-bottom: 0.5rem; font-weight: 600;">
+                Agent Card URL <span style="color: red;">*</span>
+            </label>
+            <input type="url" id="agentCardUrl" name="agentCardUrl" required
+                placeholder="http://example.com/agent-card.json"
+                style="width: 100%; padding: 0.75rem; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 1rem;">
+            <small style="color: #666;">エージェントの自己紹介データ（JSON）のURL</small>
+        </div>
+
+        <div style="margin-bottom: 1.5rem;">
+            <label for="endpointUrl" style="display: block; margin-bottom: 0.5rem; font-weight: 600;">
+                Endpoint URL <span style="color: red;">*</span>
+            </label>
+            <input type="url" id="endpointUrl" name="endpointUrl" required placeholder="http://example.com/agent/chat"
+                style="width: 100%; padding: 0.75rem; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 1rem;">
+            <small style="color: #666;">エージェントのAPIエンドポイント</small>
+        </div>
+
+        <button type="submit" class="btn">登録する</button>
+    </form>
+
+    <div id="result" style="margin-top: 2rem;"></div>
+</div>
+
+<script>
+    document.getElementById('submitForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const submitBtn = e.target.querySelector('button[type="submit"]');
+        submitBtn.disabled = true;
+        submitBtn.textContent = '登録中...';
+
+        const formData = {
+            agentCardUrl: document.getElementById('agentCardUrl').value,
+            endpointUrl: document.getElementById('endpointUrl').value
+        };
+
+        try {
+            const response = await fetch('/api/submissions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(formData)
+            });
+
+            const result = await response.json();
+
+            if (response.ok) {
+                document.getElementById('result').innerHTML = `
+                <div style="padding: 1rem; background: #d4edda; border: 1px solid #c3e6cb; border-radius: 8px; color: #155724;">
+                    <h3 style="margin-bottom: 0.5rem;">✅ 登録完了</h3>
+                    <p>Submission ID: ${result.submissionId}</p>
+                    <p style="margin-top: 1rem;">
+                        <a href="/review/${result.submissionId}" class="btn">審査状況を確認</a>
+                    </p>
+                </div>
+            `;
+                e.target.reset();
+            } else {
+                throw new Error(result.detail || '登録に失敗しました');
+            }
+        } catch (error) {
+            document.getElementById('result').innerHTML = `
+            <div style="padding: 1rem; background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 8px; color: #721c24;">
+                <h3 style="margin-bottom: 0.5rem;">❌ エラー</h3>
+                <p>${error.message}</p>
+            </div>
+        `;
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.textContent = '登録する';
+        }
+    });
+</script>
+{% endblock %}

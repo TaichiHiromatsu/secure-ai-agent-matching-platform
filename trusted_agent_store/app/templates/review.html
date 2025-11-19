@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+
+{% block title %}審査状況 - Agent Store{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1>審査状況: {{ submission.id }}</h1>
+
+    <div style="margin: 2rem 0;">
+        <div
+            style="padding: 1rem; background: #f7fafc; border-left: 4px solid #667eea; border-radius: 4px; margin-bottom: 1.5rem;">
+            <strong>ステータス:</strong>
+            <span style="font-size: 1.2rem; color: #667eea; font-weight: 600;">
+                {{ submission.status }}
+            </span>
+        </div>
+
+        <div style="margin-bottom: 1rem;">
+            <strong>Agent Card URL:</strong><br>
+            <a href="{{ submission.agent_card_url }}" target="_blank" style="color: #667eea;">
+                {{ submission.agent_card_url }}
+            </a>
+        </div>
+
+        <div style="margin-bottom: 1rem;">
+            <strong>Endpoint URL:</strong><br>
+            <a href="{{ submission.endpoint_url }}" target="_blank" style="color: #667eea;">
+                {{ submission.endpoint_url }}
+            </a>
+        </div>
+
+        <div style="margin-bottom: 1rem;">
+            <strong>登録日時:</strong> {{ submission.created_at.strftime('%Y-%m-%d %H:%M:%S') }}
+        </div>
+    </div>
+
+    <h2 style="margin-top: 2rem; margin-bottom: 1rem;">審査ステージ</h2>
+
+    <div style="display: grid; gap: 1rem;">
+        {% if submission.stages and submission.stages.get('precheck') %}
+        <div style="padding: 1rem; border: 2px solid #667eea; border-radius: 8px;">
+            <h3 style="color: #667eea; margin-bottom: 0.5rem;">1️⃣ PreCheck</h3>
+            <pre
+                style="background: #f7fafc; padding: 1rem; border-radius: 4px; overflow-x: auto;">{{ submission.stages.precheck | tojson(indent=2) }}</pre>
+        </div>
+        {% endif %}
+
+        {% if submission.stages and submission.stages.get('security') %}
+        <div style="padding: 1rem; border: 2px solid #48bb78; border-radius: 8px;">
+            <h3 style="color: #48bb78; margin-bottom: 0.5rem;">2️⃣ Security Gate</h3>
+            <pre
+                style="background: #f7fafc; padding: 1rem; border-radius: 4px; overflow-x: auto;">{{ submission.stages.security | tojson(indent=2) }}</pre>
+        </div>
+        {% endif %}
+
+        {% if submission.stages and submission.stages.get('functional') %}
+        <div style="padding: 1rem; border: 2px solid #ed8936; border-radius: 8px;">
+            <h3 style="color: #ed8936; margin-bottom: 0.5rem;">3️⃣ Functional Accuracy</h3>
+            <pre
+                style="background: #f7fafc; padding: 1rem; border-radius: 4px; overflow-x: auto;">{{ submission.stages.functional | tojson(indent=2) }}</pre>
+        </div>
+        {% endif %}
+
+        {% if submission.stages and submission.stages.get('judge') %}
+        <div style="padding: 1rem; border: 2px solid #9f7aea; border-radius: 8px;">
+            <h3 style="color: #9f7aea; margin-bottom: 0.5rem;">4️⃣ Judge Panel</h3>
+            <pre
+                style="background: #f7fafc; padding: 1rem; border-radius: 4px; overflow-x: auto;">{{ submission.stages.judge | tojson(indent=2) }}</pre>
+        </div>
+        {% endif %}
+    </div>
+
+    {% if submission.status == 'human_review_pending' %}
+    <div style="margin-top: 2rem; padding: 1.5rem; background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px;">
+        <h3 style="color: #856404; margin-bottom: 1rem;">⚠️ Human Review が必要です</h3>
+        <p style="margin-bottom: 1rem;">このエージェントは自動審査を完了しました。最終承認を行ってください。</p>
+
+        <div style="display: flex; gap: 1rem;">
+            <button onclick="approve('{{ submission.id }}')" class="btn">✅ 承認</button>
+            <button onclick="reject('{{ submission.id }}')" class="btn btn-secondary">❌ 差戻し</button>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if submission.status == 'approved' %}
+    <div style="margin-top: 2rem; padding: 1.5rem; background: #d4edda; border: 1px solid #28a745; border-radius: 8px;">
+        <h3 style="color: #155724;">✅ 承認済み</h3>
+        <p>このエージェントは公開されました。</p>
+    </div>
+    {% endif %}
+
+    {% if submission.status == 'rejected' %}
+    <div style="margin-top: 2rem; padding: 1.5rem; background: #f8d7da; border: 1px solid #dc3545; border-radius: 8px;">
+        <h3 style="color: #721c24;">❌ 差戻し</h3>
+        {% if submission.stages and submission.stages.get('rejection_reason') %}
+        <p><strong>理由:</strong> {{ submission.stages.rejection_reason }}</p>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <div style="margin-top: 2rem;">
+        <button onclick="location.reload()" class="btn btn-secondary">🔄 更新</button>
+        <a href="/submissions" class="btn btn-secondary"
+            style="margin-left: 1rem; display: inline-block; text-decoration: none;">📋 一覧に戻る</a>
+    </div>
+</div>
+
+<script>
+    async function approve(id) {
+        if (!confirm('このエージェントを承認しますか？')) return;
+
+        try {
+            const response = await fetch(`/api/review/${id}/approve`, {
+                method: 'POST'
+            });
+
+            if (response.ok) {
+                alert('承認しました');
+                location.reload();
+            } else {
+                alert('エラーが発生しました');
+            }
+        } catch (error) {
+            alert('エラーが発生しました: ' + error.message);
+        }
+    }
+
+    async function reject(id) {
+        const reason = prompt('差戻し理由を入力してください:');
+        if (!reason) return;
+
+        try {
+            const response = await fetch(`/api/review/${id}/reject?reason=${encodeURIComponent(reason)}`, {
+                method: 'POST'
+            });
+
+            if (response.ok) {
+                alert('差戻しました');
+                location.reload();
+            } else {
+                alert('エラーが発生しました');
+            }
+        } catch (error) {
+            alert('エラーが発生しました: ' + error.message);
+        }
+    }
+
+    // Auto-refresh every 5 seconds if in progress
+    {% if submission.status.endswith('_running') or submission.status.endswith('_pending') %}
+    setTimeout(() => location.reload(), 5000);
+    {% endif %}
+</script>
+{% endblock %}
