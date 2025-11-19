@@ -468,8 +468,9 @@ async def a2a_security_callback(
 
     logger = logging.getLogger(__name__)
 
-    # invoke_a2a_agent呼び出しでない場合はスキップ
-    if not hasattr(tool, 'name') or tool.name != "invoke_a2a_agent":
+    # invoke_a2a_agent または execute_plan_step 呼び出しでない場合はスキップ
+    tool_name = getattr(tool, 'name', getattr(tool, '__name__', str(tool)))
+    if tool_name not in ["invoke_a2a_agent", "execute_plan_step"]:
         return None
 
     # エラーレスポンスの場合はスキップ
