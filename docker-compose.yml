@@ -62,6 +62,8 @@ services:
     environment:
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
       - GOOGLE_GENAI_USE_VERTEXAI=${GOOGLE_GENAI_USE_VERTEXAI:-0}
+      - AGENT_HOST=airline-agent
+      - AGENT_PORT=8002
     networks:
       - agent-net
     healthcheck:
@@ -81,6 +83,8 @@ services:
     environment:
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
       - GOOGLE_GENAI_USE_VERTEXAI=${GOOGLE_GENAI_USE_VERTEXAI:-0}
+      - AGENT_HOST=hotel-agent
+      - AGENT_PORT=8003
     networks:
       - agent-net
     healthcheck:
@@ -100,6 +104,8 @@ services:
     environment:
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
       - GOOGLE_GENAI_USE_VERTEXAI=${GOOGLE_GENAI_USE_VERTEXAI:-0}
+      - AGENT_HOST=car-rental-agent
+      - AGENT_PORT=8004
     networks:
       - agent-net
     healthcheck:
