@@ -1,9 +1,12 @@
 {
+  "name": "hotel_agent",
+  "url": "http://hotel-agent:8003/a2a/hotel_agent",
+  "version": "1.0.0",
+  "protocolVersion": "0.3.0",
   "capabilities": {},
   "defaultInputModes": ["text/plain"],
   "defaultOutputModes": ["application/json"],
   "description": "An agent specialized in managing hotel reservations and accommodation bookings. Provides hotel search, booking, and cancellation services.",
-  "name": "hotel_agent",
   "skills": [
     {
       "id": "hotel_search",
@@ -23,7 +26,5 @@
       "description": "Cancel existing hotel bookings and process refunds",
       "tags": ["travel", "hotel", "cancellation", "refund"]
     }
-  ],
-  "url": "http://localhost:8003/a2a/hotel_agent",
-  "version": "1.0.0"
+  ]
 }

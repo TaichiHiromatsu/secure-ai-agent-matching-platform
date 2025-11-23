@@ -32,13 +32,25 @@ def load_agent_card(path: Path) -> Dict[str, Any]:
 
 
 def select_translation(card: Dict[str, Any]) -> Dict[str, Any]:
+  """Select translation from card, or return A2A Protocol compatible dict."""
+  # Legacy format: support translations
   translations: List[Dict[str, Any]] = card.get("translations", [])
-  default_locale = card.get("defaultLocale")
-  if default_locale:
-    for item in translations:
-      if item.get("locale") == default_locale:
-        return item
-  return translations[0] if translations else {}
+  if translations:
+    default_locale = card.get("defaultLocale")
+    if default_locale:
+      for item in translations:
+        if item.get("locale") == default_locale:
+          return item
+    return translations[0] if translations else {}
+
+  # A2A Protocol format: return card fields directly
+  return {
+    "name": card.get("name", ""),
+    "description": card.get("description", ""),
+    "locale": card.get("defaultLocale", "ja-JP"),
+    "useCases": [skill.get("name", "") for skill in card.get("skills", []) if skill.get("name")],
+    "capabilities": [skill.get("name", "") for skill in card.get("skills", []) if skill.get("name")]
+  }
 
 
 def generate_scenarios(card: Dict[str, Any], *, agent_id: str, revision: str, max_scenarios: int) -> List[Scenario]:
@@ -48,8 +60,17 @@ def generate_scenarios(card: Dict[str, Any], *, agent_id: str, revision: str, ma
   if not use_cases:
     # fallback to capabilities if no useCases
     use_cases = translation.get("capabilities", [])
+
+  # A2A Protocol: extract from skills if useCases is empty
+  if not use_cases:
+    skills = card.get("skills", [])
+    if isinstance(skills, list):
+      use_cases = [skill.get("name", "") for skill in skills if skill.get("name")]
+
   scenarios: List[Scenario] = []
   for idx, use_case in enumerate(use_cases[:max_scenarios]):
+    if not use_case:
+      continue
     prompt = f"{use_case} に関するユーザーの質問に回答してください。"
     scenarios.append(
       Scenario(
@@ -549,8 +570,6 @@ def run_functional_accuracy(
         timeout=timeout,
         dry_run=dry_run or not endpoint_url
       )
-      if status == "error":
-        error_count += 1
 
       # エージェントベース評価を使用
       evaluation = agent_evaluator.evaluate_response(
@@ -559,15 +578,22 @@ def run_functional_accuracy(
         actual_response=response_text or "",
         agent_card=card
       )
+
+      # エラーが発生した場合は、エラーとしてカウントし、needs_reviewには含めない
       if status == "error":
+        error_count += 1
         evaluation["reason"] = "endpoint_error"
-        evaluation["verdict"] = "needs_review"
+        evaluation["verdict"] = "error"  # needs_reviewではなくerrorとして扱う
+        evaluation["error"] = error_text
       elif status == "dry_run":
         evaluation.setdefault("reason", "dry_run")
-      if evaluation["verdict"] == "pass":
-        passes += 1
-      else:
-        needs_review += 1
+
+      # エラーでない場合のみ、pass/needs_reviewをカウント
+      if status != "error":
+        if evaluation["verdict"] == "pass":
+          passes += 1
+        else:
+          needs_review += 1
       distances.append(evaluation["distance"])
       emb_distance = embedding_distance(scenario.expected_answer, response_text)
       if emb_distance is not None:

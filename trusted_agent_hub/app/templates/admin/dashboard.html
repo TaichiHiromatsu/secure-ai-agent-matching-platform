@@ -45,7 +45,11 @@
                             <div class="flex items-center">
                                 <div class="ml-3">
                                     <p class="text-gray-900 whitespace-no-wrap">
+                                        {% if submission.card_document.translations and submission.card_document.translations|length > 0 %}
                                         {{ submission.card_document.translations[0].displayName }}
+                                        {% else %}
+                                        {{ submission.card_document.name or submission.agent_id }}
+                                        {% endif %}
                                     </p>
                                     <p class="text-gray-600 text-xs">
                                         {{ submission.id }}

@@ -36,11 +36,21 @@ def _load_agent_card(card_path: Path) -> Dict[str, Any]:
 
 def generate_questions(card_path: Path, *, max_questions: int = 5) -> List[QuestionSpec]:
     card = _load_agent_card(card_path)
-    translations: List[Dict[str, Any]] = card.get("translations", [])
-    translation = _select_translation(translations, card.get("defaultLocale"))
-    use_cases: List[str] = translation.get("useCases") or translation.get("capabilities") or []
+
+    # A2A Protocol format: extract from skills
+    use_cases: List[str] = []
+    skills = card.get("skills", [])
+    if isinstance(skills, list):
+        use_cases = [skill.get("name", "") for skill in skills if skill.get("name")]
+
+    # Legacy format: support translations for backward compatibility
     if not use_cases:
-        raise ValueError("AgentCardにはuseCasesまたはcapabilitiesが必要です")
+        translations: List[Dict[str, Any]] = card.get("translations", [])
+        translation = _select_translation(translations, card.get("defaultLocale"))
+        use_cases = translation.get("useCases") or translation.get("capabilities") or []
+
+    if not use_cases:
+        raise ValueError("AgentCardにはskills（A2A Protocol）またはuseCases/capabilities（Legacy形式）が必要です")
 
     questions: List[QuestionSpec] = []
     for index, use_case in enumerate(use_cases[:max_questions]):
@@ -162,18 +172,33 @@ AgentCardの情報(特にuseCasesやcapabilities)から、エージェントの�
         """Google ADKエージェントを使用して質問を生成"""
         from google.adk.runners import InMemoryRunner
 
-        translations: List[Dict[str, Any]] = card.get("translations", [])
-        translation = _select_translation(translations, card.get("defaultLocale"))
-        use_cases: List[str] = translation.get("useCases") or translation.get("capabilities") or []
+        # A2A Protocol format: extract from card directly
+        agent_name = card.get("name", "Unknown")
+        agent_description = card.get("description", "")
+        use_cases: List[str] = []
+
+        # Extract from skills (A2A Protocol)
+        skills = card.get("skills", [])
+        if isinstance(skills, list):
+            use_cases = [skill.get("name", "") for skill in skills if skill.get("name")]
+
+        # Legacy format: support translations for backward compatibility
+        if not use_cases:
+            translations: List[Dict[str, Any]] = card.get("translations", [])
+            translation = _select_translation(translations, card.get("defaultLocale"))
+            use_cases = translation.get("useCases") or translation.get("capabilities") or []
+            if translation:
+                agent_name = translation.get('name', agent_name)
+                agent_description = translation.get('description', agent_description)
 
         if not use_cases:
-            raise ValueError("AgentCardにはuseCasesまたはcapabilitiesが必要です")
+            raise ValueError("AgentCardにはskills（A2A Protocol）またはuseCases/capabilities（Legacy形式）が必要です")
 
         # エージェントへのプロンプトを構築
         user_prompt = f"""以下のAgentCard情報から、{max_questions}個の評価質問を生成してください:
 
-**エージェント名**: {translation.get('name', 'Unknown')}
-**説明**: {translation.get('description', '')}
+**エージェント名**: {agent_name}
+**説明**: {agent_description}
 **ユースケース/能力**:
 {chr(10).join(f"- {uc}" for uc in use_cases[:max_questions])}
 
@@ -242,12 +267,20 @@ AgentCardの情報(特にuseCasesやcapabilities)から、エージェントの�
 
     def _generate_with_template(self, card: Dict[str, Any], max_questions: int) -> List[QuestionSpec]:
         """従来のテンプレートベースの質問生成"""
-        translations: List[Dict[str, Any]] = card.get("translations", [])
-        translation = _select_translation(translations, card.get("defaultLocale"))
-        use_cases: List[str] = translation.get("useCases") or translation.get("capabilities") or []
+        # A2A Protocol format: extract from skills
+        use_cases: List[str] = []
+        skills = card.get("skills", [])
+        if isinstance(skills, list):
+            use_cases = [skill.get("name", "") for skill in skills if skill.get("name")]
+
+        # Legacy format: support translations for backward compatibility
+        if not use_cases:
+            translations: List[Dict[str, Any]] = card.get("translations", [])
+            translation = _select_translation(translations, card.get("defaultLocale"))
+            use_cases = translation.get("useCases") or translation.get("capabilities") or []
 
         if not use_cases:
-            raise ValueError("AgentCardにはuseCasesまたはcapabilitiesが必要です")
+            raise ValueError("AgentCardにはskills（A2A Protocol）またはuseCases/capabilities（Legacy形式）が必要です")
 
         questions: List[QuestionSpec] = []
         for index, use_case in enumerate(use_cases[:max_questions]):
