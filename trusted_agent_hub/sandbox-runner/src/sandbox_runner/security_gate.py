@@ -163,36 +163,11 @@ def invoke_endpoint(endpoint_url: str, prompt_text: str, *, timeout: float, toke
         logger.info(f"Agent card URL: {card_url}")
         logger.info(f"Message: {prompt_text[:200]}")
 
-        # Fetch agent card and normalize the url field if it contains 0.0.0.0
-        # RemoteA2aAgent uses the url field from the agent card to connect to the agent
-        # If the agent card's url field contains 0.0.0.0, we need to replace it with the
-        # correct hostname before passing it to RemoteA2aAgent
-        import httpx
-
-        async with httpx.AsyncClient(timeout=10.0) as client:
-          card_response = await client.get(card_url)
-          card_response.raise_for_status()
-          agent_card_data = card_response.json()
-
-          # Normalize the agent card's url field to use the accessible host from card_url
-          if "url" in agent_card_data:
-            original_url = agent_card_data["url"]
-            card_url_parsed = urlparse(card_url)
-            # Extract host:port from card_url (which is accessible)
-            card_host = card_url_parsed.netloc
-            # Replace the host in the url field with the accessible host from card_url
-            url_parsed = urlparse(original_url)
-            normalized_card_url = f"{url_parsed.scheme}://{card_host}{url_parsed.path}"
-            if original_url != normalized_card_url:
-              agent_card_data["url"] = normalized_card_url
-              logger.info(f"Normalized agent card URL field: {original_url} -> {normalized_card_url}")
-
         # Create RemoteA2aAgent - ADK handles all A2A protocol details
-        # Pass agent_card_data as dict with normalized URL field
-        # This ensures RemoteA2aAgent uses the correct hostname to connect to the agent
+        # Pass the agent card URL directly - RemoteA2aAgent will fetch and parse it
         remote_agent = RemoteA2aAgent(
           name=agent_name,
-          agent_card=agent_card_data,  # Pass dict with normalized URL field
+          agent_card=card_url,  # Pass URL string to agent card
           timeout=timeout,
         )
 
