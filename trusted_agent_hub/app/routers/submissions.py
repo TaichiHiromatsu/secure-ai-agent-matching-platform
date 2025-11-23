@@ -725,10 +725,37 @@ async def create_submission(
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db)
 ):
+    # Normalize agent_card_url using environment variable mapping
+    # This allows localhost URLs from browser to be converted to Docker service names
+    import os
+    from urllib.parse import urlparse, urlunparse
+
+    agent_card_url = submission.agent_card_url
+    url_map_str = os.getenv("AGENT_URL_MAP", "")
+
+    if url_map_str:
+        parsed = urlparse(agent_card_url)
+        netloc = parsed.netloc
+
+        for mapping in url_map_str.split(","):
+            if "=" in mapping:
+                from_netloc, to_netloc = mapping.split("=", 1)
+                if netloc == from_netloc.strip():
+                    agent_card_url = urlunparse((
+                        parsed.scheme,
+                        to_netloc.strip(),
+                        parsed.path,
+                        parsed.params,
+                        parsed.query,
+                        parsed.fragment
+                    ))
+                    print(f"[INFO] Mapped agent_card_url: {submission.agent_card_url} -> {agent_card_url}")
+                    break
+
     # Fetch Agent Card
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.get(submission.agent_card_url)
+            response = await client.get(agent_card_url)
             response.raise_for_status()
             card_document = response.json()
     except Exception as e:

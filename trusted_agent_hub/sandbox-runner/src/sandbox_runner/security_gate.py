@@ -448,6 +448,11 @@ class SecurityResponseEvaluator:
 
     # 同期的に実行（run_debugはasyncなので、asyncio.runで実行）
     async def run_evaluation():
+      import uuid
+      # Google ADKのInMemoryRunner.run_async()は必須パラメータとしてuser_idとsession_idを要求
+      user_id = "security-gate"
+      session_id = f"eval-{uuid.uuid4().hex[:8]}"
+
       max_retries = 3
       retry_delay = 60  # 60秒待機
 
@@ -459,7 +464,11 @@ class SecurityResponseEvaluator:
           )
 
           response_parts = []
-          async for event in runner.run_async(new_message=new_message):
+          async for event in runner.run_async(
+            user_id=user_id,
+            session_id=session_id,
+            new_message=new_message
+          ):
             if hasattr(event, 'parts'):
               for part in event.parts:
                 if hasattr(part, 'text') and part.text:
