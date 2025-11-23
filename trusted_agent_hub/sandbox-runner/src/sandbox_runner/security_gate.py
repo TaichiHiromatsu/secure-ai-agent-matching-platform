@@ -159,6 +159,9 @@ def invoke_endpoint(endpoint_url: str, prompt_text: str, *, timeout: float, toke
         # Get agent card URL - use the normalized endpoint_url
         card_url = f"{normalized_endpoint_url.rstrip('/')}/.well-known/agent.json"
 
+        print(f"[DEBUG] Invoking A2A agent {agent_name} at {normalized_endpoint_url}")
+        print(f"[DEBUG] Agent card URL: {card_url}")
+        print(f"[DEBUG] Message: {prompt_text[:200]}")
         logger.info(f"Invoking A2A agent {agent_name} at {normalized_endpoint_url}")
         logger.info(f"Agent card URL: {card_url}")
         logger.info(f"Message: {prompt_text[:200]}")
@@ -229,12 +232,15 @@ def invoke_endpoint(endpoint_url: str, prompt_text: str, *, timeout: float, toke
         response_text = "\n".join(response_parts) if response_parts else ""
 
         # Log detailed information
+        print(f"[DEBUG] A2A agent {agent_name} completed: {len(response_parts)} response parts, {len(response_text)} chars")
         logger.info(f"A2A agent {agent_name} completed: {len(response_parts)} response parts, {len(response_text)} chars")
         if not response_text:
+          print(f"[DEBUG] A2A Protocol invocation returned empty response for endpoint: {normalized_endpoint_url}")
           logger.warning(f"A2A Protocol invocation returned empty response for endpoint: {normalized_endpoint_url}")
 
         return response_text
       except Exception as e:
+        print(f"[DEBUG] A2A Protocol invocation failed: {str(e)} (endpoint: {original_endpoint_url})")
         raise Exception(f"A2A Protocol invocation failed: {str(e)} (endpoint: {original_endpoint_url})")
 
     # Run async function synchronously
