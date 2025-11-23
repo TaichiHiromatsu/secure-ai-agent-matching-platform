@@ -120,24 +120,54 @@ def invoke_endpoint(endpoint_url: str, prompt_text: str, *, timeout: float, toke
     from google.genai import types
 
     async def invoke_a2a_agent_async():
+      # Save original endpoint_url for error messages
+      original_endpoint_url = endpoint_url
       try:
         # Extract agent name from endpoint URL (e.g., /a2a/airline_agent -> airline_agent)
-        # Reference: secure-mediation-agent/subagents/orchestration_agent.py line 138
         agent_name = endpoint_url.rstrip('/').split('/')[-1]
 
-        # Get agent card URL - use the exact same pattern as orchestration_agent.py line 138
-        # agent_url format: http://host:port/a2a/agent_name
-        card_url = f"{endpoint_url.rstrip('/')}/.well-known/agent.json"
+        # Normalize endpoint_url: replace 0.0.0.0 with the correct hostname
+        # This ensures we can access the agent card and the agent itself
+        from urllib.parse import urlparse, urlunparse
+        parsed_url = urlparse(endpoint_url)
 
-        logger.info(f"Invoking A2A agent {agent_name} at {endpoint_url}")
+        # If host is 0.0.0.0, we need to determine the correct hostname
+        # In Docker, we can use the service name from the URL path or try to infer it
+        normalized_endpoint_url = endpoint_url
+        if parsed_url.hostname == "0.0.0.0":
+          # Try to infer Docker service name from agent name
+          service_name_map = {
+            "airline_agent": "airline-agent",
+            "hotel_agent": "hotel-agent",
+            "car_rental_agent": "car-rental-agent",
+          }
+          service_name = service_name_map.get(agent_name, "localhost")
+
+          # Replace 0.0.0.0 with the service name
+          normalized_netloc = f"{service_name}:{parsed_url.port}"
+          normalized_endpoint_url = urlunparse((
+            parsed_url.scheme,
+            normalized_netloc,
+            parsed_url.path,
+            parsed_url.params,
+            parsed_url.query,
+            parsed_url.fragment
+          ))
+          logger.info(f"Normalized endpoint URL: {endpoint_url} -> {normalized_endpoint_url}")
+          parsed_url = urlparse(normalized_endpoint_url)
+
+        # Get agent card URL - use the normalized endpoint_url
+        card_url = f"{normalized_endpoint_url.rstrip('/')}/.well-known/agent.json"
+
+        logger.info(f"Invoking A2A agent {agent_name} at {normalized_endpoint_url}")
         logger.info(f"Agent card URL: {card_url}")
         logger.info(f"Message: {prompt_text[:200]}")
 
-        # Fetch agent card
-        # Note: The agent server should return the correct URL in the agent card
-        # If it contains 0.0.0.0, that's a bug in the agent server implementation
+        # Fetch agent card and normalize the url field if it contains 0.0.0.0
+        # RemoteA2aAgent uses the url field from the agent card to connect to the agent
+        # If the agent card's url field contains 0.0.0.0, we need to replace it with the
+        # correct hostname before passing it to RemoteA2aAgent
         import httpx
-        from urllib.parse import urlparse
 
         async with httpx.AsyncClient(timeout=10.0) as client:
           card_response = await client.get(card_url)
@@ -145,7 +175,6 @@ def invoke_endpoint(endpoint_url: str, prompt_text: str, *, timeout: float, toke
           agent_card_data = card_response.json()
 
           # Normalize the agent card's url field to use the accessible host from card_url
-          # This ensures the url field points to a hostname that is accessible from this service
           if "url" in agent_card_data:
             original_url = agent_card_data["url"]
             card_url_parsed = urlparse(card_url)
@@ -153,17 +182,17 @@ def invoke_endpoint(endpoint_url: str, prompt_text: str, *, timeout: float, toke
             card_host = card_url_parsed.netloc
             # Replace the host in the url field with the accessible host from card_url
             url_parsed = urlparse(original_url)
-            normalized_url = f"{url_parsed.scheme}://{card_host}{url_parsed.path}"
-            if original_url != normalized_url:
-              agent_card_data["url"] = normalized_url
-              logger.debug(f"Normalized agent card URL: {original_url} -> {normalized_url}")
+            normalized_card_url = f"{url_parsed.scheme}://{card_host}{url_parsed.path}"
+            if original_url != normalized_card_url:
+              agent_card_data["url"] = normalized_card_url
+              logger.info(f"Normalized agent card URL field: {original_url} -> {normalized_card_url}")
 
         # Create RemoteA2aAgent - ADK handles all A2A protocol details
-        # Reference: orchestration_agent.py lines 141-145
-        # Pass agent_card_data as dict instead of URL to use normalized URL
+        # Pass agent_card_data as dict with normalized URL field
+        # This ensures RemoteA2aAgent uses the correct hostname to connect to the agent
         remote_agent = RemoteA2aAgent(
           name=agent_name,
-          agent_card=agent_card_data,  # Pass dict instead of URL
+          agent_card=agent_card_data,  # Pass dict with normalized URL field
           timeout=timeout,
         )
 
@@ -227,11 +256,11 @@ def invoke_endpoint(endpoint_url: str, prompt_text: str, *, timeout: float, toke
         # Log detailed information
         logger.info(f"A2A agent {agent_name} completed: {len(response_parts)} response parts, {len(response_text)} chars")
         if not response_text:
-          logger.warning(f"A2A Protocol invocation returned empty response for endpoint: {endpoint_url}")
+          logger.warning(f"A2A Protocol invocation returned empty response for endpoint: {normalized_endpoint_url}")
 
         return response_text
       except Exception as e:
-        raise Exception(f"A2A Protocol invocation failed: {str(e)}")
+        raise Exception(f"A2A Protocol invocation failed: {str(e)} (endpoint: {original_endpoint_url})")
 
     # Run async function synchronously
     try:
