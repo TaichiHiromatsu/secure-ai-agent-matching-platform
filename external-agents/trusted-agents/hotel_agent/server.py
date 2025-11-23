@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
-"""A2A Server for Airline Agent."""
+"""A2A Server for Hotel Agent."""
 
 import uvicorn
 from google.adk.cli.fast_api import get_fast_api_app
 
 def main():
-    """Start the airline agent A2A server."""
+    """Start the hotel agent A2A server."""
     import os
-    import sys
 
     # Change to parent directory (trusted-agents) so agents_dir can find subdirectories
     agent_dir = os.path.dirname(os.path.abspath(__file__))
@@ -15,7 +14,6 @@ def main():
     os.chdir(parent_dir)
 
     # Create FastAPI app with A2A enabled
-    # agents_dir="." means current directory (trusted-agents), which contains airline_agent subdirectory
     app = get_fast_api_app(
         web=None,  # Disable web UI
         a2a=True,
@@ -23,7 +21,7 @@ def main():
     )
 
     # Run the server
-    uvicorn.run(app, host="0.0.0.0", port=8002)
+    uvicorn.run(app, host="0.0.0.0", port=8003)
 
 if __name__ == "__main__":
     main()

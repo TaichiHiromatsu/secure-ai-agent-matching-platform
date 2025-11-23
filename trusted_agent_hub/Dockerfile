@@ -23,8 +23,11 @@ RUN pip install --no-cache-dir -r /app/inspect-worker/requirements.txt
 # Copy application code
 COPY trusted_agent_hub/app /app/app
 
-# Create data and static directories
-RUN mkdir -p data static
+# Copy static files
+COPY trusted_agent_hub/static /app/static
+
+# Create data directory
+RUN mkdir -p data
 
 # Set environment variables
 ENV PYTHONPATH=/app:/app/inspect-worker
