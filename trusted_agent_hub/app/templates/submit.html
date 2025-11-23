@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Submit Agent - Trusted Agent Hub</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto px-4 py-8">
+        <h1 class="text-3xl font-bold mb-8 text-center">Submit New Agent</h1>
+
+        <form id="submissionForm" class="max-w-2xl mx-auto bg-white p-8 rounded-lg shadow-md">
+
+            <div class="mb-6">
+                <label class="block text-gray-700 text-sm font-bold mb-2" for="agent_card_url">
+                    Agent Card URL
+                </label>
+                <input class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" id="agent_card_url" type="url" placeholder="http://sample-agent:4000/agent-card.json" required>
+                <p class="text-sm text-gray-500 mt-1">The system will fetch the Agent Card JSON from this URL.</p>
+            </div>
+
+            <div class="flex items-center justify-between">
+                <button class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline" type="submit">
+                    Submit Agent
+                </button>
+                <a href="/" class="inline-block align-baseline font-bold text-sm text-blue-500 hover:text-blue-800">
+                    Cancel
+                </a>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        document.getElementById('submissionForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const agentCardUrl = document.getElementById('agent_card_url').value;
+
+            const payload = {
+                agent_id: "placeholder", // Will be extracted from Agent Card on server side
+                agent_card_url: agentCardUrl,
+                // Mock other required fields for now
+                endpoint_manifest: { endpoints: [] },
+                endpoint_snapshot_hash: "sha256:mock",
+                signature_bundle: { signature: "mock" },
+                organization_meta: { name: "Mock Org" }
+            };
+
+            try {
+                const response = await fetch('/api/submissions/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(payload),
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    // alert('Submission successful!');
+                    // Redirect to submission status page
+                    window.location.href = `/submissions/${result.id}/status`;
+                } else {
+                    const error = await response.json();
+                    alert('Submission failed: ' + (error.detail || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('An error occurred.');
+            }
+        });
+    </script>
+</body>
+</html>

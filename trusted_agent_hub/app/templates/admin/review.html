@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Review Agent - Trusted Agent Hub</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100">
+    <nav class="bg-gray-800 text-white p-4">
+        <div class="container mx-auto flex justify-between items-center">
+            <a href="/" class="text-xl font-bold">Trusted Agent Hub</a>
+            <a href="/admin" class="hover:text-gray-300">Dashboard</a>
+        </div>
+    </nav>
+
+    <div class="container mx-auto px-4 py-8">
+        <div id="main-content" class="bg-white shadow-lg rounded-lg overflow-hidden mb-8">
+            {% include 'partials/submission_content.html' %}
+
+            <div class="p-6 border-t border-gray-200 bg-gray-50">
+                <h2 class="text-xl font-semibold mb-4">Review Actions</h2>
+                <div class="flex gap-4">
+                    <button onclick="submitDecision('approve')" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded">
+                        Approve Agent
+                    </button>
+                    <button onclick="submitDecision('reject')" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded">
+                        Reject Agent
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function submitDecision(action) {
+            if (!confirm(`Are you sure you want to ${action} this agent?`)) return;
+
+            try {
+                const response = await fetch(`/api/reviews/{{ submission.id }}/decision`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        action: action,
+                        reason: "Manual review decision",
+                        notes: "Action taken via Admin Dashboard"
+                    }),
+                });
+
+                if (response.ok) {
+                    alert(`Agent ${action}d successfully!`);
+                    window.location.reload();
+                } else {
+                    alert('Action failed.');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('An error occurred.');
+            }
+        }
+
+        function filterScenarios() {
+            const filter = document.getElementById('verdictFilter').value;
+            const rows = document.querySelectorAll('.scenario-row');
+
+            rows.forEach(row => {
+                const verdict = row.getAttribute('data-verdict');
+                if (filter === 'all' || verdict === filter) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        }
+
+        function filterSecurityScenarios() {
+            const filter = document.getElementById('securityVerdictFilter').value;
+            const rows = document.querySelectorAll('.security-scenario-row');
+
+            rows.forEach(row => {
+                const verdict = row.getAttribute('data-verdict');
+                if (filter === 'all' || verdict === filter) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        }
+
+        // Auto-fetch submission data every 5 seconds to check for updates
+        let pollingInterval = null;
+        let lastUpdateTime = "{{ submission.updated_at }}";
+        let isUpdating = false;
+
+        async function checkForUpdates() {
+            if (isUpdating) return; // Prevent concurrent updates
+
+            try {
+                const response = await fetch(`/api/submissions/{{ submission.id }}`);
+                if (!response.ok) return;
+
+                const data = await response.json();
+
+                // Check if data has been updated
+                if (data.updated_at !== lastUpdateTime) {
+                    lastUpdateTime = data.updated_at;
+                    isUpdating = true;
+                    await updatePageContent();
+                    isUpdating = false;
+                }
+            } catch (error) {
+                console.error('Polling error:', error);
+                isUpdating = false;
+            }
+        }
+
+        async function updatePageContent() {
+            try {
+                // Fetch the full HTML of the current page
+                const response = await fetch(window.location.href);
+                if (!response.ok) return;
+                const htmlText = await response.text();
+
+                // Parse the new HTML
+                const parser = new DOMParser();
+                const newDoc = parser.parseFromString(htmlText, 'text/html');
+                const newContent = newDoc.getElementById('main-content');
+                const currentContent = document.getElementById('main-content');
+
+                if (newContent && currentContent) {
+                    // Capture state
+                    const scrollPos = window.scrollY;
+                    const openDetails = Array.from(document.querySelectorAll('details[open]'))
+                        .map(el => el.id)
+                        .filter(id => id); // Only keep elements with IDs
+
+                    // Replace content
+                    currentContent.innerHTML = newContent.innerHTML;
+
+                    // Restore state
+                    openDetails.forEach(id => {
+                        const el = document.getElementById(id);
+                        if (el) el.open = true;
+                    });
+
+                    // Restore scroll position
+                    window.scrollTo(0, scrollPos);
+
+                    console.log('Page content updated via Ajax, state preserved.');
+                }
+            } catch (error) {
+                console.error('Error updating page content:', error);
+            }
+        }
+
+
+
+        function startPolling() {
+            // Poll every 5 seconds
+            pollingInterval = setInterval(checkForUpdates, 5000);
+            // Initial check after 2 seconds
+            setTimeout(checkForUpdates, 2000);
+        }
+
+        // Start polling to check for updates
+        startPolling();
+    </script>
+    <div class="text-center text-gray-400 text-xs py-4">
+        Review UI Version: 2025-11-23-v3 (Fix running state)
+    </div>
+</body>
+</html>
