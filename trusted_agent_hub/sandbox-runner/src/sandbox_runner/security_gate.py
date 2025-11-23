@@ -167,11 +167,38 @@ def invoke_endpoint(endpoint_url: str, prompt_text: str, *, timeout: float, toke
         logger.info(f"Agent card URL: {card_url}")
         logger.info(f"Message: {prompt_text[:200]}")
 
+        # Fetch and fix agent card URL field
+        # ADK's api_server generates agent.json with the --host value (0.0.0.0)
+        # We need to replace it with the accessible hostname
+        import httpx
+        async with httpx.AsyncClient(timeout=10.0) as client:
+          card_response = await client.get(card_url)
+          card_response.raise_for_status()
+          agent_card_data = card_response.json()
+          print(f"[DEBUG] Fetched agent card, original url: {agent_card_data.get('url')}")
+
+          # Replace 0.0.0.0 in url field with the correct hostname
+          if "url" in agent_card_data and "0.0.0.0" in agent_card_data["url"]:
+            card_url_parsed = urlparse(card_url)
+            original_card_url = agent_card_data["url"]
+            # Extract the service name from card_url
+            agent_card_data["url"] = agent_card_data["url"].replace("0.0.0.0", card_url_parsed.hostname)
+            print(f"[DEBUG] Fixed agent card url: {original_card_url} -> {agent_card_data['url']}")
+
+          # Convert dict to AgentCard object or pass as file path
+          # For now, save it to a temp file and pass the path
+          import tempfile
+          import json
+          with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            json.dump(agent_card_data, f)
+            temp_card_path = f.name
+          print(f"[DEBUG] Saved fixed agent card to: {temp_card_path}")
+
         # Create RemoteA2aAgent - ADK handles all A2A protocol details
-        # Pass the agent card URL directly - RemoteA2aAgent will fetch and parse it
+        # Pass the fixed agent card file path
         remote_agent = RemoteA2aAgent(
           name=agent_name,
-          agent_card=card_url,  # Pass URL string to agent card
+          agent_card=temp_card_path,  # Pass file path to fixed agent card
           timeout=timeout,
         )
 
