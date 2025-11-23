@@ -108,6 +108,7 @@ def invoke_endpoint(endpoint_url: str, prompt_text: str, *, timeout: float, toke
   """
   # Detect A2A Protocol endpoint (contains /a2a/ in URL)
   is_a2a = "/a2a/" in endpoint_url
+  print(f"[DEBUG] invoke_endpoint called: endpoint_url={endpoint_url}, is_a2a={is_a2a}")
 
   if is_a2a:
     # A2A Protocol: Use Google ADK's RemoteA2aAgent
