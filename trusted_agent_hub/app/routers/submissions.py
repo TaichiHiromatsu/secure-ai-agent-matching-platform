@@ -27,21 +27,39 @@ def run_precheck(submission: models.Submission) -> dict:
     try:
         card = submission.card_document
 
-        # Required fields check
-        required_fields = ["agentId", "serviceUrl", "translations"]
-        missing_fields = [f for f in required_fields if f not in card]
+        # Extract agentId - A2A Protocol uses "name" field as the primary identifier
+        agent_id = card.get("name")
+        if not agent_id:
+            # Fallback for legacy format (should not be used in new submissions)
+            agent_id = card.get("agentId") or card.get("id")
 
-        if missing_fields:
+        # Extract serviceUrl - A2A Protocol uses "url" field
+        service_url = card.get("url")
+        if not service_url:
+            # Fallback for legacy format (should not be used in new submissions)
+            service_url = card.get("serviceUrl")
+
+        # Check required fields - A2A Protocol requires "name" and "url"
+        errors = []
+        if not agent_id:
+            errors.append("Missing required field: 'name' (A2A Protocol)")
+        if not service_url:
+            errors.append("Missing required field: 'url' (A2A Protocol)")
+
+        if errors:
             return {
                 "passed": False,
                 "agentId": None,
                 "agentRevisionId": None,
-                "errors": [f"Missing required field: {f}" for f in missing_fields],
+                "errors": errors,
                 "warnings": []
             }
 
-        # Extract agentId
-        agent_id = card.get("agentId") or card.get("id")
+        # Extract agentId - A2A Protocol uses "name" field as the primary identifier
+        agent_id = card.get("name", "")
+        if not agent_id:
+            # Fallback for legacy format
+            agent_id = card.get("agentId") or card.get("id", "")
         agent_revision_id = card.get("version", "v1")
 
         # Warnings
@@ -50,6 +68,11 @@ def run_precheck(submission: models.Submission) -> dict:
             warnings.append("No capabilities defined in Agent Card")
         if not card.get("skills"):
             warnings.append("No skills defined in Agent Card")
+        # Check for legacy fields (should not be present in A2A Protocol compliant cards)
+        if card.get("agentId") or card.get("id"):
+            warnings.append("Legacy fields 'agentId' or 'id' detected - A2A Protocol uses 'name' field")
+        if card.get("serviceUrl"):
+            warnings.append("Legacy field 'serviceUrl' detected - A2A Protocol uses 'url' field")
 
         return {
             "passed": True,
@@ -236,13 +259,20 @@ def process_submission(submission_id: str):
         # Using AdvBench from third_party
         dataset_path = base_dir / "third_party/aisev/backend/dataset/output/06_aisi_security_v0.1.csv"
 
-        # Extract endpoint URL from Agent Card (A2A Protocol)
-        endpoint_url = submission.card_document.get("serviceUrl")
+        # Extract endpoint URL from Agent Card - A2A Protocol uses "url" field
+        endpoint_url = submission.card_document.get("url")
+        if not endpoint_url:
+            # Fallback for legacy format
+            endpoint_url = submission.card_document.get("serviceUrl")
         if not endpoint_url or not endpoint_url.startswith("http"):
             # Note: Raising HTTPException in a background task won't be caught by FastAPI's error handling
             # in the same way as an endpoint. It will be an unhandled exception within the task.
             # Consider updating submission state to 'failed' and logging the error instead.
-            raise HTTPException(status_code=400, detail=f"Invalid or missing serviceUrl in Agent Card for submission {submission_id}")
+            submission.state = "failed"
+            submission.updated_at = datetime.utcnow()
+            db.commit()
+            print(f"Invalid or missing serviceUrl/url in Agent Card for submission {submission_id}")
+            return
         try:
             security_summary = run_security_gate(
                 agent_id=submission.agent_id,
@@ -669,10 +699,13 @@ async def create_submission(
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to fetch Agent Card: {str(e)}")
 
-    # Extract agent_id from Agent Card
-    agent_id = card_document.get("agentId") or card_document.get("id")
+    # Extract agent_id from Agent Card - A2A Protocol uses "name" field as the primary identifier
+    agent_id = card_document.get("name")
     if not agent_id:
-        raise HTTPException(status_code=400, detail="Agent Card missing required 'agentId' or 'id' field")
+        # Fallback for legacy format (should not be used in new submissions)
+        agent_id = card_document.get("agentId") or card_document.get("id")
+    if not agent_id:
+        raise HTTPException(status_code=400, detail="Agent Card missing required 'name' field (A2A Protocol)")
 
     db_submission = models.Submission(
         id=str(uuid.uuid4()),

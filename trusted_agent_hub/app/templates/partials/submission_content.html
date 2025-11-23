@@ -1,6 +1,11 @@
 <div class="p-6 bg-gray-50 border-b border-gray-200">
+    {% if submission.card_document.translations and submission.card_document.translations|length > 0 %}
     <h1 class="text-3xl font-bold text-gray-800">{{ submission.card_document.translations[0].displayName }}</h1>
     <p class="text-gray-600">{{ submission.card_document.translations[0].shortDescription }}</p>
+    {% else %}
+    <h1 class="text-3xl font-bold text-gray-800">{{ submission.card_document.name or submission.agent_id }}</h1>
+    <p class="text-gray-600">{{ submission.card_document.description or "No description available" }}</p>
+    {% endif %}
 </div>
 
 <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -658,15 +663,15 @@
                     {% for scenario in submission.score_breakdown.judge_summary.scenarios[:10] %}
                     <details class="border border-gray-300 rounded-lg bg-white">
                         <summary class="p-3 cursor-pointer hover:bg-gray-50 font-medium text-sm">
-                            {{ scenario.scenarioId or '匿名' }}
+                            {{ scenario.get('scenarioId') or '匿名' }}
                             <span class="ml-2 text-xs px-2 py-1 rounded
-                                {% if scenario.judgeVerdict == 'approve' %}bg-green-100 text-green-800
-                                {% elif scenario.judgeVerdict == 'reject' %}bg-red-100 text-red-800
-                                {% elif scenario.judgeVerdict == 'manual' %}bg-yellow-100 text-yellow-800
+                                {% if scenario.get('judgeVerdict') == 'approve' %}bg-green-100 text-green-800
+                                {% elif scenario.get('judgeVerdict') == 'reject' %}bg-red-100 text-red-800
+                                {% elif scenario.get('judgeVerdict') == 'manual' %}bg-yellow-100 text-yellow-800
                                 {% else %}bg-gray-100 text-gray-800{% endif %}">
-                                Judge: {{ scenario.judgeVerdict }}
+                                Judge: {{ scenario.get('judgeVerdict', 'N/A') }}
                             </span>
-                            {% if scenario.minorityVetoTriggered %}
+                            {% if scenario.get('minorityVetoTriggered') %}
                             <span class="ml-1 text-xs px-2 py-1 rounded bg-red-200 text-red-900">⚠️ Minority Veto</span>
                             {% endif %}
                         </summary>
@@ -674,53 +679,89 @@
                             <!-- Prompt and Response -->
                             <div class="text-xs">
                                 <strong>Prompt:</strong>
-                                <pre class="mt-1 whitespace-pre-wrap bg-gray-50 p-2 rounded">{{ scenario.prompt or 'N/A' }}</pre>
+                                <pre class="mt-1 whitespace-pre-wrap bg-gray-50 p-2 rounded">{{ scenario.get('prompt') or 'N/A' }}</pre>
                             </div>
                             <div class="text-xs">
                                 <strong>Response:</strong>
-                                <pre class="mt-1 whitespace-pre-wrap bg-gray-50 p-2 rounded">{{ scenario.response or 'N/A' }}</pre>
+                                <pre class="mt-1 whitespace-pre-wrap bg-gray-50 p-2 rounded">{{ scenario.get('response') or 'N/A' }}</pre>
                             </div>
 
                             <!-- Functional vs Judge Verdict -->
                             <div class="grid grid-cols-2 gap-2 text-xs">
                                 <div class="bg-gray-50 p-2 rounded">
                                     <span class="text-gray-600">Functional Verdict:</span>
-                                    <span class="ml-1 font-medium">{{ scenario.functionalVerdict or 'N/A' }}</span>
+                                    <span class="ml-1 font-medium">{{ scenario.get('functionalVerdict') or 'N/A' }}</span>
                                 </div>
                                 <div class="bg-gray-50 p-2 rounded">
                                     <span class="text-gray-600">Judge Score:</span>
-                                    <span class="ml-1 font-medium">{{ "%.2f"|format(scenario.judgeScore) if scenario.judgeScore is not none else 'N/A' }}</span>
+                                    <span class="ml-1 font-medium">
+                                        {% if scenario.get('judgeScore') is not none %}
+                                            {{ "%.2f"|format(scenario.get('judgeScore')) }}
+                                        {% else %}
+                                            N/A
+                                        {% endif %}
+                                    </span>
                                 </div>
                             </div>
 
                             <!-- LLM Verdicts -->
-                            {% if scenario.llmVerdicts %}
+                            {% if scenario.get('llmVerdicts') %}
                             <div class="border-t pt-2">
                                 <h5 class="font-semibold text-xs mb-2">各LLMの判定:</h5>
                                 <div class="space-y-2">
-                                    {% for llm in scenario.llmVerdicts %}
+                                    {% for llm in scenario.get('llmVerdicts', []) %}
                                     <details class="bg-gray-50 rounded p-2">
                                         <summary class="cursor-pointer text-xs font-medium">
-                                            {{ llm.model }}
+                                            {{ llm.get('model', 'Unknown') }}
                                             <span class="ml-2 px-2 py-1 rounded
-                                                {% if llm.verdict == 'approve' %}bg-green-100 text-green-800
-                                                {% elif llm.verdict == 'reject' %}bg-red-100 text-red-800
+                                                {% if llm.get('verdict') == 'approve' %}bg-green-100 text-green-800
+                                                {% elif llm.get('verdict') == 'reject' %}bg-red-100 text-red-800
                                                 {% else %}bg-yellow-100 text-yellow-800{% endif %}">
-                                                {{ llm.verdict }}
+                                                {{ llm.get('verdict', 'N/A') }}
                                             </span>
-                                            <span class="ml-1 text-gray-600">Score: {{ "%.2f"|format(llm.score) if llm.score is not none else 'N/A' }}</span>
+                                            <span class="ml-1 text-gray-600">Score:
+                                                {% if llm.get('score') is not none %}
+                                                    {{ "%.2f"|format(llm.get('score')) }}
+                                                {% else %}
+                                                    N/A
+                                                {% endif %}
+                                            </span>
                                         </summary>
                                         <div class="mt-2 space-y-1 text-xs">
                                             <div class="grid grid-cols-2 gap-2">
-                                                <div><span class="text-gray-600">Task Completion:</span> {{ "%.2f"|format(llm.taskCompletion) if llm.taskCompletion is not none else 'N/A' }}</div>
-                                                <div><span class="text-gray-600">Tool Usage:</span> {{ "%.2f"|format(llm.toolUsage) if llm.toolUsage is not none else 'N/A' }}</div>
-                                                <div><span class="text-gray-600">Autonomy:</span> {{ "%.2f"|format(llm.autonomy) if llm.autonomy is not none else 'N/A' }}</div>
-                                                <div><span class="text-gray-600">Safety:</span> {{ "%.2f"|format(llm.safety) if llm.safety is not none else 'N/A' }}</div>
+                                                <div><span class="text-gray-600">Task Completion:</span>
+                                                    {% if llm.get('taskCompletion') is not none %}
+                                                        {{ "%.2f"|format(llm.get('taskCompletion')) }}
+                                                    {% else %}
+                                                        N/A
+                                                    {% endif %}
+                                                </div>
+                                                <div><span class="text-gray-600">Tool Usage:</span>
+                                                    {% if llm.get('toolUsage') is not none %}
+                                                        {{ "%.2f"|format(llm.get('toolUsage')) }}
+                                                    {% else %}
+                                                        N/A
+                                                    {% endif %}
+                                                </div>
+                                                <div><span class="text-gray-600">Autonomy:</span>
+                                                    {% if llm.get('autonomy') is not none %}
+                                                        {{ "%.2f"|format(llm.get('autonomy')) }}
+                                                    {% else %}
+                                                        N/A
+                                                    {% endif %}
+                                                </div>
+                                                <div><span class="text-gray-600">Safety:</span>
+                                                    {% if llm.get('safety') is not none %}
+                                                        {{ "%.2f"|format(llm.get('safety')) }}
+                                                    {% else %}
+                                                        N/A
+                                                    {% endif %}
+                                                </div>
                                             </div>
-                                            {% if llm.rationale %}
+                                            {% if llm.get('rationale') %}
                                             <div class="mt-2">
                                                 <strong>Rationale:</strong>
-                                                <pre class="mt-1 whitespace-pre-wrap bg-white p-2 rounded text-xs">{{ llm.rationale }}</pre>
+                                                <pre class="mt-1 whitespace-pre-wrap bg-white p-2 rounded text-xs">{{ llm.get('rationale') }}</pre>
                                             </div>
                                             {% endif %}
                                         </div>
@@ -731,10 +772,10 @@
                             {% endif %}
 
                             <!-- Aggregated Rationale -->
-                            {% if scenario.aggregatedRationale %}
+                            {% if scenario.get('aggregatedRationale') %}
                             <div class="border-t pt-2">
                                 <strong class="text-xs">Aggregated Rationale:</strong>
-                                <pre class="mt-1 whitespace-pre-wrap bg-gray-50 p-2 rounded text-xs">{{ scenario.aggregatedRationale }}</pre>
+                                <pre class="mt-1 whitespace-pre-wrap bg-gray-50 p-2 rounded text-xs">{{ scenario.get('aggregatedRationale') }}</pre>
                             </div>
                             {% endif %}
                         </div>
