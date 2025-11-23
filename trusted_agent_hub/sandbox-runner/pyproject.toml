@@ -1,0 +1,23 @@
+[project]
+name = "sandbox-runner"
+version = "0.0.1"
+description = "Placeholder sandbox runner CLI"
+requires-python = ">=3.11"
+readme = "README.md"
+authors = [{ name = "Agent Store Team" }]
+dependencies = [
+    "jsonschema>=4.23.0",
+    "google-adk>=1.0.0"
+]
+optional-dependencies = { dev = ["pytest>=8.3.0"] }
+
+[project.scripts]
+sandbox-runner = "sandbox_runner.cli:main"
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]

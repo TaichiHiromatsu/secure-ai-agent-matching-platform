@@ -1,0 +1,36 @@
+version: "3.9"
+
+services:
+  trusted-agent-hub:
+    build:
+      context: .
+      dockerfile: ./trusted_agent_hub/Dockerfile
+    container_name: trusted-agent-hub
+    ports:
+      - "8080:8080"
+    environment:
+      - DATABASE_URL=sqlite:///./test.db
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - WANDB_API_KEY=${WANDB_API_KEY}
+      - WANDB_PROJECT=${WANDB_PROJECT}
+      - WANDB_ENTITY=${WANDB_ENTITY}
+      - WANDB_BASE_URL=${WANDB_BASE_URL}
+    networks:
+      - agent-net
+
+  # sample-agent:
+  #   build: ./sample-agent
+  #   container_name: sample-agent
+  #   ports:
+  #     - "4000:4000"
+  #   environment:
+  #     - BASE_URL=http://sample-agent:4000
+  #     - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+  #   networks:
+  #     - agent-net
+
+networks:
+  agent-net:
+    driver: bridge
