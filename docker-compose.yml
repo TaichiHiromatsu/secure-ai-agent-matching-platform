@@ -1,6 +1,7 @@
 version: "3.9"
 
 services:
+  # Trusted Agent Hub - エージェント審査プラットフォーム
   trusted-agent-hub:
     build:
       context: .
@@ -9,27 +10,106 @@ services:
     ports:
       - "8080:8080"
     environment:
-      - DATABASE_URL=sqlite:///./test.db
+      - DATABASE_URL=sqlite:////app/data/agent_store.db
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - WANDB_API_KEY=${WANDB_API_KEY}
-      - WANDB_PROJECT=${WANDB_PROJECT}
+      - WANDB_PROJECT=${WANDB_PROJECT:-agent-store-sandbox}
       - WANDB_ENTITY=${WANDB_ENTITY}
-      - WANDB_BASE_URL=${WANDB_BASE_URL}
+      - WANDB_BASE_URL=${WANDB_BASE_URL:-https://api.wandb.ai}
+    volumes:
+      - trusted-hub-data:/app/data
     networks:
       - agent-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
-  # sample-agent:
-  #   build: ./sample-agent
-  #   container_name: sample-agent
-  #   ports:
-  #     - "4000:4000"
-  #   environment:
-  #     - BASE_URL=http://sample-agent:4000
-  #     - GOOGLE_API_KEY=${GOOGLE_API_KEY}
-  #   networks:
-  #     - agent-net
+  # Secure Mediation Agent - メディエーションエージェント（Web UI）
+  secure-mediation-agent:
+    build:
+      context: .
+      dockerfile: ./secure-mediation-agent/Dockerfile
+    container_name: secure-mediation-agent
+    ports:
+      - "8000:8000"
+    environment:
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - GOOGLE_GENAI_USE_VERTEXAI=${GOOGLE_GENAI_USE_VERTEXAI:-0}
+    networks:
+      - agent-net
+    depends_on:
+      - airline-agent
+      - hotel-agent
+      - car-rental-agent
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Airline Agent - 航空会社エージェント
+  airline-agent:
+    build:
+      context: .
+      dockerfile: ./external-agents/trusted-agents/airline_agent/Dockerfile
+    container_name: airline-agent
+    ports:
+      - "8002:8002"
+    environment:
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - GOOGLE_GENAI_USE_VERTEXAI=${GOOGLE_GENAI_USE_VERTEXAI:-0}
+    networks:
+      - agent-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/.well-known/agent.json"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Hotel Agent - ホテル予約エージェント
+  hotel-agent:
+    build:
+      context: .
+      dockerfile: ./external-agents/trusted-agents/hotel_agent/Dockerfile
+    container_name: hotel-agent
+    ports:
+      - "8003:8003"
+    environment:
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - GOOGLE_GENAI_USE_VERTEXAI=${GOOGLE_GENAI_USE_VERTEXAI:-0}
+    networks:
+      - agent-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/.well-known/agent.json"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Car Rental Agent - レンタカーエージェント
+  car-rental-agent:
+    build:
+      context: .
+      dockerfile: ./external-agents/trusted-agents/car_rental_agent/Dockerfile
+    container_name: car-rental-agent
+    ports:
+      - "8004:8004"
+    environment:
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - GOOGLE_GENAI_USE_VERTEXAI=${GOOGLE_GENAI_USE_VERTEXAI:-0}
+    networks:
+      - agent-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8004/.well-known/agent.json"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  trusted-hub-data:
 
 networks:
   agent-net:
