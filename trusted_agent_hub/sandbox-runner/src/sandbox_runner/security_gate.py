@@ -208,25 +208,33 @@ def invoke_endpoint(endpoint_url: str, prompt_text: str, *, timeout: float, toke
         # Run the agent - ADK automatically handles A2A protocol communication
         # Reference: orchestration_agent.py lines 191-219
         response_parts = []
+        print(f"[DEBUG] Starting runner.run_async for {agent_name}")
         async for event in runner.run_async(
           user_id=user_id,
           session_id=session_id,
           new_message=new_message
         ):
+          print(f"[DEBUG] A2A agent {agent_name} event: {type(event).__name__}, hasattr content: {hasattr(event, 'content')}")
           logger.info(f"A2A agent {agent_name} event: {type(event).__name__}")
 
           # Extract text from different event types
           # Reference: orchestration_agent.py lines 206-219 (exact same logic)
           if hasattr(event, 'content') and event.content:
+            print(f"[DEBUG] Event has content, type: {type(event.content)}, is str: {isinstance(event.content, str)}")
             if isinstance(event.content, str):
               response_parts.append(event.content)
+              print(f"[DEBUG] Appended string content: {event.content[:100]}")
             else:
               # Handle Content object with parts
               parts_text = []
+              print(f"[DEBUG] Content has {len(event.content.parts) if hasattr(event.content, 'parts') else 0} parts")
               for part in event.content.parts:
                 if hasattr(part, 'text') and part.text:
                   response_parts.append(part.text)
                   parts_text.append(part.text)
+                  print(f"[DEBUG] Appended part text: {part.text[:100]}")
+          else:
+            print(f"[DEBUG] Event has no content or content is None")
 
         # Combine all response parts
         # Reference: orchestration_agent.py line 266
