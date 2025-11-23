@@ -699,6 +699,21 @@ async def create_submission(
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to fetch Agent Card: {str(e)}")
 
+    # Normalize the agent card's url field to use the accessible host from agent_card_url
+    # This ensures the url field points to a hostname that is accessible from the Trusted Agent Hub
+    if "url" in card_document:
+        from urllib.parse import urlparse
+        agent_card_url_parsed = urlparse(submission.agent_card_url)
+        agent_card_host = agent_card_url_parsed.netloc
+
+        original_url = card_document["url"]
+        url_parsed = urlparse(original_url)
+        # Replace the host in the url field with the accessible host from agent_card_url
+        normalized_url = f"{url_parsed.scheme}://{agent_card_host}{url_parsed.path}"
+        if original_url != normalized_url:
+            card_document["url"] = normalized_url
+            print(f"Normalized agent card URL: {original_url} -> {normalized_url}")
+
     # Extract agent_id from Agent Card - A2A Protocol uses "name" field as the primary identifier
     agent_id = card_document.get("name")
     if not agent_id:

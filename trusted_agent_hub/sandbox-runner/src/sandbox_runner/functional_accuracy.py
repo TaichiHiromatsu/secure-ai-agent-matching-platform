@@ -367,6 +367,19 @@ class AgentResponseEvaluator:
     from google.adk.runners import InMemoryRunner
     from google.genai import types
 
+    # 空の応答の場合はエラーとして扱う
+    if not actual or not actual.strip():
+      logger.warning(f"Empty response received for use case: {use_case}")
+      return {
+        "similarity": 0.0,
+        "distance": 1.0,
+        "verdict": "error",
+        "rationale": "実際の応答が提供されていないため、評価できません。",
+        "topic_relevance": False,
+        "dialogue_progress": False,
+        "errors": ["空の応答"]
+      }
+
     # ユーザープロンプトを構築
     user_prompt = f"""**ユースケース**: {use_case}
 **期待される動作**: {expected}
