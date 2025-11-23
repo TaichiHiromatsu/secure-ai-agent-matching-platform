@@ -273,6 +273,41 @@ def process_submission(submission_id: str):
             db.commit()
             print(f"Invalid or missing serviceUrl/url in Agent Card for submission {submission_id}")
             return
+
+        # Normalize endpoint_url: replace 0.0.0.0 with the correct Docker service hostname
+        # This ensures the endpoint_url is accessible from the Trusted Agent Hub container
+        from urllib.parse import urlparse, urlunparse
+        parsed_endpoint = urlparse(endpoint_url)
+        if parsed_endpoint.hostname == "0.0.0.0":
+            # Try to infer Docker service name from agent name or URL path
+            agent_name = submission.agent_id
+            service_name_map = {
+                "airline_agent": "airline-agent",
+                "hotel_agent": "hotel-agent",
+                "car_rental_agent": "car-rental-agent",
+            }
+            # Also try to extract from URL path (e.g., /a2a/airline_agent -> airline_agent)
+            if not agent_name or agent_name not in service_name_map:
+                path_parts = parsed_endpoint.path.strip('/').split('/')
+                if len(path_parts) >= 2 and path_parts[0] == "a2a":
+                    agent_name = path_parts[1]
+
+            service_name = service_name_map.get(agent_name, "localhost")
+            normalized_netloc = f"{service_name}:{parsed_endpoint.port}"
+            normalized_endpoint = urlunparse((
+                parsed_endpoint.scheme,
+                normalized_netloc,
+                parsed_endpoint.path,
+                parsed_endpoint.params,
+                parsed_endpoint.query,
+                parsed_endpoint.fragment
+            ))
+            print(f"Normalized endpoint_url: {endpoint_url} -> {normalized_endpoint}")
+            endpoint_url = normalized_endpoint
+
+            # Also update the card_document's url field for consistency
+            submission.card_document["url"] = normalized_endpoint
+            db.commit()
         try:
             security_summary = run_security_gate(
                 agent_id=submission.agent_id,
