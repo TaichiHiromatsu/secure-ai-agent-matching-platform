@@ -655,6 +655,16 @@
                 </div>
             </div>
             {% endif %}
+            {% if submission.score_breakdown.judge_summary.counterFindings %}
+            <div class="border-t pt-4">
+                <h4 class="font-semibold mb-2">⚠️ Counter Findings (Top)</h4>
+                <ul class="list-disc ml-5 text-xs space-y-1">
+                    {% for finding in submission.score_breakdown.judge_summary.counterFindings %}
+                    <li>{{ finding }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
             <!-- Judge Panel Scenarios Details -->
             {% if submission.score_breakdown.judge_summary.scenarios %}
             {% set grouped = {} %}
@@ -779,6 +789,12 @@
                                 <div class="border-t pt-2 text-xs text-gray-700 mt-2">
                                     <strong>Aggregated Rationale:</strong>
                                     <pre class="whitespace-pre-wrap bg-white p-2 rounded mt-1">{{ stage_item.get('aggregatedRationale') }}</pre>
+                                </div>
+                                {% endif %}
+                                {% if stage_item.get('issuesText') %}
+                                <div class="border-t pt-2 text-xs text-red-700 mt-2">
+                                    <strong>Issues (Counter -> Reconcile):</strong>
+                                    <pre class="whitespace-pre-wrap bg-white p-2 rounded mt-1">{{ stage_item.get('issuesText') }}</pre>
                                 </div>
                                 {% endif %}
 +                            </div>

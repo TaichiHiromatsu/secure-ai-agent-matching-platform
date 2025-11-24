@@ -393,14 +393,14 @@ class MultiModelJudgePanel:
         self,
         question: QuestionSpec,
         execution: ExecutionResult,
-    ) -> List[tuple[str, QuestionSpec, List[ModelVerdict]]]:
+    ) -> List[dict]:
         """
         Plan→Counter→Reconcile の因果接続を持たせた評価チェーン。
         Counter で出た懸念を Reconcile に渡し、再評価する。
-        戻り値は (stage, stage_question, model_verdicts) のリスト。
+        戻り値は {stage, question, model_verdicts, issues_text} のリスト。
         """
 
-        chain: List[tuple[str, QuestionSpec, List[ModelVerdict]]] = []
+        chain: List[dict] = []
 
         # 1) Plan
         plan_q = QuestionSpec(
@@ -412,7 +412,7 @@ class MultiModelJudgePanel:
             use_case=question.use_case,
         )
         plan_mv = await self._run_parallel_evaluation_async(plan_q, execution)
-        chain.append(("plan", plan_q, plan_mv))
+        chain.append({"stage": "plan", "question": plan_q, "model_verdicts": plan_mv, "issues_text": ""})
 
         # 2) Counter（計画の弱点・リスクを洗い出す）
         counter_q = QuestionSpec(
@@ -424,7 +424,7 @@ class MultiModelJudgePanel:
             use_case=question.use_case,
         )
         counter_mv = await self._run_parallel_evaluation_async(counter_q, execution)
-        chain.append(("counter", counter_q, counter_mv))
+        chain.append({"stage": "counter", "question": counter_q, "model_verdicts": counter_mv, "issues_text": ""})
 
         # 懸念点を抽出（reject/manual の rationale を収集）
         issues = []
@@ -444,7 +444,7 @@ class MultiModelJudgePanel:
             use_case=question.use_case,
         )
         reconcile_mv = await self._run_parallel_evaluation_async(reconcile_q, execution)
-        chain.append(("reconcile", reconcile_q, reconcile_mv))
+        chain.append({"stage": "reconcile", "question": reconcile_q, "model_verdicts": reconcile_mv, "issues_text": issues_text})
 
         return chain
 

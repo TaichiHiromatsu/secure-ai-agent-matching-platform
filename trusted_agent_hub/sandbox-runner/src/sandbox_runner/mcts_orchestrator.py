@@ -21,7 +21,7 @@ from typing import Callable, Dict, List, Any
 
 @dataclass
 class MCTSParams:
-    max_rollouts: int = int(os.getenv("JUDGE_MCTS_MAX_ROLLOUTS", "1"))
+    max_rollouts: int = int(os.getenv("JUDGE_MCTS_MAX_ROLLOUTS", "3"))
     ucb_c: float = float(os.getenv("JUDGE_MCTS_UCB_C", "1.4"))
     veto_threshold: float = float(os.getenv("JUDGE_VETO_THRESHOLD", "0.3"))
 
@@ -112,4 +112,3 @@ def orchestrate_mcts(
     }
 
     return best_summary
-
