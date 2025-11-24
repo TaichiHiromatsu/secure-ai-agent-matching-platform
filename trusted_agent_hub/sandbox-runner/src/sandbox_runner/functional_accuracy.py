@@ -505,12 +505,21 @@ def _execute_functional_prompt(
   endpoint_url: Optional[str],
   endpoint_token: Optional[str],
   timeout: float,
-  dry_run: bool
+  dry_run: bool,
+  session_id: Optional[str] = None,
+  user_id: Optional[str] = None
 ) -> tuple[Optional[str], str, Optional[str]]:
   if dry_run or not endpoint_url:
     return (f"(dry-run) {prompt}", "dry_run", None)
   try:
-    response_text = invoke_endpoint(endpoint_url, prompt, timeout=timeout, token=endpoint_token)
+    response_text = invoke_endpoint(
+      endpoint_url,
+      prompt,
+      timeout=timeout,
+      token=endpoint_token,
+      session_id=session_id,
+      user_id=user_id
+    )
   except Exception as exc:  # pragma: no cover - network errors depend on environment
     return (None, "error", str(exc)[:300])
   return (response_text, "ok", None)
@@ -529,8 +538,29 @@ def run_functional_accuracy(
   endpoint_token: Optional[str],
   timeout: float,
   advbench_dir: Optional[Path] = None,
-  advbench_limit: Optional[int] = None
+  advbench_limit: Optional[int] = None,
+  session_id: Optional[str] = None,
+  user_id: Optional[str] = None
 ) -> Dict[str, Any]:
+  """
+  Run functional accuracy evaluation on an agent.
+
+  Args:
+    agent_id: Agent ID
+    revision: Agent revision
+    agent_card_path: Path to agent card
+    ragtruth_dir: Path to RAGTruth directory
+    output_dir: Output directory for results
+    max_scenarios: Maximum number of scenarios to evaluate
+    dry_run: If True, skip actual agent invocation
+    endpoint_url: Agent endpoint URL
+    endpoint_token: Optional endpoint authentication token
+    timeout: Timeout for agent invocations
+    advbench_dir: Optional path to AdvBench directory
+    advbench_limit: Optional limit for AdvBench scenarios
+    session_id: Optional session ID (will be passed to invoke_endpoint)
+    user_id: Optional user ID (defaults to "functional-accuracy")
+  """
   output_dir.mkdir(parents=True, exist_ok=True)
   if not agent_card_path.exists():
     summary = {
@@ -581,7 +611,9 @@ def run_functional_accuracy(
         endpoint_url=endpoint_url,
         endpoint_token=endpoint_token,
         timeout=timeout,
-        dry_run=dry_run or not endpoint_url
+        dry_run=dry_run or not endpoint_url,
+        session_id=session_id,
+        user_id=user_id
       )
 
       # エージェントベース評価を使用
@@ -881,7 +913,9 @@ def run_multiturn_dialogue_evaluation(
   endpoint_token: Optional[str],
   max_turns: int = 5,
   timeout: float = 30.0,
-  dry_run: bool = False
+  dry_run: bool = False,
+  session_id: Optional[str] = None,
+  user_id: Optional[str] = None
 ) -> Dict[str, Any]:
   """
   マルチターン対話を実行して評価。
@@ -924,7 +958,14 @@ def run_multiturn_dialogue_evaluation(
     current_prompt = initial_prompt
     for turn in range(1, max_turns + 1):
       try:
-        response_text = invoke_endpoint(endpoint_url, current_prompt, timeout=timeout, token=endpoint_token)
+        response_text = invoke_endpoint(
+          endpoint_url,
+          current_prompt,
+          timeout=timeout,
+          token=endpoint_token,
+          session_id=session_id,
+          user_id=user_id
+        )
         dialogue_turns.append(DialogueTurn(
           user_message=current_prompt,
           agent_response=response_text,

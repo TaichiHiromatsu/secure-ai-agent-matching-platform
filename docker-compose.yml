@@ -29,11 +29,11 @@ services:
       retries: 3
 
   # Secure Mediation Agent - メディエーションエージェント（Web UI）
-  secure-mediation-agent:
+  secure_mediation_agent:
     build:
       context: .
       dockerfile: ./secure-mediation-agent/Dockerfile
-    container_name: secure-mediation-agent
+    container_name: secure_mediation_agent
     ports:
       - "8000:8000"
     environment:
@@ -42,9 +42,9 @@ services:
     networks:
       - agent-net
     depends_on:
-      - airline-agent
-      - hotel-agent
-      - car-rental-agent
+      - airline_agent
+      - hotel_agent
+      - car_rental_agent
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -52,17 +52,17 @@ services:
       retries: 3
 
   # Airline Agent - 航空会社エージェント
-  airline-agent:
+  airline_agent:
     build:
       context: .
       dockerfile: ./external-agents/trusted-agents/airline_agent/Dockerfile
-    container_name: airline-agent
+    container_name: airline_agent
     ports:
       - "8002:8002"
     environment:
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
       - GOOGLE_GENAI_USE_VERTEXAI=${GOOGLE_GENAI_USE_VERTEXAI:-0}
-      - AGENT_HOST=airline-agent
+      - AGENT_HOST=airline_agent
       - AGENT_PORT=8002
     networks:
       - agent-net
@@ -73,17 +73,17 @@ services:
       retries: 3
 
   # Hotel Agent - ホテル予約エージェント
-  hotel-agent:
+  hotel_agent:
     build:
       context: .
       dockerfile: ./external-agents/trusted-agents/hotel_agent/Dockerfile
-    container_name: hotel-agent
+    container_name: hotel_agent
     ports:
       - "8003:8003"
     environment:
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
       - GOOGLE_GENAI_USE_VERTEXAI=${GOOGLE_GENAI_USE_VERTEXAI:-0}
-      - AGENT_HOST=hotel-agent
+      - AGENT_HOST=hotel_agent
       - AGENT_PORT=8003
     networks:
       - agent-net
@@ -94,17 +94,17 @@ services:
       retries: 3
 
   # Car Rental Agent - レンタカーエージェント
-  car-rental-agent:
+  car_rental_agent:
     build:
       context: .
       dockerfile: ./external-agents/trusted-agents/car_rental_agent/Dockerfile
-    container_name: car-rental-agent
+    container_name: car_rental_agent
     ports:
       - "8004:8004"
     environment:
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
       - GOOGLE_GENAI_USE_VERTEXAI=${GOOGLE_GENAI_USE_VERTEXAI:-0}
-      - AGENT_HOST=car-rental-agent
+      - AGENT_HOST=car_rental_agent
       - AGENT_PORT=8004
     networks:
       - agent-net

@@ -281,18 +281,14 @@ def process_submission(submission_id: str):
         if parsed_endpoint.hostname == "0.0.0.0":
             # Try to infer Docker service name from agent name or URL path
             agent_name = submission.agent_id
-            service_name_map = {
-                "airline_agent": "airline-agent",
-                "hotel_agent": "hotel-agent",
-                "car_rental_agent": "car-rental-agent",
-            }
             # Also try to extract from URL path (e.g., /a2a/airline_agent -> airline_agent)
-            if not agent_name or agent_name not in service_name_map:
+            if not agent_name:
                 path_parts = parsed_endpoint.path.strip('/').split('/')
                 if len(path_parts) >= 2 and path_parts[0] == "a2a":
                     agent_name = path_parts[1]
 
-            service_name = service_name_map.get(agent_name, "localhost")
+            # Use agent_name directly as Docker service name (now unified with underscores)
+            service_name = agent_name if agent_name else "localhost"
             normalized_netloc = f"{service_name}:{parsed_endpoint.port}"
             normalized_endpoint = urlunparse((
                 parsed_endpoint.scheme,
@@ -320,6 +316,8 @@ def process_submission(submission_id: str):
                 timeout=10.0,
                 dry_run=False,  # Real execution!
                 agent_card=submission.card_document,
+                session_id=submission.id,  # Use submission ID as session ID
+                user_id="security-gate"  # Constant user ID for security gate
             )
 
             # Log to W&B
@@ -445,7 +443,9 @@ def process_submission(submission_id: str):
             dry_run=False, # Real execution!
             endpoint_url=endpoint_url,
             endpoint_token=None,
-            timeout=20.0
+            timeout=20.0,
+            session_id=submission.id,  # Use submission ID as session ID
+            user_id="functional-accuracy"  # Constant user ID for functional accuracy
         )
 
         # Log to W&B

@@ -1,6 +1,6 @@
 {
   "name": "hotel_agent",
-  "url": "http://hotel-agent:8003/a2a/hotel_agent",
+  "url": "http://hotel_agent:8003/a2a/hotel_agent",
   "version": "1.0.0",
   "protocolVersion": "0.3.0",
   "capabilities": {},
