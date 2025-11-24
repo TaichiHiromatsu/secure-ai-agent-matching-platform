@@ -18,7 +18,7 @@ services:
       - WANDB_PROJECT=${WANDB_PROJECT:-agent-store-sandbox}
       - WANDB_ENTITY=${WANDB_ENTITY}
       - WANDB_BASE_URL=${WANDB_BASE_URL:-https://api.wandb.ai}
-      - PYTHONPATH=/app:/app/inspect-worker
+      - PYTHONPATH=/app:/app/inspect-worker:/app/sandbox-runner/src
     volumes:
       - trusted-hub-data:/app/data
       # Development: Mount source code for hot reload

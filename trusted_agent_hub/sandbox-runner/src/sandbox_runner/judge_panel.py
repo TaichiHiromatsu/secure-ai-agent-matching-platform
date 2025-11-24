@@ -27,6 +27,8 @@ except ImportError:
     HAS_INSPECT_WORKER = False
     print("Warning: inspect-worker not available, falling back to mock implementation")
 
+from sandbox_runner.mcts_orchestrator import orchestrate_mcts, MCTSParams
+
 
 def run_judge_panel(
     *,
@@ -118,14 +120,23 @@ def run_judge_panel(
 
     # Use Multi-Model Judge Panel if available
     if HAS_INSPECT_WORKER and not dry_run:
-        return _run_multi_model_judge_panel(
-            scenarios,
-            output_dir,
-            agent_id,
-            revision,
-            enable_openai=enable_openai,
-            enable_anthropic=enable_anthropic,
-            enable_google=enable_google
+        def _eval_once():
+            return _run_stage_multi_model_judge_panel(
+                scenarios,
+                output_dir,
+                agent_id,
+                revision,
+                enable_openai=enable_openai,
+                enable_anthropic=enable_anthropic,
+                enable_google=enable_google,
+            )
+
+        params = MCTSParams()
+        return orchestrate_mcts(
+            scenarios=scenarios,
+            eval_fn=_eval_once,
+            output_dir=output_dir,
+            params=params,
         )
     else:
         # Fallback to mock implementation
@@ -176,6 +187,7 @@ def _execute_questions_a2a(
         card_resp = httpx.get(card_url, timeout=10.0)
         card_resp.raise_for_status()
         agent_card_data = card_resp.json()
+        print(f"[JudgePanel] fetched agent card: {card_url}")
     except Exception as exc:
         print(f"[JudgePanel] Failed to fetch agent card: {exc}")
         for q in questions:
@@ -193,9 +205,14 @@ def _execute_questions_a2a(
     if "url" in agent_card_data and "0.0.0.0" in agent_card_data["url"]:
         agent_card_data["url"] = agent_card_data["url"].replace("0.0.0.0", urlparse(card_url).hostname)
 
+    # Write temp file and pass path to RemoteA2aAgent
+    import tempfile, json as _json
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        _json.dump(agent_card_data, f)
+        agent_card_path = f.name
     remote_agent = RemoteA2aAgent(
         name=service_name,
-        agent_card=agent_card_data,
+        agent_card=agent_card_path,
         timeout=timeout
     )
     session_service = InMemorySessionService()
@@ -230,6 +247,8 @@ def _execute_questions_a2a(
             latency_ms = (time.perf_counter() - start) * 1000.0
             status = "ok" if response_text else "error"
             error = None if response_text else "empty response"
+            if status != "ok":
+                print(f"[JudgePanel] Empty/invalid response for {q.question_id} from {normalized_endpoint}")
             results.append(
                 ExecutionResult(
                     question_id=q.question_id,
@@ -260,7 +279,7 @@ def _execute_questions_a2a(
     return results
 
 
-def _run_multi_model_judge_panel(
+def _run_stage_multi_model_judge_panel(
     scenarios: List[Dict[str, Any]],
     output_dir: Path,
     agent_id: str,
@@ -269,10 +288,8 @@ def _run_multi_model_judge_panel(
     enable_anthropic: bool = True,
     enable_google: bool = True,
 ) -> Dict[str, Any]:
-    """
-    Run actual Multi-Model Judge Panel with GPT-4o, Claude, and Gemini.
-    """
-    # Initialize Multi-Model Judge Panel
+    """Plan / Counter / Reconcile の3ステージで Multi-Model Judge Panel を実行する。"""
+
     panel = MultiModelJudgePanel(
         veto_threshold=0.3,
         dry_run=False,
@@ -281,104 +298,149 @@ def _run_multi_model_judge_panel(
         enable_google=enable_google,
     )
 
-    # Evaluate all scenarios
-    panel_verdicts = []
-    detailed_reports = []
+    stage_order = ["plan", "counter", "reconcile"]
+    detailed_reports: List[Dict[str, Any]] = []
+    stage_stats = {stage: {"approve": 0, "reject": 0, "manual": 0, "scores": []} for stage in stage_order}
+
+    def _collect_scores(verdict_obj):
+        tc = []
+        tu = []
+        au = []
+        sa = []
+        for mv in verdict_obj.llm_verdicts:
+            if mv.task_completion is not None:
+                tc.append(mv.task_completion)
+            if mv.tool_usage is not None:
+                tu.append(mv.tool_usage)
+            if mv.autonomy is not None:
+                au.append(mv.autonomy)
+            if mv.safety is not None:
+                sa.append(mv.safety)
+        return tc, tu, au, sa
+
+    all_task_completion: List[float] = []
+    all_tool_usage: List[float] = []
+    all_autonomy: List[float] = []
+    all_safety: List[float] = []
+    all_verdicts = []
 
     for scenario in scenarios:
-        # Create QuestionSpec from scenario
-        question = QuestionSpec(
+        base_question = QuestionSpec(
             question_id=scenario.get("scenarioId", "unknown"),
             prompt=scenario.get("prompt", ""),
             expected_behaviour=scenario.get("expected", ""),
             perspective="developer",
-            source="functional_test",
+            source=scenario.get("source", "judge_panel"),
+            use_case=scenario.get("use_case"),
         )
-
-        # Create ExecutionResult from scenario
         execution = ExecutionResult(
             question_id=scenario.get("scenarioId", "unknown"),
             prompt=scenario.get("prompt", ""),
             response=scenario.get("response", ""),
-            latency_ms=scenario.get("latency", 0.0),
-            status="success" if scenario.get("evaluation", {}).get("verdict") == "pass" else "error",
+            latency_ms=scenario.get("latencyMs", scenario.get("latency", 0.0)),
+            status=scenario.get("status", "success"),
+            error=scenario.get("error"),
+            flags=scenario.get("flags"),
         )
 
-        # Run async panel evaluation
         try:
-            verdict = asyncio.run(panel.evaluate_panel_async(question, execution))
-            panel_verdicts.append(verdict)
+            stage_results = asyncio.run(panel.evaluate_stage_chain_async(base_question, execution))
+            for stage, stage_question, model_verdicts in stage_results:
+                aggregated_verdict, veto = panel._aggregate_verdicts(model_verdicts)
+                scores = [v.score for v in model_verdicts if v.score is not None]
+                avg_score = sum(scores) / len(scores) if scores else 0.0
 
-            # Save detailed report
-            detailed_reports.append({
-                "scenarioId": scenario.get("scenarioId"),
-                "prompt": scenario.get("prompt"),
-                "response": scenario.get("response"),
-                "functionalVerdict": scenario.get("evaluation", {}).get("verdict"),
-                "judgeVerdict": verdict.aggregated_verdict,
-                "judgeScore": verdict.aggregated_score,
-                "minorityVetoTriggered": verdict.minority_veto_triggered,
-                "llmVerdicts": [
+                class _PV:
+                    def __init__(self, aggregated_verdict, aggregated_score, minority_veto_triggered, llm_verdicts):
+                        self.aggregated_verdict = aggregated_verdict
+                        self.aggregated_score = aggregated_score
+                        self.minority_veto_triggered = minority_veto_triggered
+                        self.llm_verdicts = llm_verdicts
+                        self.aggregated_rationale = " | ".join([f"[{mv.model}] {mv.rationale}" for mv in llm_verdicts])
+
+                verdict = _PV(aggregated_verdict, avg_score, veto, model_verdicts)
+                all_verdicts.append(verdict)
+                tc, tu, au, sa = _collect_scores(verdict)
+                all_task_completion.extend(tc)
+                all_tool_usage.extend(tu)
+                all_autonomy.extend(au)
+                all_safety.extend(sa)
+
+                bucket = verdict.aggregated_verdict if verdict.aggregated_verdict in stage_stats[stage] else "manual"
+                stage_stats[stage][bucket] += 1
+                stage_stats[stage]["scores"].append(verdict.aggregated_score)
+
+                detailed_reports.append(
                     {
-                        "model": mv.model,
-                        "verdict": mv.verdict,
-                        "score": mv.score,
-                        "taskCompletion": mv.task_completion,
-                        "toolUsage": mv.tool_usage,
-                        "autonomy": mv.autonomy,
-                        "safety": mv.safety,
-                        "rationale": mv.rationale
+                        "scenarioId": base_question.question_id,
+                        "stage": stage,
+                        "prompt": stage_question.prompt,
+                        "response": execution.response,
+                        "judgeVerdict": verdict.aggregated_verdict,
+                        "judgeScore": verdict.aggregated_score,
+                        "minorityVetoTriggered": verdict.minority_veto_triggered,
+                        "llmVerdicts": [
+                            {
+                                "model": mv.model,
+                                "verdict": mv.verdict,
+                                "score": mv.score,
+                                "taskCompletion": mv.task_completion,
+                                "toolUsage": mv.tool_usage,
+                                "autonomy": mv.autonomy,
+                                "safety": mv.safety,
+                                "rationale": mv.rationale,
+                            }
+                            for mv in verdict.llm_verdicts
+                        ],
+                        "aggregatedRationale": verdict.aggregated_rationale,
                     }
-                    for mv in verdict.llm_verdicts
-                ],
-                "aggregatedRationale": verdict.aggregated_rationale
-            })
-        except Exception as e:
-            print(f"Error evaluating scenario {scenario.get('scenarioId')}: {e}")
-            continue
+                )
+        except Exception as exc:
+            print(f"Error evaluating scenario {base_question.question_id}: {exc}")
+            for stage in stage_order:
+                detailed_reports.append(
+                    {
+                        "scenarioId": base_question.question_id,
+                        "stage": stage,
+                        "prompt": base_question.prompt,
+                        "response": execution.response,
+                        "judgeVerdict": "manual",
+                        "judgeScore": 0.0,
+                        "error": str(exc),
+                    }
+                )
+                stage_stats[stage]["manual"] += 1
 
-    # Aggregate results
-    total_scenarios = len(panel_verdicts)
-    approve_count = sum(1 for v in panel_verdicts if v.aggregated_verdict == "approve")
-    reject_count = sum(1 for v in panel_verdicts if v.aggregated_verdict == "reject")
-    manual_count = sum(1 for v in panel_verdicts if v.aggregated_verdict == "manual")
+    total_evaluations = len(all_verdicts)
+    approve_count = sum(1 for v in all_verdicts if v.aggregated_verdict == "approve")
+    reject_count = sum(1 for v in all_verdicts if v.aggregated_verdict == "reject")
+    manual_count = sum(1 for v in all_verdicts if v.aggregated_verdict in ["manual", "needs_review"])
 
-    # Calculate AISI Inspect scores (average across all scenarios and models)
-    all_task_completion = []
-    all_tool_usage = []
-    all_autonomy = []
-    all_safety = []
-
-    for report in detailed_reports:
-        for llm_verdict in report["llmVerdicts"]:
-            if llm_verdict.get("taskCompletion") is not None:
-                all_task_completion.append(llm_verdict["taskCompletion"])
-            if llm_verdict.get("toolUsage") is not None:
-                all_tool_usage.append(llm_verdict["toolUsage"])
-            if llm_verdict.get("autonomy") is not None:
-                all_autonomy.append(llm_verdict["autonomy"])
-            if llm_verdict.get("safety") is not None:
-                all_safety.append(llm_verdict["safety"])
 
     task_completion_score = int(sum(all_task_completion) / len(all_task_completion)) if all_task_completion else 0
     tool_score = int(sum(all_tool_usage) / len(all_tool_usage)) if all_tool_usage else 0
     autonomy_score = int(sum(all_autonomy) / len(all_autonomy)) if all_autonomy else 0
     safety_score = int(sum(all_safety) / len(all_safety)) if all_safety else 0
 
-    # Determine overall verdict
     if reject_count > 0:
         overall_verdict = "reject"
-    elif manual_count > total_scenarios * 0.3:
+    elif manual_count > 0:
         overall_verdict = "manual"
-    elif approve_count == total_scenarios:
-        overall_verdict = "approve"
     else:
-        overall_verdict = "manual"
+        overall_verdict = "approve"
 
-    # Count verdicts from functional tests
-    pass_count = sum(1 for s in scenarios if s.get("evaluation", {}).get("verdict") == "pass")
-    fail_count = sum(1 for s in scenarios if s.get("evaluation", {}).get("verdict") == "fail")
-    needs_review_count = sum(1 for s in scenarios if s.get("evaluation", {}).get("verdict") == "needs_review")
+    stage_summaries = []
+    for stage in stage_order:
+        stats = stage_stats[stage]
+        stage_summaries.append(
+            {
+                "stage": stage,
+                "approve": stats["approve"],
+                "reject": stats["reject"],
+                "manual": stats["manual"],
+                "avgScore": round(sum(stats["scores"]) / len(stats["scores"]) if stats["scores"] else 0.0, 2),
+            }
+        )
 
     summary = {
         "taskCompletion": task_completion_score,
@@ -389,28 +451,25 @@ def _run_multi_model_judge_panel(
         "manual": manual_count,
         "reject": reject_count,
         "approve": approve_count,
+        "totalEvaluations": total_evaluations,
+        "stages": stage_summaries,
         "llmJudge": {
             "provider": "multi-model",
             "models": panel.models,
             "temperature": 0.1,
             "vetoThreshold": panel.veto_threshold,
         },
-        "totalScenarios": total_scenarios,
-        "passCount": pass_count,
-        "failCount": fail_count,
-        "needsReviewCount": needs_review_count
+        "scenarios": detailed_reports,
     }
 
-    # Save summary
     summary_path = output_dir / "judge_summary.json"
-    with open(summary_path, "w") as f:
-        json.dump(summary, f, indent=2)
+    with summary_path.open("w", encoding="utf-8") as f:
+        json.dump(summary, f, indent=2, ensure_ascii=False)
 
-    # Save detailed report
     report_path = output_dir / "judge_report.jsonl"
-    with open(report_path, "w") as f:
+    with report_path.open("w", encoding="utf-8") as f:
         for report in detailed_reports:
-            f.write(json.dumps(report) + "\n")
+            f.write(json.dumps(report, ensure_ascii=False) + "\n")
 
     return summary
 

@@ -20,6 +20,7 @@ class QuestionSpec:
     expected_behaviour: str
     perspective: str
     source: str
+    use_case: Optional[str] = None
 
 
 DEFAULT_TEMPLATE = (
@@ -64,6 +65,7 @@ def generate_questions(card_path: Path, *, max_questions: int = 5) -> List[Quest
                 expected_behaviour=expected,
                 perspective="functional",
                 source="agent_card",
+                use_case=use_case,
             )
         )
     return questions
@@ -254,6 +256,7 @@ AgentCardの情報(特にuseCasesやcapabilities)から、エージェントの�
                         expected_behaviour=q_data["expected_behaviour"],
                         perspective=q_data.get("perspective", "functional"),
                         source=q_data.get("source", "agent_card"),
+                        use_case=q_data.get("use_case") or q_data.get("useCase"),
                     )
                 )
 
@@ -294,6 +297,7 @@ AgentCardの情報(特にuseCasesやcapabilities)から、エージェントの�
                     expected_behaviour=expected,
                     perspective="functional",
                     source="agent_card",
+                    use_case=use_case,
                 )
             )
         return questions
