@@ -400,6 +400,20 @@ echo "GOOGLE_API_KEY=your-gemini-api-key" > secure-mediation-agent/.env
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | システムアーキテクチャ詳細 |
 | [DEMO.md](docs/DEMO.md) | デモシナリオと期待結果 |
 | [SPECIFICATION.md](SPECIFICATION.md) | 技術仕様書（実装詳細） |
+| [stage-based-multi-model-judge-panel.md](docs/stage-based-multi-model-judge-panel.md) | Plan / Counter / Reconcile の3ステージ判定設計 |
+| [mcts-stage-integration-plan.md](docs/mcts-stage-integration-plan.md) | 3ステージ判定に MCTS 合意形成を統合する追加方針メモ |
+
+---
+
+### Judge Panel アルゴリズム概要（簡潔版）
+- **3ステージ分担**
+  - Plan: 計画性・手順の明確さをチェック（参考: *Plan-and-Solve Prompting*, Zhang et al., 2023）。
+  - Counter: リスク・抜け漏れを批判的に検証（参考: *Self-Refine / Reflexion*, Shinn et al., 2023）。
+  - Reconcile: Plan/Counter を統合し最終判断をまとめる。
+- **MCTS Orchestrator（統合予定）**
+  - 3ステージの対話を木探索として複数ロールアウトし、UCB1 と Minority Veto で合意形成。
+  - 参考: *Mastering the game of Go without human knowledge* (Silver et al., 2017; AlphaGo Zero の MCTS)。
+- 詳細は `docs/stage-based-multi-model-judge-panel.md` と `docs/mcts-stage-integration-plan.md` を参照。
 
 ---
 
