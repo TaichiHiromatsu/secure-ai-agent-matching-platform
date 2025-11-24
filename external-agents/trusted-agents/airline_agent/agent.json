@@ -1,6 +1,6 @@
 {
   "name": "airline_agent",
-  "url": "http://airline-agent:8002/a2a/airline_agent",
+  "url": "http://airline_agent:8002/a2a/airline_agent",
   "version": "1.0.0",
   "protocolVersion": "0.3.0",
   "capabilities": {},

@@ -66,7 +66,9 @@ def evaluate_prompt(
   endpoint_token: Optional[str],
   timeout: float,
   dry_run: bool,
-  agent_card: Optional[Dict[str, Any]] = None
+  agent_card: Optional[Dict[str, Any]] = None,
+  session_id: Optional[str] = None,
+  user_id: Optional[str] = None
 ) -> AttackResult:
   if dry_run or not endpoint_url:
     verdict = "not_executed"
@@ -74,14 +76,27 @@ def evaluate_prompt(
     response_text: Optional[str] = None
   else:
     try:
-      response_text = invoke_endpoint(endpoint_url, prompt_text, timeout=timeout, token=endpoint_token)
+      response_text = invoke_endpoint(
+        endpoint_url,
+        prompt_text,
+        timeout=timeout,
+        token=endpoint_token,
+        session_id=session_id,
+        user_id=user_id
+      )
     except Exception as exc:  # pragma: no cover - network errors are environment specific
       verdict = "error"
       reason = f"endpoint_error: {exc}"[:500]
       response_text = None
     else:
       # AIエージェントによるセマンティック評価を使用
-      verdict, reason = classify_response(response_text, prompt_text=prompt_text, agent_card=agent_card)
+      verdict, reason = classify_response(
+        response_text,
+        prompt_text=prompt_text,
+        agent_card=agent_card,
+        session_id=session_id,
+        user_id=user_id
+      )
 
   return AttackResult(
     prompt_id=prompt.prompt_id,
@@ -99,12 +114,28 @@ def evaluate_prompt(
   )
 
 
-def invoke_endpoint(endpoint_url: str, prompt_text: str, *, timeout: float, token: Optional[str]) -> str:
+def invoke_endpoint(
+  endpoint_url: str,
+  prompt_text: str,
+  *,
+  timeout: float,
+  token: Optional[str],
+  session_id: Optional[str] = None,
+  user_id: Optional[str] = None
+) -> str:
   """
   Invoke agent endpoint. Supports both A2A Protocol (using RemoteA2aAgent) and legacy formats.
 
   A2A Protocol: Uses Google ADK's RemoteA2aAgent for proper A2A Protocol communication.
   Legacy format: Direct HTTP POST with {"prompt": "..."} format.
+
+  Args:
+    endpoint_url: URL of the agent endpoint
+    prompt_text: Prompt to send to the agent
+    timeout: Timeout in seconds
+    token: Optional authentication token
+    session_id: Optional session ID (defaults to generated UUID if not provided)
+    user_id: Optional user ID (defaults to "security-gate" if not provided)
   """
   # Detect A2A Protocol endpoint (contains /a2a/ in URL)
   is_a2a = "/a2a/" in endpoint_url
@@ -136,13 +167,8 @@ def invoke_endpoint(endpoint_url: str, prompt_text: str, *, timeout: float, toke
         # In Docker, we can use the service name from the URL path or try to infer it
         normalized_endpoint_url = endpoint_url
         if parsed_url.hostname == "0.0.0.0":
-          # Try to infer Docker service name from agent name
-          service_name_map = {
-            "airline_agent": "airline-agent",
-            "hotel_agent": "hotel-agent",
-            "car_rental_agent": "car-rental-agent",
-          }
-          service_name = service_name_map.get(agent_name, "localhost")
+          # Use agent_name directly as Docker service name (now unified with underscores)
+          service_name = agent_name if agent_name else "localhost"
 
           # Replace 0.0.0.0 with the service name
           normalized_netloc = f"{service_name}:{parsed_url.port}"
@@ -202,10 +228,14 @@ def invoke_endpoint(endpoint_url: str, prompt_text: str, *, timeout: float, toke
           timeout=timeout,
         )
 
-        # Generate unique IDs for user and session
+        # Use provided IDs or generate defaults
         # Reference: orchestration_agent.py lines 158-159
-        user_id = f"security-gate-{uuid.uuid4().hex[:8]}"
-        session_id = f"session-{uuid.uuid4().hex[:8]}"
+        # Use nonlocal to reference outer function parameters
+        nonlocal user_id, session_id
+        if user_id is None:
+          user_id = "security-gate"  # Default constant user_id for security gate
+        if session_id is None:
+          session_id = f"session-{uuid.uuid4().hex[:8]}"  # Fallback to generated session_id
 
         # Create session service and session
         # Reference: orchestration_agent.py lines 162-168
@@ -399,7 +429,9 @@ class SecurityResponseEvaluator:
     self,
     prompt_text: str,
     response_text: str,
-    agent_card: Optional[Dict[str, Any]] = None
+    agent_card: Optional[Dict[str, Any]] = None,
+    session_id: Optional[str] = None,
+    user_id: Optional[str] = None
   ) -> Dict[str, Any]:
     """
     エージェントのセキュリティ応答を評価します。
@@ -408,6 +440,8 @@ class SecurityResponseEvaluator:
         prompt_text: 攻撃プロンプトのテキスト
         response_text: エージェントの応答テキスト
         agent_card: エージェントカード情報（コンテキスト用）
+        session_id: セッションID（Noneの場合は生成）
+        user_id: ユーザーID（Noneの場合は"security-gate"を使用）
 
     Returns:
         {
@@ -419,12 +453,25 @@ class SecurityResponseEvaluator:
             "security_assessment": str  # セキュリティ評価
         }
     """
-    return self._run_security_evaluation(prompt_text, response_text, agent_card)
+    return self._run_security_evaluation(prompt_text, response_text, agent_card, session_id, user_id)
 
   def _run_security_evaluation(
-    self, prompt_text: str, response_text: str, agent_card: Optional[Dict[str, Any]] = None
+    self,
+    prompt_text: str,
+    response_text: str,
+    agent_card: Optional[Dict[str, Any]] = None,
+    session_id: Optional[str] = None,
+    user_id: Optional[str] = None
   ) -> Dict[str, Any]:
-    """Google ADKエージェントを使用したセキュリティ評価を実行"""
+    """Google ADKエージェントを使用したセキュリティ評価を実行
+
+    Args:
+      prompt_text: 攻撃プロンプトのテキスト
+      response_text: エージェントの応答テキスト
+      agent_card: エージェントカード情報（コンテキスト用）
+      session_id: セッションID（Noneの場合は生成）
+      user_id: ユーザーID（Noneの場合は"security-gate"を使用）
+    """
     import asyncio
     from google.adk.runners import InMemoryRunner
     from google.genai import types
@@ -450,8 +497,9 @@ class SecurityResponseEvaluator:
     async def run_evaluation():
       import uuid
       # Google ADKのInMemoryRunner.run_async()は必須パラメータとしてuser_idとsession_idを要求
-      user_id = "security-gate"
-      session_id = f"eval-{uuid.uuid4().hex[:8]}"
+      # 外部から渡されたIDを使用、なければデフォルト値を生成
+      eval_user_id = user_id if user_id is not None else "security-gate"
+      eval_session_id = session_id if session_id is not None else f"eval-{uuid.uuid4().hex[:8]}"
 
       max_retries = 3
       retry_delay = 60  # 60秒待機
@@ -465,8 +513,8 @@ class SecurityResponseEvaluator:
 
           response_parts = []
           async for event in runner.run_async(
-            user_id=user_id,
-            session_id=session_id,
+            user_id=eval_user_id,
+            session_id=eval_session_id,
             new_message=new_message
           ):
             if hasattr(event, 'parts'):
@@ -555,7 +603,13 @@ def get_security_evaluator() -> SecurityResponseEvaluator:
   return _security_evaluator
 
 
-def classify_response(response_text: Optional[str], prompt_text: Optional[str] = None, agent_card: Optional[Dict[str, Any]] = None) -> tuple[str, str]:
+def classify_response(
+  response_text: Optional[str],
+  prompt_text: Optional[str] = None,
+  agent_card: Optional[Dict[str, Any]] = None,
+  session_id: Optional[str] = None,
+  user_id: Optional[str] = None
+) -> tuple[str, str]:
   """
   エージェントの応答を分類して、セキュリティ上の問題があるかどうかを判定します。
   AIエージェントによるセマンティック評価を使用します。
@@ -564,6 +618,8 @@ def classify_response(response_text: Optional[str], prompt_text: Optional[str] =
     response_text: エージェントの応答テキスト
     prompt_text: 元のプロンプトテキスト（セマンティック評価用）
     agent_card: エージェントカード情報（コンテキスト用）
+    session_id: セッションID
+    user_id: ユーザーID
 
   Returns:
     tuple[str, str]: (verdict, reason)
@@ -583,7 +639,9 @@ def classify_response(response_text: Optional[str], prompt_text: Optional[str] =
     evaluation = evaluator.evaluate_security_response(
       prompt_text=prompt_text or "",
       response_text=response_text,
-      agent_card=agent_card
+      agent_card=agent_card,
+      session_id=session_id,
+      user_id=user_id
     )
 
     verdict = evaluation.get("verdict", "needs_review")
@@ -640,8 +698,27 @@ def run_security_gate(
   endpoint_token: Optional[str],
   timeout: float,
   dry_run: bool,
-  agent_card: Optional[Dict[str, Any]] = None
+  agent_card: Optional[Dict[str, Any]] = None,
+  session_id: Optional[str] = None,
+  user_id: Optional[str] = None
 ) -> Dict[str, Any]:
+  """
+  Run security gate evaluation on an agent.
+
+  Args:
+    agent_id: Agent ID
+    revision: Agent revision
+    dataset_path: Path to security prompts dataset
+    output_dir: Output directory for results
+    attempts: Number of prompts to attempt
+    endpoint_url: Agent endpoint URL
+    endpoint_token: Optional endpoint authentication token
+    timeout: Timeout for agent invocations
+    dry_run: If True, skip actual agent invocation
+    agent_card: Agent card document
+    session_id: Optional session ID (will be passed to all evaluations)
+    user_id: Optional user ID (defaults to "security-gate")
+  """
   output_dir.mkdir(parents=True, exist_ok=True)
   if not dataset_path.exists():
     summary = {
@@ -706,7 +783,9 @@ def run_security_gate(
       endpoint_token=endpoint_token,
       timeout=timeout,
       dry_run=dry_run,
-      agent_card=agent_card
+      agent_card=agent_card,
+      session_id=session_id,
+      user_id=user_id
     )
     category = categorize_result(result)
     category_counts[category] = category_counts.get(category, 0) + 1

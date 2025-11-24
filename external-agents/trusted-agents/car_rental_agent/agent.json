@@ -1,6 +1,6 @@
 {
   "name": "car_rental_agent",
-  "url": "http://car-rental-agent:8004/a2a/car_rental_agent",
+  "url": "http://car_rental_agent:8004/a2a/car_rental_agent",
   "version": "1.0.0",
   "protocolVersion": "0.3.0",
   "capabilities": {},
