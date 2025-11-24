@@ -263,6 +263,38 @@ def process_submission(submission_id: str):
         with open(agent_card_path, "w") as f:
             json.dump(submission.card_document, f)
 
+        # --- 1. Endpoint URL (shared across stages) ---
+        dataset_path = base_dir / "third_party/aisev/backend/dataset/output/06_aisi_security_v0.1.csv"
+        endpoint_url = submission.card_document.get("url") or submission.card_document.get("serviceUrl")
+        if not endpoint_url or not endpoint_url.startswith("http"):
+            submission.state = "failed"
+            submission.updated_at = datetime.utcnow()
+            db.commit()
+            print(f"Invalid or missing serviceUrl/url in Agent Card for submission {submission_id}")
+            return
+        from urllib.parse import urlparse, urlunparse
+        parsed_endpoint = urlparse(endpoint_url)
+        if parsed_endpoint.hostname == "0.0.0.0":
+            agent_name = submission.agent_id
+            if not agent_name:
+                path_parts = parsed_endpoint.path.strip('/').split('/')
+                if len(path_parts) >= 2 and path_parts[0] == "a2a":
+                    agent_name = path_parts[1]
+            service_name = agent_name if agent_name else "localhost"
+            normalized_netloc = f"{service_name}:{parsed_endpoint.port}"
+            normalized_endpoint = urlunparse((
+                parsed_endpoint.scheme,
+                normalized_netloc,
+                parsed_endpoint.path,
+                parsed_endpoint.params,
+                parsed_endpoint.query,
+                parsed_endpoint.fragment
+            ))
+            print(f"Normalized endpoint_url: {endpoint_url} -> {normalized_endpoint}")
+            endpoint_url = normalized_endpoint
+            submission.card_document["url"] = normalized_endpoint
+            db.commit()
+
         # --- 1. Security Gate ---
         if stages_cfg["security"]:
             print(f"Running Security Gate for submission {submission_id}")
@@ -280,39 +312,6 @@ def process_submission(submission_id: str):
             submission.updated_at = datetime.utcnow()
             db.commit()
 
-            dataset_path = base_dir / "third_party/aisev/backend/dataset/output/06_aisi_security_v0.1.csv"
-            endpoint_url = submission.card_document.get("url")
-            if not endpoint_url:
-                endpoint_url = submission.card_document.get("serviceUrl")
-            if not endpoint_url or not endpoint_url.startswith("http"):
-                submission.state = "failed"
-                submission.updated_at = datetime.utcnow()
-                db.commit()
-                print(f"Invalid or missing serviceUrl/url in Agent Card for submission {submission_id}")
-                return
-
-            from urllib.parse import urlparse, urlunparse
-            parsed_endpoint = urlparse(endpoint_url)
-            if parsed_endpoint.hostname == "0.0.0.0":
-                agent_name = submission.agent_id
-                if not agent_name:
-                    path_parts = parsed_endpoint.path.strip('/').split('/')
-                    if len(path_parts) >= 2 and path_parts[0] == "a2a":
-                        agent_name = path_parts[1]
-                service_name = agent_name if agent_name else "localhost"
-                normalized_netloc = f"{service_name}:{parsed_endpoint.port}"
-                normalized_endpoint = urlunparse((
-                    parsed_endpoint.scheme,
-                    normalized_netloc,
-                    parsed_endpoint.path,
-                    parsed_endpoint.params,
-                    parsed_endpoint.query,
-                    parsed_endpoint.fragment
-                ))
-                print(f"Normalized endpoint_url: {endpoint_url} -> {normalized_endpoint}")
-                endpoint_url = normalized_endpoint
-                submission.card_document["url"] = normalized_endpoint
-                db.commit()
             try:
                 security_summary = run_security_gate(
                     agent_id=submission.agent_id,
