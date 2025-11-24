@@ -18,11 +18,13 @@ services:
       - WANDB_PROJECT=${WANDB_PROJECT:-agent-store-sandbox}
       - WANDB_ENTITY=${WANDB_ENTITY}
       - WANDB_BASE_URL=${WANDB_BASE_URL:-https://api.wandb.ai}
+      - PYTHONPATH=/app:/app/inspect-worker
     volumes:
       - trusted-hub-data:/app/data
       # Development: Mount source code for hot reload
       - ./trusted_agent_hub/app:/app/app
       - ./trusted_agent_hub/sandbox-runner/src:/app/sandbox-runner/src
+      - ./trusted_agent_hub/inspect-worker:/app/inspect-worker
     networks:
       - agent-net
     command: uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload
