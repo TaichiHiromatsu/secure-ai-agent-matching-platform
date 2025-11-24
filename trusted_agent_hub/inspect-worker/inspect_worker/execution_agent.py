@@ -56,17 +56,27 @@ def dispatch_questions(
     relay_token: Optional[str],
     timeout: float,
     dry_run: bool,
+    use_a2a: bool = True,
 ) -> List[ExecutionResult]:
     results: List[ExecutionResult] = []
     for question in questions:
         start = time.perf_counter()
-        response_text, status, error_text, http_status, attempts, error_history = _execute_prompt(
-            relay_endpoint,
-            relay_token,
-            question.prompt,
-            timeout=timeout,
-            dry_run=dry_run,
-        )
+        if use_a2a:
+            response_text, status, error_text, http_status, attempts, error_history = _execute_prompt_a2a(
+                relay_endpoint,
+                relay_token,
+                question.prompt,
+                timeout=timeout,
+                dry_run=dry_run,
+            )
+        else:
+            response_text, status, error_text, http_status, attempts, error_history = _execute_prompt(
+                relay_endpoint,
+                relay_token,
+                question.prompt,
+                timeout=timeout,
+                dry_run=dry_run,
+            )
         latency_ms = (time.perf_counter() - start) * 1000.0
         flags = _detect_flags(response_text)
         results.append(
@@ -86,6 +96,69 @@ def dispatch_questions(
             )
         )
     return results
+
+
+def _execute_prompt_a2a(
+    relay_endpoint: Optional[str],
+    relay_token: Optional[str],
+    prompt: str,
+    *,
+    timeout: float,
+    dry_run: bool,
+) -> Tuple[Optional[str], str, Optional[str], Optional[int], int, List[str]]:
+    """
+    A2Aプロトコルに沿った呼び出し（JSON-RPC風: method + params.prompt）。
+    """
+    if dry_run or not relay_endpoint:
+        return (f"(dry-run) {prompt} に対するサンプル応答", "dry_run", None, None, 1, [])
+
+    body = json.dumps({
+        "method": "invoke",
+        "params": {
+            "prompt": prompt
+        }
+    }).encode("utf-8")
+    headers: Dict[str, str] = {"Content-Type": "application/json", "Accept": "application/json"}
+    if relay_token:
+        headers["Authorization"] = f"Bearer {relay_token}"
+
+    error_history: List[str] = []
+    for attempt in range(1, MAX_RELAY_ATTEMPTS + 1):
+        request = urllib.request.Request(relay_endpoint, data=body, headers=headers, method="POST")
+        try:
+            with urllib.request.urlopen(request, timeout=timeout) as resp:  # nosec B310
+                payload_bytes = resp.read()
+                status = resp.getcode()
+                payload = payload_bytes.decode("utf-8", errors="replace")
+        except urllib.error.HTTPError as error:
+            payload = error.read().decode("utf-8", errors="replace")
+            error_history.append(f"attempt {attempt}: HTTP {error.code}")
+            if not _should_retry(error.code, attempt):
+                return (payload, "error", f"HTTP {error.code}", error.code, attempt, error_history)
+            time.sleep(BACKOFF_BASE_SECONDS * attempt)
+            continue
+        except urllib.error.URLError as error:
+            reason = getattr(error, 'reason', error)
+            error_history.append(f"attempt {attempt}: {reason}")
+            if attempt >= MAX_RELAY_ATTEMPTS:
+                return (None, "error", str(reason), None, attempt, error_history)
+            time.sleep(BACKOFF_BASE_SECONDS * attempt)
+            continue
+        except Exception as error:
+            error_history.append(f"attempt {attempt}: {error}")
+            return (None, "error", str(error), None, attempt, error_history)
+
+        try:
+            data = json.loads(payload)
+            # 標準A2Aレスポンスの"result"や legacy "response"を優先
+            if isinstance(data, dict):
+                for key in ("result", "response", "output", "text"):
+                    value = data.get(key)
+                    if isinstance(value, str):
+                        return (value, "ok", None, status, attempt, error_history)
+            return (payload, "ok", None, status, attempt, error_history)
+        except json.JSONDecodeError:
+            return (payload, "ok", None, status, attempt, error_history)
 
 
 def _execute_prompt(

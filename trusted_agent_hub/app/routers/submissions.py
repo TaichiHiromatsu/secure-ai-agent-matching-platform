@@ -596,16 +596,15 @@ def process_submission(submission_id: str):
             submission.updated_at = datetime.utcnow()
             db.commit()
 
-            functional_report_path = output_dir / "functional" / "functional_report.jsonl"
-
             judge_summary = run_judge_panel(
                 agent_id=submission.agent_id,
                 revision="v1",
-                functional_report_path=functional_report_path,
+                agent_card_path=agent_card_path,
                 output_dir=output_dir / "judge",
                 dry_run=False,
                 endpoint_url=endpoint_url,
-                endpoint_token=None
+                endpoint_token=None,
+                max_questions=5
             )
 
             wandb_mcp.log_stage_summary("judge", judge_summary)
