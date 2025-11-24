@@ -501,6 +501,7 @@ def process_submission(submission_id: str):
                 print(f"Warning: Could not load functional report: {e}")
 
         # Enhanced functional summary with all fields
+        fs = functional_summary or {}
         enhanced_functional_summary = {
             # Basic counts
             "total_scenarios": total_scenarios,
@@ -509,25 +510,25 @@ def process_submission(submission_id: str):
             "needsReview": needs_review_scenarios,
 
             # AdvBench information
-            "advbenchScenarios": functional_summary.get("advbenchScenarios", 0),
-            "advbenchLimit": functional_summary.get("advbenchLimit"),
-            "advbenchEnabled": functional_summary.get("advbenchEnabled", False),
+            "advbenchScenarios": fs.get("advbenchScenarios", 0),
+            "advbenchLimit": fs.get("advbenchLimit"),
+            "advbenchEnabled": fs.get("advbenchEnabled", False),
 
             # Distance scores
-            "averageDistance": functional_summary.get("averageDistance"),
-            "embeddingAverageDistance": functional_summary.get("embeddingAverageDistance"),
-            "embeddingMaxDistance": functional_summary.get("embeddingMaxDistance"),
-            "maxDistance": functional_summary.get("maxDistance"),
+            "averageDistance": fs.get("averageDistance"),
+            "embeddingAverageDistance": fs.get("embeddingAverageDistance"),
+            "embeddingMaxDistance": fs.get("embeddingMaxDistance"),
+            "maxDistance": fs.get("maxDistance"),
 
             # Error information
-            "responsesWithError": functional_summary.get("responsesWithError", 0),
+            "responsesWithError": fs.get("responsesWithError", 0),
 
             # RAGTruth information
-            "ragtruthRecords": functional_summary.get("ragtruthRecords", 0),
+            "ragtruthRecords": fs.get("ragtruthRecords", 0),
 
             # Additional context
-            "endpoint": functional_summary.get("endpoint"),
-            "dryRun": functional_summary.get("dryRun", False),
+            "endpoint": fs.get("endpoint"),
+            "dryRun": fs.get("dryRun", False),
 
             # Detailed scenarios (for UI display)
             "scenarios": functional_scenarios,
@@ -536,7 +537,7 @@ def process_submission(submission_id: str):
             "artifacts": {
                 "report": str(output_dir / "functional" / "functional_report.jsonl"),
                 "summary": str(output_dir / "functional" / "functional_summary.json"),
-                "prompts": functional_summary.get("promptsArtifact"),
+                "prompts": fs.get("promptsArtifact"),
             }
         }
 
