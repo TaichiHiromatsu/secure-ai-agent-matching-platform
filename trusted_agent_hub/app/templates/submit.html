@@ -13,6 +13,31 @@
         <form id="submissionForm" class="max-w-2xl mx-auto bg-white p-8 rounded-lg shadow-md">
 
             <div class="mb-6">
+                <label class="block text-gray-700 text-sm font-bold mb-2">
+                    実行ステップを選択
+                </label>
+                <div class="grid grid-cols-2 gap-2 text-sm">
+                    <label class="inline-flex items-center">
+                        <input type="checkbox" id="stage_precheck" class="mr-2" checked>
+                        PreCheck
+                    </label>
+                    <label class="inline-flex items-center">
+                        <input type="checkbox" id="stage_security" class="mr-2" checked>
+                        Security Gate
+                    </label>
+                    <label class="inline-flex items-center">
+                        <input type="checkbox" id="stage_functional" class="mr-2" checked>
+                        Functional Accuracy
+                    </label>
+                    <label class="inline-flex items-center">
+                        <input type="checkbox" id="stage_judge" class="mr-2" checked>
+                        Judge Panel
+                    </label>
+                </div>
+                <p class="text-xs text-gray-500 mt-2">チェックを外したステップはスキップされます（スコア0で評価・自動判定は行いません）。</p>
+            </div>
+
+            <div class="mb-6">
                 <label class="block text-gray-700 text-sm font-bold mb-2" for="agent_card_url">
                     Agent Card URL
                 </label>
@@ -43,7 +68,15 @@
                 endpoint_manifest: { endpoints: [] },
                 endpoint_snapshot_hash: "sha256:mock",
                 signature_bundle: { signature: "mock" },
-                organization_meta: { name: "Mock Org" }
+                organization_meta: { name: "Mock Org" },
+                request_context: {
+                    stages: {
+                        precheck: document.getElementById('stage_precheck').checked,
+                        security: document.getElementById('stage_security').checked,
+                        functional: document.getElementById('stage_functional').checked,
+                        judge: document.getElementById('stage_judge').checked
+                    }
+                }
             };
 
             try {
