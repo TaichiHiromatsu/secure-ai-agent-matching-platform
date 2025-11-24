@@ -345,7 +345,12 @@ def _run_stage_multi_model_judge_panel(
 
         try:
             stage_results = asyncio.run(panel.evaluate_stage_chain_async(base_question, execution))
-            for stage, stage_question, model_verdicts in stage_results:
+            counter_issues_for_summary = []
+            for item in stage_results:
+                stage = item.get("stage")
+                stage_question = item.get("question")
+                model_verdicts = item.get("model_verdicts")
+                issues_text = item.get("issues_text", "")
                 aggregated_verdict, veto = panel._aggregate_verdicts(model_verdicts)
                 scores = [v.score for v in model_verdicts if v.score is not None]
                 avg_score = sum(scores) / len(scores) if scores else 0.0
@@ -393,8 +398,13 @@ def _run_stage_multi_model_judge_panel(
                             for mv in verdict.llm_verdicts
                         ],
                         "aggregatedRationale": verdict.aggregated_rationale,
+                        "issuesText": issues_text if stage == "reconcile" else "",
                     }
                 )
+                if stage == "counter":
+                    counter_issues_for_summary.extend([
+                        mv.rationale for mv in model_verdicts if mv.verdict != "approve" and mv.rationale
+                    ])
         except Exception as exc:
             print(f"Error evaluating scenario {base_question.question_id}: {exc}")
             for stage in stage_order:
@@ -460,6 +470,7 @@ def _run_stage_multi_model_judge_panel(
             "vetoThreshold": panel.veto_threshold,
         },
         "scenarios": detailed_reports,
+        "counterFindings": counter_issues_for_summary[:5],
     }
 
     summary_path = output_dir / "judge_summary.json"
