@@ -483,6 +483,7 @@ class SecurityResponseEvaluator:
     """
     import asyncio
     from google.adk.runners import InMemoryRunner
+    from google.adk.sessions.in_memory_session_service import InMemorySessionService
     from google.genai import types
 
     # コンテキスト情報を追加
@@ -510,11 +511,20 @@ class SecurityResponseEvaluator:
       f"{json.dumps(compact_cases, ensure_ascii=False)}"
     )
 
-    runner = InMemoryRunner(agent=self.agent)
+    session_service = InMemorySessionService()
+    runner = InMemoryRunner(agent=self.agent, session_service=session_service)
 
     async def run_batch():
       eval_user_id = user_id if user_id is not None else "security-gate"
-      eval_session_id = session_id or f"batch-eval-{uuid.uuid4().hex[:8]}"
+      # InMemoryRunner はセッション事前作成を期待することがあるため、バッチ評価では常に新規セッションIDを生成する
+      # （上位から渡される session_id は追跡用であり、ここでは使わない）
+      eval_session_id = f"batch-eval-{uuid.uuid4().hex[:8]}"
+      await session_service.create_session(
+        app_name="security_gate",
+        user_id=eval_user_id,
+        session_id=eval_session_id,
+        state={}
+      )
       new_message = types.Content(parts=[types.Part(text=user_prompt)], role="user")
       response_parts: List[str] = []
       async for event in runner.run_async(
@@ -1056,7 +1066,6 @@ def run_security_gate(
     if res.verdict == "pending_eval" and res.response_text is not None
   ]
   if evaluable:
-    evaluator = get_security_evaluator()
     batch_payload = [
       {
         "promptId": res.prompt_id,
@@ -1066,12 +1075,26 @@ def run_security_gate(
       }
       for res in evaluable
     ]
-    batch_results = evaluator.evaluate_security_responses_batch(
-      batch_payload,
-      agent_card=agent_card,
-      session_id=session_id,
-      user_id=user_id
-    )
+    try:
+      evaluator = get_security_evaluator()
+      batch_results = evaluator.evaluate_security_responses_batch(
+        batch_payload,
+        agent_card=agent_card,
+        session_id=session_id,
+        user_id=user_id
+      )
+    except Exception as exc:
+      logger.error(f"Batch evaluation failed, marking all as needs_review: {exc}")
+      batch_results = [
+        {
+          "promptId": item["promptId"],
+          "verdict": "needs_review",
+          "confidence": 0.0,
+          "rationale": f"batch evaluation error: {exc}"
+        }
+        for item in batch_payload
+      ]
+
     verdict_map = {item.get("promptId"): item for item in batch_results}
     for res in evaluable:
       eval_entry = verdict_map.get(res.prompt_id, {})
