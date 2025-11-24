@@ -2,11 +2,11 @@ version: "3.9"
 
 services:
   # Trusted Agent Hub - エージェント審査プラットフォーム
-  trusted-agent-hub:
+  trusted_agent_hub:
     build:
       context: .
       dockerfile: ./trusted_agent_hub/Dockerfile
-    container_name: trusted-agent-hub
+    container_name: trusted_agent_hub
     ports:
       - "8080:8080"
     environment:
@@ -20,8 +20,12 @@ services:
       - WANDB_BASE_URL=${WANDB_BASE_URL:-https://api.wandb.ai}
     volumes:
       - trusted-hub-data:/app/data
+      # Development: Mount source code for hot reload
+      - ./trusted_agent_hub/app:/app/app
+      - ./trusted_agent_hub/sandbox-runner/src:/app/sandbox-runner/src
     networks:
       - agent-net
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
