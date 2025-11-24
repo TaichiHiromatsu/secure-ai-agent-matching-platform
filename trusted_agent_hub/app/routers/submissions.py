@@ -14,7 +14,7 @@ router = APIRouter(
 
 from sandbox_runner.security_gate import run_security_gate
 from sandbox_runner.functional_accuracy import run_functional_accuracy
-from sandbox_runner.judge_panel import run_judge_panel
+from sandbox_runner.judge_orchestrator import run_judge_panel
 from pathlib import Path
 import os
 import json
