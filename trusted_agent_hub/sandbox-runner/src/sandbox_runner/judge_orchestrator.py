@@ -14,10 +14,28 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 from datetime import datetime
 from urllib.parse import urlparse, urlunparse
+import os
+
+# W&B Weave integration
+try:
+    import weave
+    HAS_WEAVE = True
+except ImportError:
+    HAS_WEAVE = False
+    # Define a no-op decorator if weave is not installed
+    class weave:
+        @staticmethod
+        def op():
+            def decorator(func):
+                return func
+            return decorator
+        @staticmethod
+        def init(project_name):
+            pass
 
 # Try to import inspect-worker components
 try:
-    from inspect_worker.panel_judge import MultiModelJudgePanel
+    from inspect_worker.multi_model_judge import MultiModelJudge
     from inspect_worker.question_generator import QuestionSpec
     from inspect_worker.question_generator import generate_questions
     from inspect_worker.execution_agent import ExecutionResult
@@ -30,6 +48,7 @@ except ImportError:
 from sandbox_runner.mcts_orchestrator import orchestrate_mcts, MCTSParams
 
 
+@weave.op()
 def run_judge_panel(
     *,
     agent_id: str,
@@ -45,7 +64,7 @@ def run_judge_panel(
     enable_google: bool = True,
 ) -> Dict[str, Any]:
     """
-    Run Multi-Model Judge Panel evaluation on functional test results.
+    Run Multi-Model Judge Panel evaluation - W&B Weaveでトレース
 
     Args:
         agent_id: Agent identifier
@@ -62,6 +81,14 @@ def run_judge_panel(
     Returns:
         Judge panel summary with AISI scores and verdict
     """
+    # Initialize W&B Weave (if available)
+    if HAS_WEAVE:
+        wandb_project = os.environ.get("WANDB_PROJECT", "agent-evaluation")
+        try:
+            weave.init(f"{wandb_project}-judges")
+        except Exception as e:
+            print(f"Warning: Failed to initialize W&B Weave: {e}")
+
     output_dir.mkdir(parents=True, exist_ok=True)
 
     if not HAS_INSPECT_WORKER:
@@ -279,6 +306,7 @@ def _execute_questions_a2a(
     return results
 
 
+@weave.op()
 def _run_stage_multi_model_judge_panel(
     scenarios: List[Dict[str, Any]],
     output_dir: Path,
@@ -288,9 +316,9 @@ def _run_stage_multi_model_judge_panel(
     enable_anthropic: bool = True,
     enable_google: bool = True,
 ) -> Dict[str, Any]:
-    """Plan / Counter / Reconcile の3ステージで Multi-Model Judge Panel を実行する。"""
+    """Plan / Counter / Reconcile の3ステージで Multi-Model Judge を実行する - W&B Weaveでトレース"""
 
-    panel = MultiModelJudgePanel(
+    panel = MultiModelJudge(
         veto_threshold=0.3,
         dry_run=False,
         enable_openai=enable_openai,

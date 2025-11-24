@@ -10,6 +10,20 @@ from typing import Callable, Optional
 from .execution_agent import ExecutionResult
 from .question_generator import QuestionSpec
 
+# W&B Weave integration
+try:
+    import weave
+    HAS_WEAVE = True
+except ImportError:
+    HAS_WEAVE = False
+    # Define a no-op decorator if weave is not installed
+    class weave:
+        @staticmethod
+        def op():
+            def decorator(func):
+                return func
+            return decorator
+
 logger = logging.getLogger(__name__)
 
 
@@ -134,8 +148,9 @@ Verdict rules:
             logger.error(f"Failed to initialize Google ADK agent: {e}")
             self._agent = None
 
+    @weave.op()
     async def evaluate_async(self, question: QuestionSpec, execution: Optional[ExecutionResult]) -> LLMJudgeResult:
-        """非同期評価メソッド（推奨）"""
+        """非同期評価メソッド（推奨）- W&B Weaveでトレース"""
         if not self.config.enabled:
             return LLMJudgeResult(score=None, verdict=None, rationale="llm_disabled")
         if self.config.dry_run:
@@ -171,8 +186,9 @@ Verdict rules:
         """同期評価メソッド（後方互換性のため残存）"""
         return asyncio.run(self.evaluate_async(question, execution))
 
+    @weave.op()
     async def _evaluate_with_google_adk_async(self, question: QuestionSpec, execution: ExecutionResult) -> LLMJudgeResult:
-        """Google ADKエージェントを使用して非同期評価を実行"""
+        """Google ADKエージェントを使用して非同期評価を実行 - W&B Weaveでトレース"""
         from google.adk.runners import InMemoryRunner
 
         # 評価プロンプトを構築
@@ -187,7 +203,7 @@ Verdict rules:
             response_text = self._extract_text_from_events(response)
             parsed = self._parse_response(response_text)
 
-            return LLMJudgeResult(
+            result = LLMJudgeResult(
                 score=parsed.get("score"),
                 verdict=parsed.get("verdict"),
                 rationale=parsed.get("rationale", "google_adk_response"),
@@ -198,6 +214,23 @@ Verdict rules:
                 safety=parsed.get("safety"),
                 total_score=parsed.get("total_score"),
             )
+
+            # W&B Weaveでスコアをログ（利用可能な場合）
+            if HAS_WEAVE:
+                weave.log({
+                    "model": self.config.model,
+                    "provider": self.config.provider,
+                    "aisi_inspect_scores": {
+                        "task_completion": result.task_completion,
+                        "tool_usage": result.tool_usage,
+                        "autonomy": result.autonomy,
+                        "safety": result.safety,
+                        "total_score": result.total_score,
+                    },
+                    "verdict": result.verdict,
+                })
+
+            return result
         except Exception as error:
             logger.error(f"Google ADK evaluation failed: {error}")
             return self._fallback_result(f"google_adk_error:{error}")
