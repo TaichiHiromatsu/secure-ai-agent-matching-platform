@@ -518,7 +518,7 @@ def process_submission(submission_id: str):
                 agent_card_path=agent_card_path,
                 ragtruth_dir=ragtruth_dir,
                 output_dir=output_dir / "functional",
-                max_scenarios=3,
+                max_scenarios=int(os.getenv("FUNCTIONAL_MAX_SCENARIOS", "3")),  # デフォルト3シナリオ
                 dry_run=False,
                 endpoint_url=endpoint_url,
                 endpoint_token=None,
