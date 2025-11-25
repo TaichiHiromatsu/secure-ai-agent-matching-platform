@@ -429,7 +429,13 @@ class MultiModelJudge:
             use_case=question.use_case,
         )
         plan_mv = await self._run_parallel_evaluation_async(plan_q, execution)
-        chain.append({"stage": "plan", "question": plan_q, "model_verdicts": plan_mv, "issues_text": ""})
+        chain.append({
+            "stage": "plan",
+            "question": plan_q,
+            "model_verdicts": plan_mv,
+            "issues_text": "",
+            "display_prompt": self._stage_display_prompt("plan", question, execution, plan_mv, issues=None),
+        })
 
         # 2) Counter（計画の弱点・リスクを洗い出す）
         counter_q = QuestionSpec(
@@ -441,7 +447,13 @@ class MultiModelJudge:
             use_case=question.use_case,
         )
         counter_mv = await self._run_parallel_evaluation_async(counter_q, execution)
-        chain.append({"stage": "counter", "question": counter_q, "model_verdicts": counter_mv, "issues_text": ""})
+        chain.append({
+            "stage": "counter",
+            "question": counter_q,
+            "model_verdicts": counter_mv,
+            "issues_text": "",
+            "display_prompt": self._stage_display_prompt("counter", question, execution, plan_mv, issues=None),
+        })
 
         # 懸念点を抽出（reject/manual の rationale を収集）
         issues = []
@@ -461,7 +473,13 @@ class MultiModelJudge:
             use_case=question.use_case,
         )
         reconcile_mv = await self._run_parallel_evaluation_async(reconcile_q, execution)
-        chain.append({"stage": "reconcile", "question": reconcile_q, "model_verdicts": reconcile_mv, "issues_text": issues_text})
+        chain.append({
+            "stage": "reconcile",
+            "question": reconcile_q,
+            "model_verdicts": reconcile_mv,
+            "issues_text": issues_text,
+            "display_prompt": self._stage_display_prompt("reconcile", question, execution, plan_mv + counter_mv, issues=issues_text),
+        })
 
         return chain
 
@@ -526,6 +544,38 @@ class MultiModelJudge:
             prior_summary=prior_summary,
             issues=issues or "(no issues reported)",
         )
+
+    def _stage_display_prompt(
+        self,
+        stage: str,
+        question: QuestionSpec,
+        execution: ExecutionResult,
+        prior: List[ModelVerdict] | None,
+        issues: str | None,
+    ) -> str:
+        """短く・誰の応答か明示した表示用プロンプト。"""
+        resp_snippet = execution.response[:300] + ("..." if execution.response and len(execution.response) > 300 else "") if execution.response else "(no response)"
+        prior_txt = ""
+        if prior:
+            rationales = [f"[{mv.model}:{mv.verdict}] {mv.rationale}" for mv in prior if mv.rationale]
+            if rationales:
+                prior_txt = "\n".join(rationales[:3])
+        if stage == "plan":
+            return f"""[Plan] ユースケース: {question.use_case or '(unknown)'}
+質問: {question.prompt}
+期待: {question.expected_behaviour}
+エージェント応答(サマリ): {resp_snippet}"""
+        if stage == "counter":
+            return f"""[Counter] ユースケース: {question.use_case or '(unknown)'}
+質問: {question.prompt}
+期待: {question.expected_behaviour}
+Plan要約: {prior_txt or '(no summary)'}
+エージェント応答(サマリ): {resp_snippet}"""
+        return f"""[Reconcile] ユースケース: {question.use_case or '(unknown)'}
+質問: {question.prompt}
+期待: {question.expected_behaviour}
+指摘: {issues or '(no issues)'}
+エージェント応答(サマリ): {resp_snippet}"""
 
     def evaluate_stage(
         self,

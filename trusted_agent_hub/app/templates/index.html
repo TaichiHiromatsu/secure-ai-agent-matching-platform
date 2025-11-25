@@ -11,7 +11,7 @@
         <h1 class="text-4xl font-bold mb-4 text-center text-indigo-600">Trusted Agent Hub</h1>
         <p class="text-center text-gray-600 mb-8">Securely register and review AI Agents.</p>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-6xl mx-auto">
             <a href="/submit" class="block p-6 bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow">
                 <h2 class="text-2xl font-semibold mb-2">Submit Agent</h2>
                 <p class="text-gray-600">Register a new agent for review.</p>
@@ -21,6 +21,38 @@
                 <p class="text-gray-600">Review submitted agents.</p>
             </a>
         </div>
+
+        {% if agents %}
+        <div class="mt-10">
+            <h2 class="text-2xl font-semibold mb-3 text-gray-800">Registered Agents</h2>
+            <div class="overflow-x-auto border rounded bg-white shadow">
+                <table class="min-w-full text-sm">
+                    <thead class="bg-gray-100 text-gray-700">
+                        <tr>
+                            <th class="px-3 py-2 text-left">Name</th>
+                            <th class="px-3 py-2 text-left">Provider</th>
+                            <th class="px-3 py-2 text-left">Status</th>
+                            <th class="px-3 py-2 text-left">Use Cases</th>
+                            <th class="px-3 py-2 text-left">Updated</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for a in agents %}
+                        <tr class="border-t hover:bg-gray-50">
+                            <td class="px-3 py-2 font-medium">{{ a.name }}</td>
+                            <td class="px-3 py-2">{{ a.provider }}</td>
+                            <td class="px-3 py-2">{{ a.status }}</td>
+                            <td class="px-3 py-2 text-xs text-gray-700">{{ ', '.join(a.use_cases or []) }}</td>
+                            <td class="px-3 py-2 text-xs text-gray-600">{{ a.updated_at or a.created_at or '' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% else %}
+        <p class="mt-8 text-center text-gray-500">No agents registered yet.</p>
+        {% endif %}
     </div>
 </body>
 </html>

@@ -9,15 +9,11 @@ services:
     container_name: trusted_agent_hub
     ports:
       - "8080:8080"
+    env_file:
+      - .env
     environment:
+      # Override only non-secret variables
       - DATABASE_URL=sqlite:////app/data/agent_store.db
-      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - WANDB_API_KEY=${WANDB_API_KEY}
-      - WANDB_PROJECT=${WANDB_PROJECT:-agent-store-sandbox}
-      - WANDB_ENTITY=${WANDB_ENTITY}
-      - WANDB_BASE_URL=${WANDB_BASE_URL:-https://api.wandb.ai}
       - PYTHONPATH=/app:/app/inspect-worker:/app/sandbox-runner/src
     volumes:
       - trusted-hub-data:/app/data
