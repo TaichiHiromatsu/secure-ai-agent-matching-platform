@@ -190,6 +190,7 @@ Verdict rules:
     async def _evaluate_with_google_adk_async(self, question: QuestionSpec, execution: ExecutionResult) -> LLMJudgeResult:
         """Google ADKエージェントを使用して非同期評価を実行 - W&B Weaveでトレース"""
         from google.adk.runners import InMemoryRunner
+        import re
 
         # 評価プロンプトを構築
         user_prompt = self._build_prompt(question, execution)
@@ -197,43 +198,60 @@ Verdict rules:
         # Google ADK InMemoryRunnerを使用してエージェントを実行
         runner = InMemoryRunner(agent=self._agent)
 
-        try:
-            response = await runner.run_debug(user_prompt)
-            # run_debug()はEventオブジェクトのリストを返す
-            response_text = self._extract_text_from_events(response)
-            parsed = self._parse_response(response_text)
+        max_attempts = 3
+        for attempt in range(1, max_attempts + 1):
+            try:
+                response = await runner.run_debug(user_prompt)
+                response_text = self._extract_text_from_events(response)
+                parsed = self._parse_response(response_text)
 
-            result = LLMJudgeResult(
-                score=parsed.get("score"),
-                verdict=parsed.get("verdict"),
-                rationale=parsed.get("rationale", "google_adk_response"),
-                raw=response_text,
-                task_completion=parsed.get("task_completion"),
-                tool_usage=parsed.get("tool_usage"),
-                autonomy=parsed.get("autonomy"),
-                safety=parsed.get("safety"),
-                total_score=parsed.get("total_score"),
-            )
+                result = LLMJudgeResult(
+                    score=parsed.get("score"),
+                    verdict=parsed.get("verdict"),
+                    rationale=parsed.get("rationale", "google_adk_response"),
+                    raw=response_text,
+                    task_completion=parsed.get("task_completion"),
+                    tool_usage=parsed.get("tool_usage"),
+                    autonomy=parsed.get("autonomy"),
+                    safety=parsed.get("safety"),
+                    total_score=parsed.get("total_score"),
+                )
 
-            # W&B Weaveでスコアをログ（利用可能な場合）
-            if HAS_WEAVE:
-                weave.log({
-                    "model": self.config.model,
-                    "provider": self.config.provider,
-                    "aisi_inspect_scores": {
-                        "task_completion": result.task_completion,
-                        "tool_usage": result.tool_usage,
-                        "autonomy": result.autonomy,
-                        "safety": result.safety,
-                        "total_score": result.total_score,
-                    },
-                    "verdict": result.verdict,
-                })
+                # W&B Weaveでスコアをログ（利用可能な場合）
+                if HAS_WEAVE and hasattr(weave, "op"):
+                    try:
+                        # weave.log が無い環境があるため、属性存在チェックのみで安全にスキップ
+                        if hasattr(weave, "log"):
+                            weave.log({
+                                "model": self.config.model,
+                                "provider": self.config.provider,
+                                "aisi_inspect_scores": {
+                                    "task_completion": result.task_completion,
+                                    "tool_usage": result.tool_usage,
+                                    "autonomy": result.autonomy,
+                                    "safety": result.safety,
+                                    "total_score": result.total_score,
+                                },
+                                "verdict": result.verdict,
+                            })
+                    except Exception as log_err:  # pragma: no cover
+                        logger.debug(f"Weave log skipped: {log_err}")
 
-            return result
-        except Exception as error:
-            logger.error(f"Google ADK evaluation failed: {error}")
-            return self._fallback_result(f"google_adk_error:{error}")
+                return result
+            except Exception as error:  # pragma: no cover - env/429 dependent
+                # 429の場合はRetryInfoの秒数を待ってリトライ
+                err_str = str(error)
+                if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
+                    retry_sec = 60
+                    m = re.search(r"retryDelay': '([0-9]+)s'", err_str)
+                    if m:
+                        retry_sec = int(m.group(1))
+                    if attempt < max_attempts:
+                        logger.warning(f"Google ADK 429 detected. Sleeping {retry_sec}s before retry {attempt}/{max_attempts}")
+                        await asyncio.sleep(retry_sec)
+                        continue
+                logger.error(f"Google ADK evaluation failed: {error}")
+                return self._fallback_result(f"google_adk_error:{error}")
 
     def _extract_text_from_events(self, response) -> str:
         """Eventオブジェクトからテキストを抽出"""
@@ -412,4 +430,3 @@ Verdict rules:
                 "safety": None,
                 "total_score": None,
             }
-
