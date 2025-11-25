@@ -83,9 +83,10 @@ def run_judge_panel(
     """
     # Initialize W&B Weave (if available)
     if HAS_WEAVE:
+        wandb_entity = os.environ.get("WANDB_ENTITY", "local")
         wandb_project = os.environ.get("WANDB_PROJECT", "agent-evaluation")
         try:
-            weave.init(f"{wandb_project}-judges")
+            weave.init(f"{wandb_entity}/{wandb_project}")
         except Exception as e:
             print(f"Warning: Failed to initialize W&B Weave: {e}")
 
