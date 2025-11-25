@@ -27,11 +27,17 @@ app.include_router(agents.router)
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
     agents_list = load_agents()
+    # Sort by updated_at (or created_at) descending (newest first)
+    agents_sorted = sorted(
+        agents_list,
+        key=lambda a: a.updated_at or a.created_at or "",
+        reverse=True
+    )
     return templates.TemplateResponse(
         "index.html",
         {
             "request": request,
-            "agents": agents_list,
+            "agents": agents_sorted,
         },
     )
 

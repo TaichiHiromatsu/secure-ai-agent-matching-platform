@@ -16,7 +16,8 @@ services:
       - DATABASE_URL=sqlite:////app/data/agent_store.db
       - PYTHONPATH=/app:/app/inspect-worker:/app/sandbox-runner/src
     volumes:
-      - trusted-hub-data:/app/data
+      # Mount data directory to host for easy access
+      - ./trusted_agent_hub/data:/app/data
       # Development: Mount source code for hot reload
       - ./trusted_agent_hub/app:/app/app
       - ./trusted_agent_hub/sandbox-runner/src:/app/sandbox-runner/src
@@ -115,9 +116,6 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-
-volumes:
-  trusted-hub-data:
 
 networks:
   agent-net:

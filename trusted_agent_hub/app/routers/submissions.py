@@ -708,7 +708,6 @@ def process_submission(submission_id: str):
                 submission.state = "approved"
                 print(f"Auto-approved: Publishing submission {submission_id}")
                 publish_summary = publish_agent(submission)
-                publish_summary = publish_agent(submission)
                 current_breakdown = dict(submission.score_breakdown)
                 current_breakdown["publish_summary"] = publish_summary
                 submission.score_breakdown = current_breakdown

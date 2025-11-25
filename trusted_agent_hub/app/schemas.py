@@ -96,3 +96,14 @@ class TrustScoreUpdate(BaseModel):
     judge_score: Optional[int] = None
     implementation_score: Optional[int] = None
     reasoning: Optional[Dict[str, str]] = None
+
+# --- Publish Schemas ---
+class PublishRequest(BaseModel):
+    override: bool = Field(default=False, description="Override state validation and force publish")
+    reason: Optional[str] = Field(default=None, description="Reason for manual publish (required for override)")
+
+class PublishResponse(BaseModel):
+    status: str
+    message: str
+    agent_id: Optional[str] = None
+    published_at: Optional[str] = None
