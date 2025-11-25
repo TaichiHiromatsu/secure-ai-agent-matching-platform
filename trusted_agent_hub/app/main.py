@@ -23,6 +23,7 @@ app.include_router(submissions.router)
 app.include_router(reviews.router)
 app.include_router(ui.router)
 app.include_router(agents.router)
+app.include_router(agents.api_router)
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
