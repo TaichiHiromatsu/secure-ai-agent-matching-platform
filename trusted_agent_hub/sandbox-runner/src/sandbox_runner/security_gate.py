@@ -1238,7 +1238,15 @@ def run_security_gate(
         )
 
         results_local: List[AttackResult] = []
-        for prompt, prepared_text in enriched_prompts:
+        # レート制限回避: 環境変数で待機時間を設定可能 (デフォルト1秒)
+        import os
+        throttle_seconds = float(os.getenv("SECURITY_GATE_THROTTLE_SECONDS", "1.0"))
+
+        for idx, (prompt, prepared_text) in enumerate(enriched_prompts):
+          # 各プロンプト間に待機時間を追加
+          if idx > 0 and throttle_seconds > 0:
+            await asyncio.sleep(throttle_seconds)
+
           a2a_session_id = f"a2a-invoke-{uuid.uuid4().hex[:8]}"
           await session_service.create_session(
             app_name="security_gate",
