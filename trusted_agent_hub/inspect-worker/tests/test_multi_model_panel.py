@@ -47,7 +47,7 @@ def test_multi_model_panel_initialization_dry_run():
     # デフォルトで3モデルが設定されている
     assert len(panel.models) == 3
     assert "gpt-4o" in panel.models
-    assert "claude-3-5-sonnet-20241022" in panel.models
+    assert "claude-3-haiku-20240307" in panel.models
     assert "gemini-1.5-pro" in panel.models
 
     # 各モデルに対応するjudgeが初期化されている
@@ -70,7 +70,7 @@ def test_multi_model_panel_provider_detection():
     panel = MultiModelJudgePanel(dry_run=True)
 
     assert panel._get_provider("gpt-4o") == "openai"
-    assert panel._get_provider("claude-3-5-sonnet-20241022") == "anthropic"
+    assert panel._get_provider("claude-3-haiku-20240307") == "anthropic"
     assert panel._get_provider("gemini-1.5-pro") == "google-adk"
     assert panel._get_provider("unknown-model") == "google-adk"  # デフォルト
 

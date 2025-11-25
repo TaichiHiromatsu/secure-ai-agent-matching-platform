@@ -754,38 +754,39 @@
                         <span class="font-semibold">Prompt (表示用):</span>
                         <pre class="mt-1 whitespace-pre-wrap bg-white p-2 rounded">{{ stage_item.get('promptDisplay') or stage_item.get('prompt') or 'N/A' }}</pre>
                     </div>
-                    {% if stage_item.get('llmVerdicts') %}
-                    <div class="border-t pt-2">
-                        <div class="font-semibold mb-1">各LLMの判定:</div>
-                        <div class="space-y-1">
-                            {% for llm in stage_item.get('llmVerdicts', []) %}
-                            <div class="bg-white rounded p-1">
-                                <div class="flex items-center justify-between">
-                                    <span>{{ llm.get('model', 'Unknown') }}</span>
-                                    <span class="ml-2 px-2 py-0.5 rounded text-xs
-                                        {% if llm.get('verdict') == 'approve' %}bg-green-100 text-green-800
-                                        {% elif llm.get('verdict') == 'reject' %}bg-red-100 text-red-800
-                                        {% else %}bg-yellow-100 text-yellow-800{% endif %}">
-                                        {{ llm.get('verdict', 'N/A') }}
-                                    </span>
-                                    <span class="ml-1 text-gray-600 text-xs">Score: {% if llm.get('score') is not none %}{{ "%.2f"|format(llm.get('score')) }}{% else %}N/A{% endif %}</span>
-                                </div>
-                                {% if llm.get('rationale') %}
-                                <div class="text-gray-700 text-xs mt-1">
-                                    <pre class="whitespace-pre-wrap bg-gray-50 p-1 rounded">{{ llm.get('rationale') }}</pre>
+                                {% if stage_item.get('llmVerdicts') %}
+                                <div class="border-t pt-2">
+                                    <div class="font-semibold mb-1">各LLMの判定:</div>
+                                    <div class="space-y-1">
+                                        {% for llm in stage_item.get('llmVerdicts', []) %}
+                                        <div class="bg-white rounded p-2">
+                                            <div class="flex items-center justify-between">
+                                                <span>{{ llm.get('model', 'Unknown') }}</span>
+                                                <span class="ml-2 px-2 py-0.5 rounded text-xs
+                                                    {% if llm.get('verdict') == 'approve' %}bg-green-100 text-green-800
+                                                    {% elif llm.get('verdict') == 'reject' %}bg-red-100 text-red-800
+                                                    {% else %}bg-yellow-100 text-yellow-800{% endif %}">
+                                                    {{ llm.get('verdict', 'N/A') }}
+                                                </span>
+                                                <span class="ml-1 text-gray-600 text-xs">Score: {% if llm.get('score') is not none %}{{ "%.2f"|format(llm.get('score')) }}{% else %}N/A{% endif %}</span>
+                                            </div>
+                                            {% if llm.get('rationale') %}
+                                            <div class="text-gray-700 text-xs mt-1">
+                                                <strong>Rationale:</strong>
+                                                <pre class="whitespace-pre-wrap bg-gray-50 p-2 rounded">{{ llm.get('rationale') }}</pre>
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                        {% endfor %}
+                                    </div>
                                 </div>
                                 {% endif %}
-                            </div>
-                            {% endfor %}
-                        </div>
-                    </div>
-                    {% endif %}
-                    {% if stage_item.get('aggregatedRationale') %}
-                    <div class="border-t pt-2 text-gray-700">
-                        <strong>Aggregated Rationale:</strong>
-                        <pre class="whitespace-pre-wrap bg-white p-2 rounded mt-1">{{ stage_item.get('aggregatedRationale') }}</pre>
-                    </div>
-                    {% endif %}
+                                {% if stage_item.get('aggregatedRationale') %}
+                                <div class="border-t pt-2 text-gray-700">
+                                    <strong>Aggregated Rationale (要約):</strong>
+                                    <pre class="whitespace-pre-wrap bg-white p-2 rounded mt-1">{{ stage_item.get('aggregatedRationale') }}</pre>
+                                </div>
+                                {% endif %}
                     {% if stage_item.get('issuesText') %}
                     <div class="border-t pt-2 text-red-700">
                         <strong>Issues (Counter -> Reconcile):</strong>
