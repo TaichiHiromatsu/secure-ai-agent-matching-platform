@@ -4,7 +4,7 @@ from .question_generator import QuestionSpec, generate_questions
 from .execution_agent import dispatch_questions
 from .llm_judge import LLMJudge, LLMJudgeConfig
 from .wandb_logger import log_metrics
-from .panel_judge import MultiModelJudgePanel
+from .multi_model_judge import MultiModelJudge
 
 __all__ = [
     "QuestionSpec",
@@ -13,5 +13,5 @@ __all__ = [
     "LLMJudge",
     "LLMJudgeConfig",
     "log_metrics",
-    "MultiModelJudgePanel",
+    "MultiModelJudge",
 ]
