@@ -100,7 +100,7 @@
             <div class="mb-3 text-xs text-gray-500">
                 <p>Project: {{ submission.score_breakdown.wandb.project }}</p>
                 <p>Entity: {{ submission.score_breakdown.wandb.entity }}</p>
-                <p class="mt-2 text-xs">Track LLM evaluations across Judge Panel, Security Gate, and Functional Accuracy stages</p>
+                <p class="mt-2 text-xs">Track LLM evaluations across Jury Judge, Security Gate, and Functional Accuracy stages</p>
             </div>
             <a href="https://wandb.ai/{{ submission.score_breakdown.wandb.entity }}/{{ submission.score_breakdown.wandb.project }}/weave" target="_blank" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded inline-flex items-center justify-center transition duration-150 ease-in-out shadow-sm w-full">
                 <span>Open Weave Traces</span>
@@ -564,10 +564,10 @@
         <p class="ml-7 text-sm text-gray-500">No functional test results available</p>
         {% endif %}
     </details>
-    <!-- Judge Panel -->
+    <!-- Jury Judge -->
     <details id="details-judge" class="mb-6 bg-gray-50 p-4 rounded-lg">
         <summary class="text-lg font-semibold mb-2 flex items-center cursor-pointer">
-            <span class="mr-2">⚖️</span> Judge Panel (Agents-as-a-Judge)
+            <span class="mr-2">⚖️</span> Jury Judge (Agents-as-a-Judge)
         </summary>
         {% if submission.score_breakdown.judge_summary %}
         <div class="ml-7 space-y-4 mt-2">
@@ -708,7 +708,7 @@
     {% set _ = grouped.setdefault(s.get('scenarioId') or 'unknown', []).append(s) %}
 {% endfor %}
 <div class="border-t pt-4">
-    <h4 class="font-semibold mb-2">🔍 Judge Panel評価詳細（シナリオ別・ステージ別）</h4>
+    <h4 class="font-semibold mb-2">🔍 Jury Judge評価詳細（シナリオ別・ステージ別）</h4>
     <div class="space-y-4">
         {% for scenario_id, stage_items in grouped.items() %}
         <div class="border border-gray-300 rounded-lg bg-white shadow-sm p-3">

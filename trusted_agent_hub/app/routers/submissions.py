@@ -99,10 +99,15 @@ def publish_agent(submission: models.Submission) -> dict:
         card = submission.card_document or {}
         use_cases = card.get("useCases") or card.get("capabilities") or []
         name = card.get("name") or submission.agent_id or f"agent-{submission.id[:8]}"
+
+        # Get provider from organization_meta (submitted company name), fallback to card, then "unknown"
+        org_meta = submission.organization_meta or {}
+        provider = org_meta.get("name") or card.get("provider") or "unknown"
+
         entry = AgentEntry(
             id=new_agent_id(),
             name=name,
-            provider=card.get("provider") or "unknown",
+            provider=provider,
             agent_card_url=card.get("url"),
             endpoint_url=card.get("serviceUrl") or card.get("url"),
             token_hint="***",
