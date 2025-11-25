@@ -32,13 +32,13 @@ async def save_plan_as_artifact(
     """Save execution plan as a markdown artifact.
 
     Args:
-        plan_id: Unique identifier for the plan.
+        plan_id: Base identifier for the plan (e.g., "okinawa-trip").
         client_request: Original client request.
         plan_content: The plan content in markdown format.
         output_dir: Directory to save the plan artifact (relative to project root).
 
     Returns:
-        Path to the saved plan file.
+        Path to the saved plan file and the unique plan_id with timestamp.
     """
     # Convert to absolute path relative to project root
     if not os.path.isabs(output_dir):
@@ -51,13 +51,21 @@ async def save_plan_as_artifact(
     # Create output directory if it doesn't exist
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Generate filename
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"{plan_id}_{timestamp}.md"
+    # Generate unique plan_id with timestamp (HHMM) to prevent collisions
+    timestamp_hhmm = datetime.now().strftime("%H%M")
+    timestamp_full = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    # Append time to plan_id if not already included
+    if not any(char.isdigit() and len(plan_id.split('-')[-1]) == 4 for char in plan_id[-4:]):
+        unique_plan_id = f"{plan_id}-{timestamp_hhmm}"
+    else:
+        unique_plan_id = plan_id
+
+    filename = f"{unique_plan_id}_{timestamp_full}.md"
     filepath = output_dir / filename
 
-    # Create markdown document
-    markdown_content = f"""# Execution Plan: {plan_id}
+    # Create markdown document with unique plan_id
+    markdown_content = f"""# Execution Plan: {unique_plan_id}
 
 **Created:** {datetime.now().isoformat()}
 
@@ -75,7 +83,14 @@ async def save_plan_as_artifact(
     with open(filepath, 'w', encoding='utf-8') as f:
         f.write(markdown_content)
 
-    return str(filepath)
+    # Return JSON with both file path and unique plan_id for downstream use
+    import json
+    return json.dumps({
+        "file_path": str(filepath),
+        "plan_id": unique_plan_id,
+        "original_plan_id": plan_id,
+        "message": f"Plan saved successfully. Use plan_id '{unique_plan_id}' for all subsequent operations."
+    }, ensure_ascii=False)
 
 
 async def create_structured_plan(
@@ -130,6 +145,11 @@ When creating a plan:
 - Identify dependencies between steps
 - Consider error handling and fallback strategies
 - Include security checkpoints
+
+**Plan ID Format**
+Generate a descriptive plan_id based on the request content and date.
+Format: `<description>-<YYYYMMDD>` (e.g., `okinawa-trip-20251220`)
+Note: The system will automatically append the current time (HHMM) to ensure uniqueness.
 
 Output Format:
 Your plan should be in markdown format with:

@@ -170,6 +170,11 @@ async def load_all_conversations(
     import logging
     logger = logging.getLogger(__name__)
 
+    # Fix common incorrect paths (LLM sometimes passes wrong paths)
+    if conversations_dir in ["conversations/", "conversations"]:
+        conversations_dir = "artifacts/conversations"
+        logger.info(f"🔧 Corrected conversations_dir to: {conversations_dir}")
+
     # Convert to absolute path relative to project root
     if not os.path.isabs(conversations_dir):
         current_dir = Path(__file__).parent.parent.parent
