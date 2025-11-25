@@ -38,6 +38,14 @@
             </div>
 
             <div class="mb-6">
+                <label class="block text-gray-700 text-sm font-bold mb-2" for="company_name">
+                    Company Name (企業名)
+                </label>
+                <input class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" id="company_name" type="text" placeholder="例: Anthropic, OpenAI, Google" required>
+                <p class="text-sm text-gray-500 mt-1">Enter your company or organization name.</p>
+            </div>
+
+            <div class="mb-6">
                 <label class="block text-gray-700 text-sm font-bold mb-2" for="agent_card_url">
                     Agent Card URL
                 </label>
@@ -60,6 +68,7 @@
         document.getElementById('submissionForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const agentCardUrl = document.getElementById('agent_card_url').value;
+            const companyName = document.getElementById('company_name').value;
 
             const payload = {
                 agent_id: "placeholder", // Will be extracted from Agent Card on server side
@@ -68,7 +77,7 @@
                 endpoint_manifest: { endpoints: [] },
                 endpoint_snapshot_hash: "sha256:mock",
                 signature_bundle: { signature: "mock" },
-                organization_meta: { name: "Mock Org" },
+                organization_meta: { name: companyName },
                 request_context: {
                     stages: {
                         precheck: document.getElementById('stage_precheck').checked,
