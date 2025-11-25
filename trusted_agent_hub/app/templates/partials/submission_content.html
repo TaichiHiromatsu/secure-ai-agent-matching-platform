@@ -781,18 +781,7 @@
                                     </div>
                                 </div>
                                 {% endif %}
-                                {% if stage_item.get('aggregatedRationale') %}
-                                <div class="border-t pt-2 text-gray-700">
-                                    <strong>Aggregated Rationale (要約):</strong>
-                                    <pre class="whitespace-pre-wrap bg-white p-2 rounded mt-1">{{ stage_item.get('aggregatedRationale') }}</pre>
-                                </div>
-                                {% endif %}
-                    {% if stage_item.get('issuesText') %}
-                    <div class="border-t pt-2 text-red-700">
-                        <strong>Issues (Counter -> Reconcile):</strong>
-                        <pre class="whitespace-pre-wrap bg-white p-2 rounded mt-1">{{ stage_item.get('issuesText') }}</pre>
-                    </div>
-                    {% endif %}
+                                {# Aggregated Rationale と Issues は冗長なので表示を省略 #}
                 </div>
                 {% endfor %}
             </div>
