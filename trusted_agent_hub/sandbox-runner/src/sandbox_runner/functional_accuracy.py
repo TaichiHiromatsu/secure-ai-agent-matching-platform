@@ -102,45 +102,8 @@ def load_ragtruth(dir_path: Path) -> List[Dict[str, Any]]:
   return records
 
 
-def load_advbench_scenarios(dir_path: Path, max_records: Optional[int] = None) -> List[Scenario]:
-  """
-  AISI 提供の AdvBench (aieva) データセットから Functional Accuracy 用のシナリオを構築。
-
-  Args:
-      dir_path: `third_party/aisev/backend/dataset/output` のような AdvBench CSV を含むディレクトリ
-      max_records: 生成する最大レコード数（None は制限なし）
-
-  Returns:
-      Scenario のリスト。 `text` カラムをプロンプト、`requirement` や `ten_perspective` をユースケースとする。
-  """
-  scenarios: List[Scenario] = []
-  if not dir_path.exists():
-    return scenarios
-
-  csv_files = sorted(dir_path.glob("*.csv"))
-  total = 0
-
-  for csv_file in csv_files:
-    with csv_file.open(encoding="utf-8", newline="") as handle:
-      reader = csv.DictReader(handle)
-      for idx, row in enumerate(reader):
-        if max_records is not None and total >= max_records:
-          return scenarios
-        prompt = row.get("text", "").strip()
-        if not prompt:
-          continue
-        use_case = row.get("requirement") or row.get("ten_perspective") or row.get("gsn_perspective") or "AdvBench汎用質問"
-        scenarios.append(
-          Scenario(
-            id=f"advbench-{csv_file.stem}-{idx+1}",
-            locale="ja-JP",
-            use_case=use_case,
-            prompt=prompt,
-            expected_answer=""
-          )
-        )
-        total += 1
-  return scenarios
+# AdvBench関連機能は security_gate.py に移動しました (2025-01-25)
+# Security Gateでの攻撃プロンプト評価に使用されます
 
 
 def tokenize(text: str) -> List[str]:
@@ -537,8 +500,6 @@ def run_functional_accuracy(
   endpoint_url: Optional[str],
   endpoint_token: Optional[str],
   timeout: float,
-  advbench_dir: Optional[Path] = None,
-  advbench_limit: Optional[int] = None,
   session_id: Optional[str] = None,
   user_id: Optional[str] = None
 ) -> Dict[str, Any]:
@@ -556,8 +517,6 @@ def run_functional_accuracy(
     endpoint_url: Agent endpoint URL
     endpoint_token: Optional endpoint authentication token
     timeout: Timeout for agent invocations
-    advbench_dir: Optional path to AdvBench directory
-    advbench_limit: Optional limit for AdvBench scenarios
     session_id: Optional session ID (will be passed to invoke_endpoint)
     user_id: Optional user ID (defaults to "functional-accuracy")
   """
@@ -575,13 +534,6 @@ def run_functional_accuracy(
   scenarios = generate_scenarios(card, agent_id=agent_id, revision=revision, max_scenarios=max_scenarios)
   ragtruth_records = load_ragtruth(ragtruth_dir)
   attach_expected_answers(scenarios, ragtruth_records)
-  advbench_scenarios: List[Scenario] = []
-  if advbench_dir:
-    advbench_scenarios = load_advbench_scenarios(advbench_dir, max_records=advbench_limit)
-    if advbench_scenarios:
-      attach_expected_answers(advbench_scenarios, ragtruth_records)
-      scenarios.extend(advbench_scenarios)
-      logger.info(f"Functional AccuracyにAdvBenchシナリオを追加 ({len(advbench_scenarios)}件)")
 
   # Google ADKスタイルのエージェント評価器を初期化
   # GOOGLE_API_KEY環境変数が必須
@@ -690,10 +642,7 @@ def run_functional_accuracy(
     "endpoint": endpoint_url,
     "dryRun": dry_run or not endpoint_url,
     "promptsArtifact": str(prompts_path),
-    "maxDistance": max(distances) if distances else None,
-    "advbenchScenarios": len(advbench_scenarios),
-    "advbenchLimit": advbench_limit,
-    "advbenchEnabled": bool(advbench_dir and advbench_scenarios)
+    "maxDistance": max(distances) if distances else None
   }
   (output_dir / "functional_summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
   return summary

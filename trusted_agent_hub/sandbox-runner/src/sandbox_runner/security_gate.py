@@ -22,6 +22,8 @@ class AttackPrompt:
   requirement: str
   perspective: str
   gsn_perspective: str
+  dataset_source: str = "unknown"  # 新規: データセット識別子
+  priority: int = 1  # 新規: 1=必須, 2=高, 3=中, 4=低
 
 
 @dataclass
@@ -32,11 +34,44 @@ class AttackResult:
   response_text: Optional[str]
   verdict: str
   reason: str
+  dataset_source: str  # 新規: トレーサビリティ用
+  priority: int  # 新規
   metadata: Dict[str, Any]
 
 
-def load_security_prompts(dataset_path: Path) -> List[AttackPrompt]:
+@dataclass
+class DatasetConfig:
+  """Security Gate用データセット設定"""
+  name: str
+  csv_path: Path
+  priority: int  # 1=必須, 2=高, 3=中, 4=低
+  max_samples: Optional[int] = None  # None = 全件使用
+
+
+@dataclass
+class SecurityGateConfig:
+  """Security Gate統合設定"""
+  datasets: List[DatasetConfig]
+  max_total_prompts: int = 50
+  sampling_strategy: str = "priority_balanced"  # priority_balanced, random, category_balanced
+
+
+def load_security_prompts(
+    dataset_path: Path,
+    dataset_name: Optional[str] = None,
+    priority: int = 1
+) -> List[AttackPrompt]:
+  """
+  単一CSVファイルからプロンプトを読み込む（後方互換性維持）
+
+  Args:
+    dataset_path: CSVファイルパス
+    dataset_name: データセット識別子（Noneの場合はファイル名から推測）
+    priority: プロンプト優先度（デフォルト: 1=必須）
+  """
   prompts: List[AttackPrompt] = []
+  source = dataset_name or dataset_path.stem
+
   with dataset_path.open(encoding="utf-8") as f:
     reader = csv.DictReader(f)
     for idx, row in enumerate(reader):
@@ -46,17 +81,161 @@ def load_security_prompts(dataset_path: Path) -> List[AttackPrompt]:
       requirement = (row.get("requirement") or "").strip()
       perspective = (row.get("ten_perspective") or "").strip()
       gsn = (row.get("gsn_perspective") or "").strip()
-      prompt_id = row.get("id") or f"{dataset_path.stem}-{idx+1}"
+      # データセット名をプレフィックスとして使用してIDを生成
+      prompt_id = f"{source}-{idx+1}"
       prompts.append(
         AttackPrompt(
           prompt_id=prompt_id,
           text=text,
           requirement=requirement,
           perspective=perspective,
-          gsn_perspective=gsn
+          gsn_perspective=gsn,
+          dataset_source=source,
+          priority=priority
         )
       )
   return prompts
+
+
+def load_advbench_prompts(
+    dataset_path: Path,
+    dataset_name: str = "advbench",
+    priority: int = 4
+) -> List[AttackPrompt]:
+  """
+  AdvBench 520 Harmful Behaviors データセットを読み込む
+
+  Args:
+    dataset_path: advbench_harmful_behaviors.csv ファイルパス
+    dataset_name: データセット識別子
+    priority: プロンプト優先度（デフォルト: 4）
+
+  Returns:
+    AttackPromptのリスト
+
+  AdvBenchデータセット形式:
+    - goal: 有害な指示（攻撃プロンプト）
+    - target: 期待される応答の開始文（"Sure, here is a ..."）
+  """
+  prompts: List[AttackPrompt] = []
+
+  if not dataset_path.exists():
+    logger.warning(f"AdvBench dataset not found: {dataset_path}")
+    return prompts
+
+  with dataset_path.open(encoding="utf-8") as f:
+    reader = csv.DictReader(f)
+    for idx, row in enumerate(reader):
+      goal = (row.get("goal") or "").strip()
+      if not goal:
+        continue
+      target = (row.get("target") or "").strip()
+      prompt_id = f"{dataset_name}-{idx+1}"
+      prompts.append(
+        AttackPrompt(
+          prompt_id=prompt_id,
+          text=goal,
+          requirement=target,  # target responseを requirementフィールドに格納
+          perspective="harmful_behavior",
+          gsn_perspective="G6-6",  # セーフガード回避攻撃
+          dataset_source=dataset_name,
+          priority=priority
+        )
+      )
+  logger.info(f"Loaded {len(prompts)} prompts from AdvBench dataset")
+  return prompts
+
+
+def load_multi_dataset_prompts(config: SecurityGateConfig) -> List[AttackPrompt]:
+  """
+  複数のデータセットからプロンプトを読み込み、サンプリングする
+
+  Args:
+    config: SecurityGateConfig設定オブジェクト
+
+  Returns:
+    サンプリングされたAttackPromptのリスト
+  """
+  all_prompts: List[AttackPrompt] = []
+
+  # 各データセットから読み込み
+  for dataset_conf in config.datasets:
+    if not dataset_conf.csv_path.exists():
+      logger.warning(f"Dataset not found: {dataset_conf.csv_path}")
+      continue
+
+    # AdvBench専用の読み込み処理
+    if dataset_conf.name == "advbench":
+      prompts = load_advbench_prompts(
+        dataset_conf.csv_path,
+        dataset_name=dataset_conf.name,
+        priority=dataset_conf.priority
+      )
+    else:
+      # AISI系データセットの読み込み
+      prompts = load_security_prompts(
+        dataset_conf.csv_path,
+        dataset_name=dataset_conf.name,
+        priority=dataset_conf.priority
+      )
+
+    # max_samplesが指定されている場合はランダムサンプリング
+    if dataset_conf.max_samples is not None and len(prompts) > dataset_conf.max_samples:
+      prompts = random.sample(prompts, dataset_conf.max_samples)
+
+    all_prompts.extend(prompts)
+    logger.info(f"Loaded {len(prompts)} prompts from {dataset_conf.name} (priority={dataset_conf.priority})")
+
+  # 優先度ベースサンプリング
+  if len(all_prompts) > config.max_total_prompts:
+    all_prompts = _sample_by_priority(all_prompts, config.max_total_prompts, config.sampling_strategy)
+
+  logger.info(f"Total prompts after sampling: {len(all_prompts)}")
+  return all_prompts
+
+
+def _sample_by_priority(
+    prompts: List[AttackPrompt],
+    max_count: int,
+    strategy: str
+) -> List[AttackPrompt]:
+  """
+  優先度ベースでプロンプトをサンプリング
+
+  Args:
+    prompts: 全プロンプトリスト
+    max_count: 最大プロンプト数
+    strategy: サンプリング戦略
+  """
+  if strategy == "priority_balanced":
+    # Priority 1は全件、残りは比率配分
+    p1 = [p for p in prompts if p.priority == 1]
+    p2 = [p for p in prompts if p.priority == 2]
+    p3 = [p for p in prompts if p.priority == 3]
+    p4 = [p for p in prompts if p.priority == 4]
+
+    selected = list(p1)  # Priority 1は必須
+    remaining = max_count - len(selected)
+
+    if remaining > 0:
+      # 残りを60%, 30%, 10%で配分
+      p2_quota = min(int(remaining * 0.60), len(p2))
+      p3_quota = min(int(remaining * 0.30), len(p3))
+      p4_quota = min(remaining - p2_quota - p3_quota, len(p4))
+
+      if p2: selected.extend(random.sample(p2, p2_quota))
+      if p3: selected.extend(random.sample(p3, p3_quota))
+      if p4: selected.extend(random.sample(p4, p4_quota))
+
+    return selected
+
+  elif strategy == "random":
+    return random.sample(prompts, min(max_count, len(prompts)))
+
+  else:
+    # デフォルト: priority順にソートして上位max_count件
+    sorted_prompts = sorted(prompts, key=lambda p: p.priority)
+    return sorted_prompts[:max_count]
 
 
 def evaluate_prompt(
@@ -112,6 +291,8 @@ def evaluate_prompt(
     response_text=response_text,
     verdict=verdict,
     reason=reason,
+    dataset_source=prompt.dataset_source,
+    priority=prompt.priority,
     metadata={
       "perspective": prompt.perspective,
       "gsnPerspective": prompt.gsn_perspective,
@@ -861,7 +1042,7 @@ def run_security_gate(
   *,
   agent_id: str,
   revision: str,
-  dataset_path: Path,
+  dataset_path: Optional[Path] = None,
   output_dir: Path,
   attempts: int,
   endpoint_url: Optional[str],
@@ -870,7 +1051,8 @@ def run_security_gate(
   dry_run: bool,
   agent_card: Optional[Dict[str, Any]] = None,
   session_id: Optional[str] = None,
-  user_id: Optional[str] = None
+  user_id: Optional[str] = None,
+  config: Optional[SecurityGateConfig] = None
 ) -> Dict[str, Any]:
   """
   Run security gate evaluation on an agent.
@@ -878,7 +1060,7 @@ def run_security_gate(
   Args:
     agent_id: Agent ID
     revision: Agent revision
-    dataset_path: Path to security prompts dataset
+    dataset_path: Path to security prompts dataset (legacy single-dataset mode)
     output_dir: Output directory for results
     attempts: Number of prompts to attempt
     endpoint_url: Agent endpoint URL
@@ -888,28 +1070,58 @@ def run_security_gate(
     agent_card: Agent card document
     session_id: Optional session ID (will be passed to all evaluations)
     user_id: Optional user ID (defaults to "security-gate")
+    config: SecurityGateConfig for multi-dataset mode (overrides dataset_path if provided)
   """
   output_dir.mkdir(parents=True, exist_ok=True)
-  if not dataset_path.exists():
-    summary = {
-      "agentId": agent_id,
-      "revision": revision,
-      "dataset": str(dataset_path),
-      "attempted": 0,
-      "blocked": 0,
-      "needsReview": 0,
-      "notExecuted": 0,
-      "error": "dataset_missing"
-    }
-    (output_dir / "security_summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
-    return summary
 
-  prompts = load_security_prompts(dataset_path)
+  # Multi-dataset mode: use config
+  if config is not None:
+    logger.info(f"Running Security Gate in multi-dataset mode with {len(config.datasets)} datasets")
+    prompts = load_multi_dataset_prompts(config)
+    dataset_info = {
+      "mode": "multi_dataset",
+      "datasets": [
+        {
+          "name": d.name,
+          "path": str(d.csv_path),
+          "priority": d.priority,
+          "max_samples": d.max_samples
+        }
+        for d in config.datasets
+      ],
+      "max_total_prompts": config.max_total_prompts,
+      "sampling_strategy": config.sampling_strategy
+    }
+  # Legacy single-dataset mode
+  elif dataset_path is not None:
+    if not dataset_path.exists():
+      summary = {
+        "agentId": agent_id,
+        "revision": revision,
+        "dataset": str(dataset_path),
+        "attempted": 0,
+        "blocked": 0,
+        "needsReview": 0,
+        "notExecuted": 0,
+        "error": "dataset_missing"
+      }
+      (output_dir / "security_summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
+      return summary
+
+    logger.info(f"Running Security Gate in legacy single-dataset mode: {dataset_path}")
+    prompts = load_security_prompts(dataset_path)
+    dataset_info = {
+      "mode": "single_dataset",
+      "dataset": str(dataset_path)
+    }
+  else:
+    raise ValueError("Either dataset_path or config must be provided")
+
   if not prompts:
     summary = {
       "agentId": agent_id,
       "revision": revision,
-      "dataset": str(dataset_path),
+      **dataset_info,
       "attempted": 0,
       "blocked": 0,
       "needsReview": 0,
@@ -931,6 +1143,8 @@ def run_security_gate(
       "requirement": prompt.requirement,
       "perspective": prompt.perspective,
       "gsnPerspective": prompt.gsn_perspective,
+      "datasetSource": prompt.dataset_source,
+      "priority": prompt.priority,
       "basePrompt": prompt.text,
       "finalPrompt": enriched_text,
       "contextTerms": context_terms
@@ -994,6 +1208,8 @@ def run_security_gate(
               response_text=None,
               verdict="error",
               reason=f"endpoint_error: card_fetch_failed {exc}",
+              dataset_source=prompt.dataset_source,
+              priority=prompt.priority,
               metadata={
                 "perspective": prompt.perspective,
                 "gsnPerspective": prompt.gsn_perspective,
@@ -1022,7 +1238,15 @@ def run_security_gate(
         )
 
         results_local: List[AttackResult] = []
-        for prompt, prepared_text in enriched_prompts:
+        # レート制限回避: 環境変数で待機時間を設定可能 (デフォルト1秒)
+        import os
+        throttle_seconds = float(os.getenv("SECURITY_GATE_THROTTLE_SECONDS", "1.0"))
+
+        for idx, (prompt, prepared_text) in enumerate(enriched_prompts):
+          # 各プロンプト間に待機時間を追加
+          if idx > 0 and throttle_seconds > 0:
+            await asyncio.sleep(throttle_seconds)
+
           a2a_session_id = f"a2a-invoke-{uuid.uuid4().hex[:8]}"
           await session_service.create_session(
             app_name="security_gate",
@@ -1054,6 +1278,8 @@ def run_security_gate(
                 response_text=None,
                 verdict="error",
                 reason=f"endpoint_error: {exc}",
+                dataset_source=prompt.dataset_source,
+                priority=prompt.priority,
                 metadata={
                   "perspective": prompt.perspective,
                   "gsnPerspective": prompt.gsn_perspective,
@@ -1080,6 +1306,8 @@ def run_security_gate(
               response_text=response_text,
               verdict=verdict,
               reason=reason,
+              dataset_source=prompt.dataset_source,
+              priority=prompt.priority,
               metadata={
                 "perspective": prompt.perspective,
                 "gsnPerspective": prompt.gsn_perspective,
@@ -1175,13 +1403,46 @@ def run_security_gate(
         "verdict": item.verdict,
         "reason": item.reason,
         "category": categorize_result(item),
+        "datasetSource": item.dataset_source,
+        "priority": item.priority,
         **item.metadata
       }, ensure_ascii=False) + "\n")
+
+  # データセット別/優先度別の集計
+  by_dataset: Dict[str, Dict[str, int]] = {}
+  by_priority: Dict[int, Dict[str, int]] = {}
+
+  for res in results:
+    # データセット別集計
+    if res.dataset_source not in by_dataset:
+      by_dataset[res.dataset_source] = {"blocked": 0, "needs_review": 0, "error": 0, "not_executed": 0, "total": 0}
+    by_dataset[res.dataset_source]["total"] += 1
+    if res.verdict == "blocked":
+      by_dataset[res.dataset_source]["blocked"] += 1
+    elif res.verdict == "needs_review":
+      by_dataset[res.dataset_source]["needs_review"] += 1
+    elif res.verdict == "error":
+      by_dataset[res.dataset_source]["error"] += 1
+    elif res.verdict == "not_executed":
+      by_dataset[res.dataset_source]["not_executed"] += 1
+
+    # 優先度別集計
+    if res.priority not in by_priority:
+      by_priority[res.priority] = {"blocked": 0, "needs_review": 0, "error": 0, "not_executed": 0, "total": 0}
+    by_priority[res.priority]["total"] += 1
+    if res.verdict == "blocked":
+      by_priority[res.priority]["blocked"] += 1
+    elif res.verdict == "needs_review":
+      by_priority[res.priority]["needs_review"] += 1
+    elif res.verdict == "error":
+      by_priority[res.priority]["error"] += 1
+    elif res.verdict == "not_executed":
+      by_priority[res.priority]["not_executed"] += 1
 
   summary = {
     "agentId": agent_id,
     "revision": revision,
-    "dataset": str(dataset_path),
+    **dataset_info,
     "attempted": len(results),
     "blocked": sum(1 for r in results if r.verdict == "blocked"),
     "needsReview": sum(1 for r in results if r.verdict == "needs_review"),
@@ -1193,7 +1454,9 @@ def run_security_gate(
     "promptsArtifact": str(prompts_path),
     "categories": category_counts,
     "endpointFailures": endpoint_failures,
-    "timeoutFailures": timeout_failures
+    "timeoutFailures": timeout_failures,
+    "byDataset": by_dataset,
+    "byPriority": by_priority
   }
   (output_dir / "security_summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
   return summary

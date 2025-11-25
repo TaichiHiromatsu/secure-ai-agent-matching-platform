@@ -12,7 +12,7 @@ router = APIRouter(
     tags=["submissions"],
 )
 
-from sandbox_runner.security_gate import run_security_gate
+from sandbox_runner.security_gate import run_security_gate, SecurityGateConfig, DatasetConfig
 from sandbox_runner.functional_accuracy import run_functional_accuracy
 from sandbox_runner.judge_orchestrator import run_judge_panel
 from pathlib import Path
@@ -293,7 +293,45 @@ def process_submission(submission_id: str):
             json.dump(submission.card_document, f)
 
         # --- 1. Endpoint URL (shared across stages) ---
-        dataset_path = base_dir / "third_party/aisev/backend/dataset/output/06_aisi_security_v0.1.csv"
+        # Multi-dataset Security Gate configuration
+        datasets_base = base_dir / "third_party/aisev/backend/dataset/output"
+        advbench_base = base_dir / "third_party/advbench"
+        security_gate_config = SecurityGateConfig(
+            datasets=[
+                DatasetConfig(
+                    name="aisi_security",
+                    csv_path=datasets_base / "06_aisi_security_v0.1.csv",
+                    priority=1,  # 必須: システムプロンプト流出・セーフガード回避
+                    max_samples=None  # 全件使用
+                ),
+                DatasetConfig(
+                    name="aisi_toxic",
+                    csv_path=datasets_base / "01_aisi_toxic_v0.1.csv",
+                    priority=2,  # 高: 有害コンテンツ生成要求
+                    max_samples=15
+                ),
+                DatasetConfig(
+                    name="aisi_robustness",
+                    csv_path=datasets_base / "08_aisi_robustness_v0.1.csv",
+                    priority=2,  # 高: 敵対的攻撃
+                    max_samples=15
+                ),
+                DatasetConfig(
+                    name="aisi_fairness",
+                    csv_path=datasets_base / "03_aisi_fairness_v0.1.csv",
+                    priority=3,  # 中: バイアス・差別
+                    max_samples=12
+                ),
+                DatasetConfig(
+                    name="advbench",
+                    csv_path=advbench_base / "advbench_harmful_behaviors.csv",
+                    priority=4,  # 低: AdvBench 520 有害プロンプト
+                    max_samples=int(os.getenv("ADVBENCH_MAX_SAMPLES", "10"))  # デフォルト10件
+                ),
+            ],
+            max_total_prompts=100,  # 50 → 100に拡張（AdvBench含む）
+            sampling_strategy="priority_balanced"
+        )
         endpoint_url = submission.card_document.get("url") or submission.card_document.get("serviceUrl")
         if not endpoint_url or not endpoint_url.startswith("http"):
             submission.state = "failed"
@@ -345,9 +383,9 @@ def process_submission(submission_id: str):
                 security_summary = run_security_gate(
                     agent_id=submission.agent_id,
                     revision="v1",
-                    dataset_path=dataset_path,
+                    config=security_gate_config,  # Multi-dataset mode
                     output_dir=output_dir / "security",
-                    attempts=5,
+                    attempts=50,  # Max prompts from config
                     endpoint_url=endpoint_url,
                     endpoint_token=None,
                     timeout=10.0,
@@ -473,17 +511,14 @@ def process_submission(submission_id: str):
             db.commit()
 
             ragtruth_dir = base_dir / "sandbox-runner/resources/ragtruth"
-            advbench_dir = base_dir / "third_party/aisev/backend/dataset/output"
 
             functional_summary = run_functional_accuracy(
                 agent_id=submission.agent_id,
                 revision="v1",
                 agent_card_path=agent_card_path,
                 ragtruth_dir=ragtruth_dir,
-                advbench_dir=advbench_dir,
-                advbench_limit=5,
                 output_dir=output_dir / "functional",
-                max_scenarios=3,
+                max_scenarios=int(os.getenv("FUNCTIONAL_MAX_SCENARIOS", "3")),  # デフォルト3シナリオ
                 dry_run=False,
                 endpoint_url=endpoint_url,
                 endpoint_token=None,
@@ -536,11 +571,6 @@ def process_submission(submission_id: str):
             "passed_scenarios": passed_scenarios,
             "failed_scenarios": failed_scenarios,
             "needsReview": needs_review_scenarios,
-
-            # AdvBench information
-            "advbenchScenarios": fs.get("advbenchScenarios", 0),
-            "advbenchLimit": fs.get("advbenchLimit"),
-            "advbenchEnabled": fs.get("advbenchEnabled", False),
 
             # Distance scores
             "averageDistance": fs.get("averageDistance"),
