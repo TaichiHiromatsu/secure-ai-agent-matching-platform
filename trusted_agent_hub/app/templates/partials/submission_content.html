@@ -1,0 +1,858 @@
+<div class="p-6 bg-gray-50 border-b border-gray-200">
+    {% if submission.card_document.translations and submission.card_document.translations|length > 0 %}
+    <h1 class="text-3xl font-bold text-gray-800">{{ submission.card_document.translations[0].displayName }}</h1>
+    <p class="text-gray-600">{{ submission.card_document.translations[0].shortDescription }}</p>
+    {% else %}
+    <h1 class="text-3xl font-bold text-gray-800">{{ submission.card_document.name or submission.agent_id }}</h1>
+    <p class="text-gray-600">{{ submission.card_document.description or "No description available" }}</p>
+    {% endif %}
+</div>
+
+<div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
+    <div>
+        <h2 class="text-xl font-semibold mb-4">Submission Details</h2>
+        <div class="space-y-2">
+            <p><span class="font-medium">ID:</span> {{ submission.id }}</p>
+            <p><span class="font-medium">Organization:</span> {{ submission.organization_meta.name }}</p>
+            <p><span class="font-medium">Status:</span> {{ submission.state }}</p>
+            <p><span class="font-medium">Submitted At:</span> {{ submission.created_at }}</p>
+        </div>
+    </div>
+
+    <div>
+        <h2 class="text-xl font-semibold mb-4">Trust Score</h2>
+        <div class="bg-blue-50 p-4 rounded-lg">
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-lg font-bold">Total Score</span>
+                <span class="text-2xl font-bold text-blue-600"><span data-score="trust">{{ submission.trust_score }}</span> / 100</span>
+            </div>
+            <div class="space-y-2 text-sm">
+                <div class="flex justify-between">
+                    <span>Security</span>
+                    <span><span data-score="security">{{ submission.security_score }}</span> / 30</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>Functional</span>
+                    <span><span data-score="functional">{{ submission.functional_score }}</span> / 40</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>Judge</span>
+                    <span><span data-score="judge">{{ submission.judge_score }}</span> / 30</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>Implementation</span>
+                    <span><span data-score="implementation">{{ submission.implementation_score }}</span> / 10</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+</div>
+
+<div class="p-6 border-t border-gray-200">
+    <h2 class="text-xl font-semibold mb-4">Review Progress</h2>
+    <div id="review-progress" class="flex items-center justify-between mb-8">
+        {% include 'partials/progress_bar.html' %}
+    </div>
+</div>
+
+<!-- W&B Report Section -->
+{% if submission.score_breakdown and submission.score_breakdown.wandb %}
+<div class="p-6 border-t border-gray-200">
+    <h2 class="text-xl font-semibold mb-4">Weights & Biases Reports</h2>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- W&B Core Card -->
+        <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
+            <div class="flex items-center gap-2 mb-3">
+                <span class="text-2xl">📊</span>
+                <div>
+                    <p class="text-sm font-medium text-gray-900">W&B Core Dashboard</p>
+                    <p class="text-xs text-gray-500">Experiment Tracking & Metrics</p>
+                </div>
+            </div>
+            <div class="mb-3 text-xs text-gray-500">
+                <p>Run ID: <span class="font-mono">{{ submission.score_breakdown.wandb.runId }}</span></p>
+                <p>Project: {{ submission.score_breakdown.wandb.project }}</p>
+                <p>Entity: {{ submission.score_breakdown.wandb.entity }}</p>
+            </div>
+            {% if submission.score_breakdown.wandb.url %}
+            <a href="{{ submission.score_breakdown.wandb.url }}" target="_blank" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded inline-flex items-center justify-center transition duration-150 ease-in-out shadow-sm w-full">
+                <span>Open Core Dashboard</span>
+                <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                </svg>
+            </a>
+            {% else %}
+            <span class="text-gray-400 text-sm italic bg-gray-100 px-3 py-1 rounded block text-center">URL Unavailable</span>
+            {% endif %}
+        </div>
+
+        <!-- W&B Weave Card -->
+        <div class="bg-purple-50 p-4 rounded-lg border border-purple-200">
+            <div class="flex items-center gap-2 mb-3">
+                <span class="text-2xl">🔮</span>
+                <div>
+                    <p class="text-sm font-medium text-gray-900">W&B Weave Traces</p>
+                    <p class="text-xs text-gray-500">LLM Call Observability</p>
+                </div>
+            </div>
+            <div class="mb-3 text-xs text-gray-500">
+                <p>Project: {{ submission.score_breakdown.wandb.project }}</p>
+                <p>Entity: {{ submission.score_breakdown.wandb.entity }}</p>
+                <p class="mt-2 text-xs">Track LLM evaluations across Jury Judge, Security Gate, and Functional Accuracy stages</p>
+            </div>
+            <a href="https://wandb.ai/{{ submission.score_breakdown.wandb.entity }}/{{ submission.score_breakdown.wandb.project }}/weave" target="_blank" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded inline-flex items-center justify-center transition duration-150 ease-in-out shadow-sm w-full">
+                <span>Open Weave Traces</span>
+                <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                </svg>
+            </a>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<div class="p-6 border-t border-gray-200">
+    <h2 class="text-xl font-semibold mb-4">Automated Review Steps</h2>
+    {% if submission.score_breakdown %}
+    <!-- PreCheck -->
+    <details id="details-precheck" class="mb-6 bg-gray-50 p-4 rounded-lg">
+        <summary class="text-lg font-semibold mb-2 flex items-center cursor-pointer">
+            <span class="mr-2">🧾</span> PreCheck
+        </summary>
+        {% if submission.score_breakdown.precheck_summary %}
+        <div class="ml-7 space-y-2 mt-2">
+            <p class="text-sm text-gray-700">
+                <span class="font-semibold">Status:</span>
+                <span class="{% if submission.score_breakdown.precheck_summary.passed %}text-green-600{% else %}text-red-600{% endif %}">
+                    {{ "Passed" if submission.score_breakdown.precheck_summary.passed else "Failed" }}
+                </span>
+            </p>
+            <p class="text-sm text-gray-700">
+                <span class="font-semibold">Agent ID:</span> {{ submission.score_breakdown.precheck_summary.agentId or "N/A" }}
+            </p>
+            {% if submission.score_breakdown.precheck_summary.warnings %}
+            <p class="text-sm text-yellow-600">
+                <span class="font-semibold">Warnings:</span> {{ submission.score_breakdown.precheck_summary.warnings|length }}
+            </p>
+            <ul class="ml-4 text-xs text-yellow-600">
+                {% for warning in submission.score_breakdown.precheck_summary.warnings %}
+                <li>• {{ warning }}</li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+            {% if submission.score_breakdown.precheck_summary.errors %}
+            <p class="text-sm text-red-600">
+                <span class="font-semibold">Errors:</span>
+            </p>
+            <ul class="ml-4 text-xs text-red-600">
+                {% for error in submission.score_breakdown.precheck_summary.errors %}
+                <li>• {{ error }}</li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+        </div>
+        {% else %}
+        <p class="ml-7 text-sm text-gray-500">PreCheck not yet executed</p>
+        {% endif %}
+    </details>
+    <!-- Security Gate -->
+    <details id="details-security" class="mb-6 bg-gray-50 p-4 rounded-lg">
+        <summary class="text-lg font-semibold mb-2 flex items-center cursor-pointer">
+            <span class="mr-2">🛡️</span> Security Gate
+        </summary>
+        {% if submission.score_breakdown.security_summary %}
+        <div class="ml-7 space-y-4 mt-2">
+            <!-- Basic Counts -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="bg-white p-3 rounded border">
+                    <div class="text-xs text-gray-500">Total Tests</div>
+                    <div class="text-2xl font-bold">{{ submission.score_breakdown.security_summary.total or 0 }}</div>
+                </div>
+                <div class="bg-green-50 p-3 rounded border border-green-200">
+                    <div class="text-xs text-gray-500">Blocked (Safe)</div>
+                    <div class="text-2xl font-bold text-green-600">{{ submission.score_breakdown.security_summary.blocked or 0 }}</div>
+                </div>
+                <div class="bg-yellow-50 p-3 rounded border border-yellow-200">
+                    <div class="text-xs text-gray-500">Needs Review</div>
+                    <div class="text-2xl font-bold text-yellow-600">{{ submission.score_breakdown.security_summary.needsReview or 0 }}</div>
+                </div>
+                <div class="bg-red-50 p-3 rounded border border-red-200">
+                    <div class="text-xs text-gray-500">Errors</div>
+                    <div class="text-2xl font-bold text-red-600">{{ submission.score_breakdown.security_summary.errors or 0 }}</div>
+                </div>
+            </div>
+
+            <!-- Categories Breakdown -->
+            {% if submission.score_breakdown.security_summary.categories %}
+            <div class="border-t pt-4">
+                <h4 class="font-semibold mb-2">Attack Category Breakdown</h4>
+                <div class="grid grid-cols-2 gap-2">
+                    {% for category, count in submission.score_breakdown.security_summary.categories.items() %}
+                    <div class="text-xs bg-white p-2 rounded border">
+                        <span class="font-medium">{{ category }}:</span> {{ count }}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Context Terms -->
+            {% if submission.score_breakdown.security_summary.contextTerms %}
+            <div class="border-t pt-4">
+                <h4 class="font-semibold mb-2">Context Terms Used</h4>
+                <div class="flex flex-wrap gap-2">
+                    {% for term in submission.score_breakdown.security_summary.contextTerms %}
+                    <span class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">{{ term }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            <!-- Security Test Scenarios (Needs Review) -->
+            {% if submission.score_breakdown.security_summary.scenarios %}
+            <div class="border-t pt-4">
+                <h4 class="font-semibold mb-2">⚠️ 要確認シナリオ（Needs Review/Error）</h4>
+                {% set needs_review_scenarios = submission.score_breakdown.security_summary.scenarios | selectattr('verdict', 'defined') | selectattr('verdict', 'in', ['needs_review', 'error']) | list %}
+                {% if needs_review_scenarios | length > 0 %}
+                <div class="space-y-3">
+                    {% for scenario in needs_review_scenarios[:10] %}
+                    <div class="border border-yellow-300 rounded-lg p-3 bg-yellow-50">
+                        <div class="font-semibold text-sm mb-1">
+                            {{ scenario.promptId or '匿名' }}
+                            <span class="ml-2 text-xs px-2 py-1 rounded
+                                {% if scenario.verdict == 'needs_review' %}bg-yellow-100 text-yellow-800
+                                {% elif scenario.verdict == 'error' %}bg-red-100 text-red-800
+                                {% elif scenario.verdict == 'blocked' %}bg-green-100 text-green-800
+                                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                                {{ scenario.verdict }}
+                            </span>
+                        </div>
+                        <div class="text-xs text-gray-600 mb-2">
+                            Category: {{ scenario.category or 'N/A' }}
+                            {% if scenario.perspective %}
+                            | Perspective: {{ scenario.perspective }}
+                            {% endif %}
+                        </div>
+                        <div class="text-xs mb-2">
+                            <strong>Prompt:</strong>
+                            <pre class="mt-1 whitespace-pre-wrap bg-white p-2 rounded">{{ scenario.prompt or scenario.basePrompt or 'N/A' }}</pre>
+                        </div>
+                        {% if scenario.response %}
+                        <div class="text-xs mb-2">
+                            <strong>Response:</strong>
+                            <pre class="mt-1 whitespace-pre-wrap bg-white p-2 rounded">{{ scenario.response }}</pre>
+                        </div>
+                        {% endif %}
+                        {% if scenario.reason %}
+                        <div class="text-xs text-gray-700">
+                            <strong>Reason:</strong> {{ scenario.reason }}
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-sm text-gray-600">要確認項目はありません。</div>
+                {% endif %}
+            </div>
+            <!-- All Security Scenarios Table -->
+            <div class="border-t pt-4">
+                <h4 class="font-semibold mb-2">📝 全セキュリティテスト一覧</h4>
+                <div class="mb-3">
+                    <label class="text-xs">
+                        フィルタ:
+                        <select id="securityVerdictFilter" class="ml-2 text-xs border rounded px-2 py-1" onchange="filterSecurityScenarios()">
+                            <option value="all">全件</option>
+                            <option value="blocked">Blocked</option>
+                            <option value="needs_review">Needs Review</option>
+                            <option value="error">Error</option>
+                            <option value="not_executed">Not Executed</option>
+                        </select>
+                    </label>
+                </div>
+                <div class="max-h-80 overflow-auto border rounded">
+                    <table class="w-full text-xs border-collapse">
+                        <thead class="bg-gray-100 sticky top-0">
+                            <tr>
+                                <th class="text-left p-2 border-b">Prompt ID</th>
+                                <th class="text-left p-2 border-b">Prompt</th>
+                                <th class="text-left p-2 border-b">Response</th>
+                                <th class="text-left p-2 border-b">Verdict</th>
+                            </tr>
+                        </thead>
+                        <tbody id="securityScenariosTableBody">
+                            {% for scenario in submission.score_breakdown.security_summary.scenarios %}
+                            {% if scenario.verdict %}
+                            <tr class="border-b security-scenario-row" data-verdict="{{ scenario.verdict }}">
+                                <td class="p-2">
+                                    {{ scenario.promptId or 'IDなし' }}
+                                </td>
+                                <td class="p-2">
+                                    <pre class="whitespace-pre-wrap text-xs">{{ (scenario.prompt or scenario.basePrompt or '(未設定)')[:100] }}...</pre>
+                                </td>
+                                <td class="p-2">
+                                    <pre class="whitespace-pre-wrap text-xs">{{ (scenario.response or '(応答なし)')[:100] }}...</pre>
+                                </td>
+                                <td class="p-2">
+                                    <span class="px-2 py-1 rounded text-xs
+                                        {% if scenario.verdict == 'blocked' %}bg-green-100 text-green-800
+                                        {% elif scenario.verdict == 'needs_review' %}bg-yellow-100 text-yellow-800
+                                        {% elif scenario.verdict == 'error' %}bg-red-100 text-red-800
+                                        {% else %}bg-gray-100 text-gray-800{% endif %}">
+                                        {{ scenario.verdict }}
+                                    </span>
+                                </td>
+                            </tr>
+                            {% endif %}
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
+            <!-- Confirmation Points -->
+            <div class="border-t pt-4">
+                <h4 class="font-semibold mb-2">📋 確認ポイント (登録者向け)</h4>
+                <ul class="text-sm space-y-1 list-disc ml-5">
+                    <li>Security summaryのカテゴリ別結果と一覧に出力されたpromptsを確認し、想定した攻撃観点が網羅されているかを検証</li>
+                    <li>report/summaryでneedsReviewの有無とfail reasonsを確認</li>
+                </ul>
+            </div>
+
+            <div class="border-t pt-4">
+                <h4 class="font-semibold mb-2">🔧 確認ポイント (管理者向け)</h4>
+                <ul class="text-sm space-y-1 list-disc ml-5">
+                    <li>実行時のプロンプト（prompts artifact）とsecurity reportを開き、禁止語検出やrelayログのエラーをチェック</li>
+                    <li>Security ledger entryが送信済みか、必要なら再送</li>
+                </ul>
+            </div>
+
+            <!-- Artifacts -->
+            {% if submission.score_breakdown.security_summary.artifacts %}
+            <div class="border-t pt-4">
+                <h4 class="font-semibold mb-2">📁 Artifacts</h4>
+                <div class="space-y-2">
+                    {% if submission.score_breakdown.security_summary.artifacts.prompts %}
+                    <div class="text-sm">
+                        <span class="font-medium">Prompts:</span>
+                        <code class="text-xs bg-gray-100 px-2 py-1 rounded">{{ submission.score_breakdown.security_summary.artifacts.prompts }}</code>
+                    </div>
+                    {% endif %}
+                    {% if submission.score_breakdown.security_summary.artifacts.report %}
+                    <div class="text-sm">
+                        <span class="font-medium">Report:</span>
+                        <code class="text-xs bg-gray-100 px-2 py-1 rounded">{{ submission.score_breakdown.security_summary.artifacts.report }}</code>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        {% else %}
+        <p class="ml-7 text-sm text-gray-500">No security test results available</p>
+        {% endif %}
+    </details>
+    <!-- Functional Accuracy Check -->
+    <details id="details-functional" class="mb-6 bg-gray-50 p-4 rounded-lg">
+        <summary class="text-lg font-semibold mb-2 flex items-center cursor-pointer">
+            <span class="mr-2">🧪</span> Functional Accuracy Check
+        </summary>
+        {% if submission.score_breakdown.functional_summary %}
+        <div class="ml-7 space-y-4 mt-2">
+            <!-- Basic Counts -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="bg-white p-3 rounded border">
+                    <div class="text-xs text-gray-500">Total Scenarios</div>
+                    <div class="text-2xl font-bold">{{ submission.score_breakdown.functional_summary.total_scenarios or 0 }}</div>
+                </div>
+                <div class="bg-green-50 p-3 rounded border border-green-200">
+                    <div class="text-xs text-gray-500">Passed</div>
+                    <div class="text-2xl font-bold text-green-600">{{ submission.score_breakdown.functional_summary.passed_scenarios or 0 }}</div>
+                </div>
+                <div class="bg-yellow-50 p-3 rounded border border-yellow-200">
+                    <div class="text-xs text-gray-500">Needs Review</div>
+                    <div class="text-2xl font-bold text-yellow-600">{{ submission.score_breakdown.functional_summary.needsReview or 0 }}</div>
+                </div>
+                <div class="bg-red-50 p-3 rounded border border-red-200">
+                    <div class="text-xs text-gray-500">Errors</div>
+                    <div class="text-2xl font-bold text-red-600">{{ submission.score_breakdown.functional_summary.responsesWithError or 0 }}</div>
+                </div>
+            </div>
+
+            <!-- AdvBench Information -->
+            <div class="border-t pt-4">
+                <h4 class="font-semibold mb-2">AdvBench Configuration</h4>
+                <div class="grid grid-cols-3 gap-4 text-sm">
+                    <div>
+                        <span class="text-gray-500">AdvBench Scenarios:</span>
+                        <span class="font-medium ml-2">{{ submission.score_breakdown.functional_summary.advbenchScenarios or 0 }}</span>
+                    </div>
+                    <div>
+                        <span class="text-gray-500">AdvBench Limit:</span>
+                        <span class="font-medium ml-2">{{ submission.score_breakdown.functional_summary.advbenchLimit or "Unlimited" }}</span>
+                    </div>
+                    <div>
+                        <span class="text-gray-500">RAGTruth Records:</span>
+                        <span class="font-medium ml-2">{{ submission.score_breakdown.functional_summary.ragtruthRecords or 0 }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Distance Scores -->
+            <div class="border-t pt-4">
+                <h4 class="font-semibold mb-2">Semantic Similarity Scores</h4>
+                <div class="grid grid-cols-3 gap-4 text-sm">
+                    <div>
+                        <span class="text-gray-500">Average Distance:</span>
+                        <span class="font-medium ml-2">{{ "%.4f"|format(submission.score_breakdown.functional_summary.averageDistance) if submission.score_breakdown.functional_summary.averageDistance is not none else "N/A" }}</span>
+                    </div>
+                    <div>
+                        <span class="text-gray-500">Embedding Avg:</span>
+                        <span class="font-medium ml-2">{{ "%.4f"|format(submission.score_breakdown.functional_summary.embeddingAverageDistance) if submission.score_breakdown.functional_summary.embeddingAverageDistance is not none else "N/A" }}</span>
+                    </div>
+                    <div>
+                        <span class="text-gray-500">Embedding Max:</span>
+                        <span class="font-medium ml-2">{{ "%.4f"|format(submission.score_breakdown.functional_summary.embeddingMaxDistance) if submission.score_breakdown.functional_summary.embeddingMaxDistance is not none else "N/A" }}</span>
+                    </div>
+                </div>
+            </div>
+            <!-- Failed Scenarios (Top 3) -->
+            {% if submission.score_breakdown.functional_summary.scenarios %}
+            <div class="border-t pt-4">
+                <h4 class="font-semibold mb-2">❌ 失敗シナリオの詳細 (上位3件)</h4>
+                {% set failed_scenarios = submission.score_breakdown.functional_summary.scenarios | selectattr('evaluation.verdict', 'defined') | selectattr('evaluation.verdict', 'ne', 'pass') | list %}
+                {% if failed_scenarios | length > 0 %}
+                <div class="space-y-3">
+                    {% for scenario in (failed_scenarios | sort(attribute='evaluation.distance', reverse=true))[:3] %}
+                    <div class="border border-gray-300 rounded-lg p-3 bg-white">
+                        <div class="font-semibold text-sm mb-1">
+                            {{ scenario.scenarioId or '匿名' }}
+                            <span class="ml-2 text-xs px-2 py-1 rounded
+                                {% if scenario.evaluation.verdict == 'fail' %}bg-red-100 text-red-800
+                                {% elif scenario.evaluation.verdict == 'needs_review' %}bg-yellow-100 text-yellow-800
+                                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                                {{ scenario.evaluation.verdict }}
+                            </span>
+                        </div>
+                        <div class="text-xs text-gray-600 mb-2">
+                            Distance: {{ "%.4f"|format(scenario.evaluation.distance) if scenario.evaluation.distance is not none else '-' }}
+                            | Topic Relevance: {{ "%.4f"|format(scenario.evaluation.topic_relevance) if scenario.evaluation.topic_relevance is not none else '−' }}
+                            | Dialogue Progress: {{ "%.4f"|format(scenario.evaluation.dialogue_progress) if scenario.evaluation.dialogue_progress is not none else '−' }}
+                        </div>
+                        <div class="text-xs mb-2">
+                            <strong>Prompt:</strong>
+                            <pre class="mt-1 whitespace-pre-wrap bg-gray-50 p-2 rounded">{{ scenario.prompt or scenario.output or 'N/A' }}</pre>
+                        </div>
+                        <div class="text-xs mb-2">
+                            <strong>Expected:</strong>
+                            <pre class="mt-1 whitespace-pre-wrap bg-gray-50 p-2 rounded">{{ scenario.expected or 'N/A' }}</pre>
+                        </div>
+                        {% if scenario.evaluation.errors and scenario.evaluation.errors | length > 0 %}
+                        <div class="text-xs mb-2 text-red-600">
+                            <strong>Errors:</strong> {{ scenario.evaluation.errors | join(', ') }}
+                        </div>
+                        {% endif %}
+                        {% if scenario.evaluation.rationale %}
+                        <div class="text-xs text-gray-700">
+                            <strong>Rationale:</strong> {{ scenario.evaluation.rationale }}
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-sm text-gray-600">今のところ失敗判定はありません。</div>
+                {% endif %}
+            </div>
+            <!-- Prompts/Responses Table -->
+            <div class="border-t pt-4">
+                <h4 class="font-semibold mb-2">📝 プロンプト/応答一覧</h4>
+                <div class="mb-3">
+                    <label class="text-xs">
+                        フィルタ:
+                        <select id="verdictFilter" class="ml-2 text-xs border rounded px-2 py-1" onchange="filterScenarios()">
+                            <option value="all">全件</option>
+                            <option value="pass">Pass</option>
+                            <option value="needs_review">Needs Review</option>
+                            <option value="fail">Fail</option>
+                        </select>
+                    </label>
+                </div>
+                <div class="max-h-80 overflow-auto border rounded">
+                    <table class="w-full text-xs border-collapse">
+                        <thead class="bg-gray-100 sticky top-0">
+                            <tr>
+                                <th class="text-left p-2 border-b">シナリオ</th>
+                                <th class="text-left p-2 border-b">プロンプト</th>
+                                <th class="text-left p-2 border-b">応答</th>
+                                <th class="text-left p-2 border-b">判定</th>
+                            </tr>
+                        </thead>
+                        <tbody id="scenariosTableBody">
+                            {% for scenario in submission.score_breakdown.functional_summary.scenarios[:10] %}
+                            {% if scenario.evaluation and scenario.evaluation.verdict %}
+                            <tr class="border-b scenario-row" data-verdict="{{ scenario.evaluation.verdict }}">
+                                <td class="p-2">
+                                    {{ scenario.scenarioId or 'IDなし' }}
+                                    {% if scenario.scenarioId and 'advbench' in scenario.scenarioId.lower() %}
+                                    <span class="text-xs text-gray-500 ml-1">[AdvBench]</span>
+                                    {% endif %}
+                                </td>
+                                <td class="p-2">
+                                    <pre class="whitespace-pre-wrap text-xs">{{ scenario.prompt or '(未設定)' }}</pre>
+                                </td>
+                                <td class="p-2">
+                                    <pre class="whitespace-pre-wrap text-xs">{{ scenario.response or '(応答なし)' }}</pre>
+                                </td>
+                                <td class="p-2">
+                                    <span class="px-2 py-1 rounded text-xs
+                                        {% if scenario.evaluation.verdict == 'pass' %}bg-green-100 text-green-800
+                                        {% elif scenario.evaluation.verdict == 'needs_review' %}bg-yellow-100 text-yellow-800
+                                        {% elif scenario.evaluation.verdict == 'fail' %}bg-red-100 text-red-800
+                                        {% else %}bg-gray-100 text-gray-800{% endif %}">
+                                        {{ scenario.evaluation.verdict }}
+                                    </span>
+                                </td>
+                            </tr>
+                            {% endif %}
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
+            <!-- Confirmation Points -->
+            <div class="border-t pt-4">
+                <h4 class="font-semibold mb-2">📋 確認ポイント (登録者向け)</h4>
+                <ul class="text-sm space-y-1 list-disc ml-5">
+                    <li>Functional summaryに記載されたpasses / needsReviewを確認し、AdvBenchを含むシナリオが期待どおりに取り込まれているか検証</li>
+                    <li>Semantic距離（averageDistance, embeddingAverageDistance）やRAGTruth期待値との一致度をチェック</li>
+                </ul>
+            </div>
+
+            <div class="border-t pt-4">
+                <h4 class="font-semibold mb-2">🔧 確認ポイント (管理者向け)</h4>
+                <ul class="text-sm space-y-1 list-disc ml-5">
+                    <li>Functional reportを開いてtopic/dialogue指標やerrorsを確認し、不具合があったシナリオをEvidenceとして保存</li>
+                    <li>AdvBenchとAgentCardのシナリオ構成を確認し、summaryでadvbenchScenariosが0でないことを確認</li>
+                </ul>
+            </div>
+
+            <!-- Artifacts -->
+            {% if submission.score_breakdown.functional_summary.artifacts %}
+            <div class="border-t pt-4">
+                <h4 class="font-semibold mb-2">📁 Artifacts</h4>
+                <div class="space-y-2">
+                    {% if submission.score_breakdown.functional_summary.artifacts.report %}
+                    <div class="text-sm">
+                        <span class="font-medium">Report (JSONL):</span>
+                        <code class="text-xs bg-gray-100 px-2 py-1 rounded">{{ submission.score_breakdown.functional_summary.artifacts.report }}</code>
+                    </div>
+                    {% endif %}
+                    {% if submission.score_breakdown.functional_summary.artifacts.prompts %}
+                    <div class="text-sm">
+                        <span class="font-medium">Prompts:</span>
+                        <code class="text-xs bg-gray-100 px-2 py-1 rounded">{{ submission.score_breakdown.functional_summary.artifacts.prompts }}</code>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        {% else %}
+        <p class="ml-7 text-sm text-gray-500">No functional test results available</p>
+        {% endif %}
+    </details>
+    <!-- Jury Judge -->
+    <details id="details-judge" class="mb-6 bg-gray-50 p-4 rounded-lg">
+        <summary class="text-lg font-semibold mb-2 flex items-center cursor-pointer">
+            <span class="mr-2">⚖️</span> Jury Judge (Agents-as-a-Judge)
+        </summary>
+        {% if submission.score_breakdown.judge_summary %}
+        <div class="ml-7 space-y-4 mt-2">
+            <!-- AISI Inspect Criteria Scores -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="bg-white p-3 rounded border">
+                    <div class="text-xs text-gray-500">Task Completion</div>
+                    <div class="text-2xl font-bold">{{ submission.score_breakdown.judge_summary.taskCompletion or 0 }}/40</div>
+                </div>
+                <div class="bg-white p-3 rounded border">
+                    <div class="text-xs text-gray-500">Tool Usage</div>
+                    <div class="text-2xl font-bold">{{ submission.score_breakdown.judge_summary.tool or 0 }}/30</div>
+                </div>
+                <div class="bg-white p-3 rounded border">
+                    <div class="text-xs text-gray-500">Autonomy</div>
+                    <div class="text-2xl font-bold">{{ submission.score_breakdown.judge_summary.autonomy or 0 }}/20</div>
+                </div>
+                <div class="bg-white p-3 rounded border">
+                    <div class="text-xs text-gray-500">Safety & Security</div>
+                    <div class="text-2xl font-bold">{{ submission.score_breakdown.judge_summary.safety or 0 }}/10</div>
+                </div>
+            </div>
+
+            <!-- Verdict and Counts -->
+            <div class="border-t pt-4">
+                <h4 class="font-semibold mb-2">Overall Verdict</h4>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div class="bg-white p-3 rounded border">
+                        <div class="text-xs text-gray-500">Verdict</div>
+                        <div class="text-xl font-bold
+                            {% if submission.score_breakdown.judge_summary.verdict == 'approve' %}text-green-600
+                            {% elif submission.score_breakdown.judge_summary.verdict == 'reject' %}text-red-600
+                            {% else %}text-yellow-600{% endif %}">
+                            {{ submission.score_breakdown.judge_summary.verdict.upper() }}
+                        </div>
+                    </div>
+                    <div class="bg-green-50 p-3 rounded border border-green-200">
+                        <div class="text-xs text-gray-500">Approve Count</div>
+                        <div class="text-2xl font-bold text-green-600">{{ submission.score_breakdown.judge_summary.approve or 0 }}</div>
+                    </div>
+                    <div class="bg-yellow-50 p-3 rounded border border-yellow-200">
+                        <div class="text-xs text-gray-500">Manual Review</div>
+                        <div class="text-2xl font-bold text-yellow-600">{{ submission.score_breakdown.judge_summary.manual or 0 }}</div>
+                    </div>
+                    <div class="bg-red-50 p-3 rounded border border-red-200">
+                        <div class="text-xs text-gray-500">Reject Count</div>
+                        <div class="text-2xl font-bold text-red-600">{{ submission.score_breakdown.judge_summary.reject or 0 }}</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scenario Breakdown -->
+            <div class="border-t pt-4">
+                <h4 class="font-semibold mb-2">Scenario Breakdown</h4>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div class="bg-white p-3 rounded border">
+                        <div class="text-xs text-gray-500">Total Evaluated</div>
+                        <div class="text-2xl font-bold">{{ submission.score_breakdown.judge_summary.totalScenarios or 0 }}</div>
+                    </div>
+                    <div class="bg-green-50 p-3 rounded border border-green-200">
+                        <div class="text-xs text-gray-500">Passed</div>
+                        <div class="text-2xl font-bold text-green-600">{{ submission.score_breakdown.judge_summary.passCount or 0 }}</div>
+                    </div>
+                    <div class="bg-yellow-50 p-3 rounded border border-yellow-200">
+                        <div class="text-xs text-gray-500">Needs Review</div>
+                        <div class="text-2xl font-bold text-yellow-600">{{ submission.score_breakdown.judge_summary.needsReviewCount or 0 }}</div>
+                    </div>
+                    <div class="bg-red-50 p-3 rounded border border-red-200">
+                        <div class="text-xs text-gray-500">Failed</div>
+                        <div class="text-2xl font-bold text-red-600">{{ submission.score_breakdown.judge_summary.failCount or 0 }}</div>
+                    </div>
+                </div>
+            </div>
+            <!-- LLM Configuration -->
+            {% if submission.score_breakdown.judge_summary.llmJudge %}
+            <div class="border-t pt-4">
+                <h4 class="font-semibold mb-2">LLM Judge Configuration</h4>
+                <div class="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm">
+                    <div class="bg-white p-2 rounded border">
+                        <span class="text-xs text-gray-500">Provider:</span>
+                        <span class="font-medium ml-2">{{ submission.score_breakdown.judge_summary.llmJudge.provider }}</span>
+                    </div>
+                    {% if submission.score_breakdown.judge_summary.llmJudge.models %}
+                    <div class="bg-white p-2 rounded border col-span-2">
+                        <span class="text-xs text-gray-500">Models:</span>
+                        <span class="font-medium ml-2">{{ submission.score_breakdown.judge_summary.llmJudge.models | join(', ') }}</span>
+                    </div>
+                    {% elif submission.score_breakdown.judge_summary.llmJudge.model %}
+                    <div class="bg-white p-2 rounded border">
+                        <span class="text-xs text-gray-500">Model:</span>
+                        <span class="font-medium ml-2">{{ submission.score_breakdown.judge_summary.llmJudge.model }}</span>
+                    </div>
+                    {% endif %}
+                    <div class="bg-white p-2 rounded border">
+                        <span class="text-xs text-gray-500">Temperature:</span>
+                        <span class="font-medium ml-2">{{ submission.score_breakdown.judge_summary.llmJudge.temperature }}</span>
+                    </div>
+                    {% if submission.score_breakdown.judge_summary.llmJudge.vetoThreshold is defined %}
+                    <div class="bg-white p-2 rounded border">
+                        <span class="text-xs text-gray-500">Veto Threshold:</span>
+                        <span class="font-medium ml-2">{{ (submission.score_breakdown.judge_summary.llmJudge.vetoThreshold * 100) | int }}%</span>
+                    </div>
+                    {% endif %}
+                    {% if submission.score_breakdown.judge_summary.llmJudge.dryRun is defined %}
+                    <div class="bg-white p-2 rounded border">
+                        <span class="text-xs text-gray-500">Dry Run:</span>
+                        <span class="font-medium ml-2">{{ submission.score_breakdown.judge_summary.llmJudge.dryRun }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+            {% if submission.score_breakdown.judge_summary.counterFindings %}
+            <div class="border-t pt-4">
+                <h4 class="font-semibold mb-2">⚠️ Counter Findings (Top)</h4>
+                <ul class="list-disc ml-5 text-xs space-y-1">
+                    {% for finding in submission.score_breakdown.judge_summary.counterFindings %}
+                    <li>{{ finding }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+            <!-- Judge Panel Scenarios Details -->
+{% if submission.score_breakdown.judge_summary.counterFindings %}
+<div class="border-t pt-4">
+    <h4 class="font-semibold mb-2">⚠️ Counter Findings (Top)</h4>
+    <ul class="list-disc ml-5 text-xs space-y-1">
+        {% for finding in submission.score_breakdown.judge_summary.counterFindings %}
+        <li>{{ finding }}</li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+
+{% if submission.score_breakdown.judge_summary.scenarios %}
+{% set grouped = {} %}
+{% for s in submission.score_breakdown.judge_summary.scenarios %}
+    {% set _ = grouped.setdefault(s.get('scenarioId') or 'unknown', []).append(s) %}
+{% endfor %}
+<div class="border-t pt-4">
+    <h4 class="font-semibold mb-2">🔍 Jury Judge評価詳細（シナリオ別・ステージ別）</h4>
+    <div class="space-y-4">
+        {% for scenario_id, stage_items in grouped.items() %}
+        <div class="border border-gray-300 rounded-lg bg-white shadow-sm p-3">
+                        <div class="flex items-center justify-between text-sm font-semibold mb-2">
+                            {% set sample = stage_items[0] if stage_items else {} %}
+                            <span>シナリオ: {{ sample.get('use_case') or scenario_id }}</span>
+                            {% set rec = stage_items | selectattr('stage', 'equalto', 'reconcile') | list %}
+                            {% if rec and rec[0].get('judgeVerdict') %}
+                            <span class="px-2 py-1 rounded text-xs
+                                {% if rec[0].get('judgeVerdict') == 'approve' %}bg-green-100 text-green-800
+                                {% elif rec[0].get('judgeVerdict') == 'reject' %}bg-red-100 text-red-800
+                    {% else %}bg-yellow-100 text-yellow-800{% endif %}">
+                    最終: {{ rec[0].get('judgeVerdict') }}
+                </span>
+                {% endif %}
+            </div>
+
+            <div class="grid md:grid-cols-3 gap-3">
+                {% for stage_item in stage_items %}
+                {% set stage = (stage_item.get('stage') or 'stage') | lower %}
+                {% set stage_bg = 'bg-blue-50' if stage == 'plan' else ('bg-yellow-50' if stage == 'counter' else ('bg-green-50' if stage == 'reconcile' else 'bg-gray-50')) %}
+                {% set stage_badge = 'bg-blue-100 text-blue-800' if stage == 'plan' else ('bg-yellow-100 text-yellow-800' if stage == 'counter' else ('bg-green-100 text-green-800' if stage == 'reconcile' else 'bg-gray-100 text-gray-800')) %}
+                <div class="border rounded p-2 {{ stage_bg }} text-xs space-y-2">
+                    <div class="flex items-center justify-between">
+                        <span class="font-semibold uppercase px-2 py-1 rounded {{ stage_badge }}">{{ stage_item.get('stage') or 'stage' }}</span>
+                        <span class="px-2 py-1 rounded text-xs
+                            {% if stage_item.get('judgeVerdict') == 'approve' %}bg-green-100 text-green-800
+                            {% elif stage_item.get('judgeVerdict') == 'reject' %}bg-red-100 text-red-800
+                            {% elif stage_item.get('judgeVerdict') == 'manual' %}bg-yellow-100 text-yellow-800
+                            {% else %}bg-gray-100 text-gray-800{% endif %}">
+                            {{ stage_item.get('judgeVerdict', 'N/A') }}
+                        </span>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span>Judge Score:</span>
+                        <span class="font-medium">{% if stage_item.get('judgeScore') is not none %}{{ "%.2f"|format(stage_item.get('judgeScore')) }}{% else %}N/A{% endif %}</span>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span>Minority Veto:</span>
+                        <span class="font-medium">{{ stage_item.get('minorityVetoTriggered', False) }}</span>
+                    </div>
+                    <div>
+                        <span class="font-semibold">Prompt (表示用):</span>
+                        <pre class="mt-1 whitespace-pre-wrap bg-white p-2 rounded">{{ stage_item.get('promptDisplay') or stage_item.get('prompt') or 'N/A' }}</pre>
+                    </div>
+                                {% if stage_item.get('llmVerdicts') %}
+                                <div class="border-t pt-2">
+                                    <div class="font-semibold mb-1">各LLMの判定:</div>
+                                    <div class="space-y-1">
+                                        {% for llm in stage_item.get('llmVerdicts', []) %}
+                                        <div class="bg-white rounded p-2">
+                                            <div class="flex items-center justify-between">
+                                                <span>{{ llm.get('model', 'Unknown') }}</span>
+                                                <span class="ml-2 px-2 py-0.5 rounded text-xs
+                                                    {% if llm.get('verdict') == 'approve' %}bg-green-100 text-green-800
+                                                    {% elif llm.get('verdict') == 'reject' %}bg-red-100 text-red-800
+                                                    {% else %}bg-yellow-100 text-yellow-800{% endif %}">
+                                                    {{ llm.get('verdict', 'N/A') }}
+                                                </span>
+                                                <span class="ml-1 text-gray-600 text-xs">Score: {% if llm.get('score') is not none %}{{ "%.2f"|format(llm.get('score')) }}{% else %}N/A{% endif %}</span>
+                                            </div>
+                                            {% if llm.get('rationale') %}
+                                            <div class="text-gray-700 text-xs mt-1">
+                                                <strong>Rationale:</strong>
+                                                <pre class="whitespace-pre-wrap bg-gray-50 p-2 rounded">{{ llm.get('rationale') }}</pre>
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                {% endif %}
+                                {# Aggregated Rationale と Issues は冗長なので表示を省略 #}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+<!-- Confirmation Points -->
+            <div class="border-t pt-4">
+                <h4 class="font-semibold mb-2">📋 確認ポイント (登録者向け)</h4>
+                <ul class="text-sm space-y-1 list-disc ml-5">
+                    <li>Judge verdictがapprove/reject/manualのどれかを確認</li>
+                    <li>reject/manualの場合は、シナリオ詳細のLLM判定理由（Rationale）を確認し、改善点や反論材料を整理</li>
+                </ul>
+            </div>
+
+            <div class="border-t pt-4">
+                <h4 class="font-semibold mb-2">🔧 確認ポイント (管理者向け)</h4>
+                <ul class="text-sm space-y-1 list-disc ml-5">
+                    <li>Judge reportを開き、各LLMのスコア分布やVeto発動状況を確認</li>
+                    <li>Manual reviewが必要なシナリオについて、人間の目で最終判断を下す</li>
+                </ul>
+            </div>
+
+            <!-- Artifacts -->
+            {% if submission.score_breakdown.judge_summary.artifacts %}
+            <div class="border-t pt-4">
+                <h4 class="font-semibold mb-2">📁 Artifacts</h4>
+                <div class="space-y-2">
+                    {% if submission.score_breakdown.judge_summary.artifacts.report %}
+                    <div class="text-sm">
+                        <span class="font-medium">Report (JSONL):</span>
+                        <code class="text-xs bg-gray-100 px-2 py-1 rounded">{{ submission.score_breakdown.judge_summary.artifacts.report }}</code>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        {% else %}
+        <p class="ml-7 text-sm text-gray-500">No judge panel results available</p>
+        {% endif %}
+    </details>
+    <!-- Publish -->
+    <details id="details-publish" class="mb-6 bg-gray-50 p-4 rounded-lg">
+        <summary class="text-lg font-semibold mb-2 flex items-center cursor-pointer">
+            <span class="mr-2">🚀</span> Publish
+        </summary>
+        {% if submission.score_breakdown.publish_summary %}
+        <div class="ml-7 space-y-2 mt-2">
+            <p class="text-sm text-gray-700">
+                <span class="font-semibold">Status:</span>
+                <span class="{% if submission.score_breakdown.publish_summary.status == 'published' %}text-green-600{% else %}text-yellow-600{% endif %}">
+                    {{ submission.score_breakdown.publish_summary.status }}
+                </span>
+            </p>
+            {% if submission.score_breakdown.publish_summary.publishedAt %}
+            <p class="text-sm text-gray-700">
+                <span class="font-semibold">Published At:</span> {{ submission.score_breakdown.publish_summary.publishedAt }}
+            </p>
+            {% endif %}
+            <p class="text-sm text-gray-700">
+                <span class="font-semibold">Trust Score:</span> {{ submission.score_breakdown.publish_summary.trustScore }}/100
+            </p>
+        </div>
+        {% else %}
+        <p class="ml-7 text-sm text-gray-500">Not yet published</p>
+        {% endif %}
+    </details>
+    {% else %}
+    <p class="text-gray-500">Automated review is in progress or not yet started...</p>
+    {% endif %}
+</div>

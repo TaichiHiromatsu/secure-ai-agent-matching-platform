@@ -1,9 +1,12 @@
 {
+  "name": "car_rental_agent",
+  "url": "http://car_rental_agent:8004/a2a/car_rental_agent",
+  "version": "1.0.0",
+  "protocolVersion": "0.3.0",
   "capabilities": {},
   "defaultInputModes": ["text/plain"],
   "defaultOutputModes": ["application/json"],
   "description": "An agent specialized in providing car rental services and vehicle bookings. Offers car search, rental booking, and cancellation services.",
-  "name": "car_rental_agent",
   "skills": [
     {
       "id": "car_search",
@@ -23,7 +26,5 @@
       "description": "Cancel existing car rental bookings and process refunds",
       "tags": ["travel", "car", "cancellation", "refund"]
     }
-  ],
-  "url": "http://localhost:8004/a2a/car_rental_agent",
-  "version": "1.0.0"
+  ]
 }

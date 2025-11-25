@@ -1,0 +1,65 @@
+                    {% set stages = [
+                        {"key": "precheck", "icon": "🧾", "label": "PreCheck"},
+                        {"key": "security", "icon": "🛡️", "label": "Security Gate"},
+                        {"key": "functional", "icon": "🧪", "label": "Functional Accuracy"},
+                        {"key": "judge", "icon": "⚖️", "label": "Jury Judge"},
+                        {"key": "human", "icon": "🙋", "label": "Human Review"},
+                        {"key": "publish", "icon": "🚀", "label": "Publish"}
+                    ] %}
+
+                    {% for stage in stages %}
+                    {% set stage_meta = submission.score_breakdown.stages.get(stage.key) if submission.score_breakdown and submission.score_breakdown.get('stages') else none %}
+                    {% set is_completed = (stage_meta and stage_meta.status == 'completed') or false %}
+                    {% set is_failed = (stage_meta and stage_meta.status == 'failed') or false %}
+                    {# Determine if stage is running based on previous stage completion #}
+                    {% set prev_stage_completed = false %}
+                    {% if loop.index == 1 %}
+                        {# PreCheck always starts immediately when submission is created #}
+                        {% set prev_stage_completed = true %}
+                    {% else %}
+                        {# For other stages, check if previous stage is completed #}
+                        {% set prev_stage_key = stages[loop.index0 - 1].key %}
+                        {% set prev_stage_meta = submission.score_breakdown.stages.get(prev_stage_key) if submission.score_breakdown and submission.score_breakdown.get('stages') else none %}
+                        {% set prev_stage_completed = prev_stage_meta and prev_stage_meta.status == 'completed' %}
+                    {% endif %}
+
+                    {# Stage is running if previous stage completed but this stage hasn't completed or failed #}
+                    {% set is_running = prev_stage_completed and not is_completed and not is_failed %}
+
+                    <div class="flex flex-col items-center flex-1">
+                        <div class="relative">
+                            <div class="w-12 h-12 rounded-full flex items-center justify-center text-2xl {% if is_completed %}bg-green-100 border-2 border-green-500{% elif is_failed %}bg-red-100 border-2 border-red-500{% elif is_running %}bg-yellow-100 border-2 border-yellow-500 animate-pulse{% else %}bg-gray-100 border-2 border-gray-300{% endif %}" data-stage="{{ stage.key }}">
+                                {{ stage.icon }}
+                            </div>
+                            {% if is_completed %}
+                            <div class="absolute -top-1 -right-1 bg-green-500 rounded-full w-5 h-5 flex items-center justify-center">
+                                <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path>
+                                </svg>
+                            </div>
+                            {% elif is_failed %}
+                            <div class="absolute -top-1 -right-1 bg-red-500 rounded-full w-5 h-5 flex items-center justify-center">
+                                <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"></path>
+                                </svg>
+                            </div>
+                            {% endif %}
+                        </div>
+                        <div class="text-xs mt-2 font-medium text-center">{{ stage.label }}</div>
+                        {% if stage_meta and stage_meta.status %}
+                        <div class="text-xs text-gray-500 mt-1">
+                            {% if stage_meta.status == 'completed' %}✅ 完了
+                            {% elif stage_meta.status == 'failed' %}❌ 失敗
+                            {% elif stage_meta.status == 'running' %}⏳ 実行中
+                            {% else %}⏸️ 待機中{% endif %}
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    {% if not loop.last %}
+                    <div class="flex-1 h-0.5 mb-12
+                        {% if stages[loop.index].key and submission.score_breakdown.stages and submission.score_breakdown.stages.get(stages[loop.index].key) %}bg-green-500
+                        {% else %}bg-gray-300{% endif %}">
+                    </div>
+                    {% endif %}
+                    {% endfor %}
