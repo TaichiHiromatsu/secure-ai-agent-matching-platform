@@ -1,0 +1,72 @@
+# Multi-service container for Cloud Run
+# Combines: secure-mediation-agent, trusted_agent_hub, external-agents
+# Uses Nginx as reverse proxy, supervisord for process management
+
+FROM python:3.12-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    curl \
+    nginx \
+    supervisor \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv for Python package management
+RUN pip install --no-cache-dir uv
+
+# ============================================
+# Install all dependencies via pyproject.toml (single source of truth)
+# ============================================
+COPY pyproject.toml uv.lock ./
+
+# Install main dependencies with uv first
+RUN uv sync --frozen
+
+# ============================================
+# Trusted Agent Hub dependencies (sandbox-runner, inspect-worker)
+# ============================================
+COPY trusted_agent_hub/sandbox-runner /app/sandbox-runner
+COPY trusted_agent_hub/third_party /app/third_party
+COPY trusted_agent_hub/inspect-worker /app/inspect-worker
+
+RUN uv pip install -e /app/sandbox-runner
+RUN uv pip install --no-cache-dir -r /app/inspect-worker/requirements.txt
+RUN uv pip install -e /app/inspect-worker
+
+# Copy trusted_agent_hub application
+COPY trusted_agent_hub/app /app/trusted_agent_hub/app
+COPY trusted_agent_hub/static /app/trusted_agent_hub/static
+RUN mkdir -p /app/trusted_agent_hub/data/agents /app/data/agents
+COPY trusted_agent_hub/data/agents/registered-agents.json /app/trusted_agent_hub/data/agents/
+COPY trusted_agent_hub/data/agents/registered-agents.json /app/data/agents/
+
+# ============================================
+# Secure Mediation Agent & External Agents
+# ============================================
+COPY secure-mediation-agent ./secure-mediation-agent/secure-mediation-agent
+COPY user-agent ./user-agent
+COPY external-agents ./external-agents
+
+# ============================================
+# Configuration files
+# ============================================
+COPY deploy/nginx.conf /etc/nginx/nginx.conf
+COPY deploy/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+COPY deploy/start.sh /app/start.sh
+RUN chmod +x /app/start.sh
+
+# Create required directories
+RUN mkdir -p /var/log/nginx /var/log/supervisor /app/logs
+
+# Set environment variables
+ENV PYTHONPATH=/app:/app/trusted_agent_hub:/app/inspect-worker:/app/sandbox-runner/src
+ENV DATABASE_URL=sqlite:////app/trusted_agent_hub/data/agent_store.db
+
+# Cloud Run uses port 8080
+EXPOSE 8080
+
+# Start supervisord (manages nginx + all services)
+CMD ["/app/start.sh"]

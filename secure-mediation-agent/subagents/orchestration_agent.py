@@ -134,8 +134,8 @@ async def invoke_a2a_agent(
     logger = logging.getLogger(__name__)
 
     try:
-        # Get agent card URL
-        card_url = f"{agent_url.rstrip('/')}/.well-known/agent.json"
+        # Get agent card URL (A2A spec: /.well-known/agent-card.json)
+        card_url = f"{agent_url.rstrip('/')}/.well-known/agent-card.json"
 
         # Create RemoteA2aAgent - ADK handles all A2A protocol details
         remote_agent = RemoteA2aAgent(

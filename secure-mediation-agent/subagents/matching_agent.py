@@ -38,8 +38,8 @@ async def fetch_agent_card(agent_url: str) -> dict[str, Any]:
         Agent card dictionary.
     """
     try:
-        # A2A spec: agent cards are available at /.well-known/agent.json
-        card_url = f"{agent_url.rstrip('/')}/.well-known/agent.json"
+        # A2A spec: agent cards are available at /.well-known/agent-card.json
+        card_url = f"{agent_url.rstrip('/')}/.well-known/agent-card.json"
 
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.get(card_url)
@@ -319,7 +319,7 @@ Your responsibilities:
 
 When matching agents:
 - Consider both functional requirements (skills, capabilities) and non-functional requirements (trust, reliability)
-- Fetch agent cards from /.well-known/agent.json endpoints
+- Fetch agent cards from /.well-known/agent-card.json endpoints
 - Apply trust score thresholds to filter out unreliable agents
 - Calculate matching scores based on skill overlap, capability match, and I/O compatibility
 - Provide clear reasoning for why agents were selected
