@@ -64,3 +64,5 @@ temp
 
 # third_party を明示的にビルドコンテキストに含める
 !third_party/
+
+/app/inspect-worker/.venv/
