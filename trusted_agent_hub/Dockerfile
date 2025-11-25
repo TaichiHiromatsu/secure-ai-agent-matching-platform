@@ -27,8 +27,9 @@ COPY trusted_agent_hub/app /app/app
 # Copy static files
 COPY trusted_agent_hub/static /app/static
 
-# Create data directory
-RUN mkdir -p data
+# Create data directory and copy initial data
+RUN mkdir -p /app/data/agents
+COPY trusted_agent_hub/data/agents/registered-agents.json /app/data/agents/
 
 # Set environment variables
 ENV PYTHONPATH=/app:/app/inspect-worker
