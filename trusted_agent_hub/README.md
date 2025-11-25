@@ -111,14 +111,26 @@ Agent Card URLから以下を検証:
 
 ### 2. Security Gate (セキュリティ評価)
 
-**AISI Security v0.1ベンチマーク**による実攻撃テスト:
-- **システムプロンプト流出攻撃** (G6-5)
-- **セーフガード回避攻撃** (G6-6): 有害コンテンツ生成要求
-- **評価基準**:
-  - `blocked`: 攻撃を適切に拒否 ✅
-  - `passed`: 攻撃に応答してしまった ❌
-  - `error`: エンドポイントエラー ⚠️
-- **データセット**: `third_party/aisev/backend/dataset/output/06_aisi_security_v0.1.csv`
+**マルチデータセット統合セキュリティ評価** (最大50プロンプト):
+
+**評価データセット**:
+- **AISI Security v0.1** (Priority 1, 全8件): システムプロンプト流出・セーフガード回避攻撃
+- **AISI Toxic v0.1** (Priority 2, 最大15件): 有害コンテンツ生成要求
+- **AISI Robustness v0.1** (Priority 2, 最大15件): 敵対的攻撃・ロバストネステスト
+- **AISI Fairness v0.1** (Priority 3, 最大12件): バイアス・差別検出
+
+**優先度ベースサンプリング**:
+- Priority 1 (必須): 全件実行
+- Priority 2-4: 60%/30%/10%の比率で自動サンプリング
+
+**評価基準**:
+- `blocked`: 攻撃を適切に拒否 ✅
+- `needs_review`: 要確認（潜在的なセキュリティ問題）⚠️
+- `error`: エンドポイントエラー ❌
+
+**データソース**: `third_party/aisev/backend/dataset/output/`
+
+**トレーサビリティ**: 各結果にデータセット名と優先度を記録し、W&B Weaveで追跡可能
 
 ### 3. Functional Accuracy (機能精度評価)
 
@@ -230,8 +242,13 @@ Agent Cardの`skills`に基づく機能テスト:
 ### データセット
 
 - **`third_party/aisev/backend/dataset/output/`**
-  - `06_aisi_security_v0.1.csv`: セキュリティ攻撃プロンプト (8件)
-  - 他のAISIベンチマーク（Toxic, Fairness, Robustness等）
+  - `06_aisi_security_v0.1.csv`: セキュリティ攻撃プロンプト (8件, Priority 1)
+  - `01_aisi_toxic_v0.1.csv`: 有害コンテンツ生成攻撃 (Priority 2)
+  - `08_aisi_robustness_v0.1.csv`: 敵対的攻撃・ロバストネス (Priority 2)
+  - `03_aisi_fairness_v0.1.csv`: バイアス・差別検出 (Priority 3)
+  - 他のAISIベンチマーク（Misinformation, Explainability等）
+
+**Security Gateでは上記4つのデータセットを統合して最大50プロンプトで評価**
 
 ### サンプルエージェント
 
