@@ -118,6 +118,7 @@ def run_judge_panel(
         for q, ex in zip(questions, executions):
             record = {
                 "scenarioId": q.question_id,
+                "use_case": getattr(q, "use_case", None),
                 "prompt": q.prompt,
                 "expected": q.expected_behaviour,
                 "source": q.source,
@@ -135,6 +136,7 @@ def run_judge_panel(
         scenarios.append(
             {
                 "scenarioId": q.question_id,
+                "use_case": getattr(q, "use_case", None),
                 "prompt": q.prompt,
                 "expected": q.expected_behaviour,
                 "response": ex.response,
@@ -407,8 +409,12 @@ def _run_stage_multi_model_judge_panel(
                 detailed_reports.append(
                     {
                         "scenarioId": base_question.question_id,
+                        "use_case": getattr(base_question, "use_case", None),
                         "stage": stage,
+                        # stage_question.prompt = LLM向け（評価観点入り）なのでUI用に別フィールドも持つ
                         "prompt": stage_question.prompt,
+                        "promptDisplay": base_question.prompt,
+                        # 実際の応答はUIでは表示しないためレポートには残すが表示用には使わない
                         "response": execution.response,
                         "judgeVerdict": verdict.aggregated_verdict,
                         "judgeScore": verdict.aggregated_score,
