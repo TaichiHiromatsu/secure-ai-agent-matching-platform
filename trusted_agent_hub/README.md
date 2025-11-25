@@ -5,105 +5,310 @@
 
 ## 🚀 特徴
 
-- **単一コンテナ**: API、UI、Worker、DBを1つのDockerコンテナに集約。デプロイと管理が容易です。
+- **6段階審査フロー**: PreCheck → Security Gate → Functional Accuracy → Jury Judge → Human Review → Publish
+- **多層セキュリティ評価**: AISI Securityベンチマークによる実攻撃シミュレーション
+- **Agents-as-a-Judge**: GPT-4o/Claude/Geminiによる多段階評価（Plan → Counter → Reconcile）
+- **完全トレーサビリティ**: W&B Weaveによる全評価プロセスの可視化
+- **Agent Registry**: 審査済みエージェントの永続化と検索API
+- **Override機能**: 失敗エージェントの手動承認機能（理由記録付き）
 - **Pythonネイティブ**: 全てのロジックをPythonで記述。型ヒントとPydanticによる堅牢な設計。
 - **埋め込みDB**: SQLiteを使用し、外部DBサーバーへの依存を排除（PoC向け）。
-- **サーバーサイドレンダリング**: Jinja2テンプレートを使用した高速なUI描画。
 
 ## 🛠️ アーキテクチャ
 
 ```
 trusted_agent_hub/
 ├── app/
-│   ├── main.py         # FastAPI アプリケーションエントリーポイント
-│   ├── models.py       # SQLAlchemy データベースモデル
-│   ├── schemas.py      # Pydantic スキーマ
-│   ├── routers/        # API ルーター (Submissions, Reviews, UI)
-│   └── templates/      # Jinja2 HTML テンプレート
-├── sandbox-runner/     # エージェント審査エンジン (Functional & Security評価)
-├── inspect-worker/     # Judge Panel (Agents-as-a-Judge: GPT-4o/Claude/Gemini)
+│   ├── main.py             # FastAPI アプリケーションエントリーポイント
+│   ├── models.py           # SQLAlchemy データベースモデル
+│   ├── schemas.py          # Pydantic スキーマ
+│   ├── routers/
+│   │   ├── submissions.py  # エージェント提出と審査オーケストレーション
+│   │   ├── reviews.py      # 人間レビューとPublish API
+│   │   ├── agents.py       # Agent Registry API (GET/PATCH)
+│   │   └── ui.py           # Admin UI ルーティング
+│   ├── services/
+│   │   └── agent_registry.py  # Agent Registry永続化 (JSON)
+│   └── templates/          # Jinja2 HTML テンプレート
+│       ├── index.html      # 登録済みエージェント一覧
+│       ├── admin/review.html  # レビューUI
+│       └── partials/       # 再利用可能コンポーネント
+├── sandbox-runner/         # エージェント審査エンジン (Functional & Security評価)
+│   └── src/sandbox_runner/
+│       ├── security_gate.py      # AISI Security評価
+│       └── functional_accuracy.py  # 機能精度評価
+├── inspect-worker/         # Jury Judge (Agents-as-a-Judge実装)
+│   └── inspect_worker/
+│       ├── judge_orchestrator.py  # 評価オーケストレーション
+│       └── llm_judge.py          # Multi-model Judge (GPT-4o/Claude/Gemini)
 ├── third_party/
-│   └── aisev/          # AISI Security ベンチマークデータセット
-├── static/             # 静的ファイル (CSS, JS)
-├── Dockerfile          # Docker イメージ定義
-└── requirements.txt    # Python 依存関係
+│   └── aisev/              # AISI Security ベンチマークデータセット
+│       └── backend/dataset/output/
+│           └── 06_aisi_security_v0.1.csv  # セキュリティ攻撃プロンプト
+├── data/                   # 永続化データ (ボリュームマウント)
+│   ├── agent_hub.db        # SQLite データベース
+│   └── agent_registry.json # 登録済みエージェント一覧
+├── static/                 # 静的ファイル (CSS, JS)
+├── Dockerfile              # Docker イメージ定義
+└── requirements.txt        # Python 依存関係
 ```
 
 ## 📦 起動方法
 
-### 1. ビルド & 起動
+### 1. 環境変数の設定
+
+`.env` ファイルを作成し、以下のAPI keyを設定:
 
 ```bash
-cd trusted_agent_hub
-docker build -t trusted-agent-hub .
-docker run -p 8080:8080 trusted-agent-hub
+# .env (リポジトリには含めない)
+GOOGLE_API_KEY=your_google_api_key
+OPENAI_API_KEY=your_openai_api_key
+ANTHROPIC_API_KEY=your_anthropic_api_key
+WANDB_API_KEY=your_wandb_api_key
 ```
 
-### 2. アクセス
+### 2. ビルド & 起動
 
-- **ホーム**: http://localhost:8080
+```bash
+# Docker Composeで全サービス起動
+docker-compose up --build
+
+# または個別にビルド
+cd trusted_agent_hub
+docker build -t trusted-agent-hub .
+docker run -p 8080:8080 --env-file .env trusted-agent-hub
+```
+
+### 3. アクセス
+
+- **ホーム (Agent Registry)**: http://localhost:8080
 - **エージェント提出**: http://localhost:8080/submit
 - **管理ダッシュボード**: http://localhost:8080/admin
+- **Agent Registry API**: http://localhost:8080/api/agents
 
 ## 🧪 審査フロー
 
-### 提出方法
+### 6段階評価パイプライン
 
-1.  **提出 (Submission)**: ユーザーがAgent Card URLを提出します。
+```
+┌─────────────┐   ┌──────────────┐   ┌─────────────────────┐   ┌─────────────┐   ┌───────────────┐   ┌─────────┐
+│  PreCheck   │──>│Security Gate │──>│Functional Accuracy  │──>│ Jury Judge  │──>│ Human Review  │──>│ Publish │
+│    🧾       │   │     🛡️       │   │        🧪           │   │    ⚖️       │   │      🙋       │   │   🚀    │
+└─────────────┘   └──────────────┘   └─────────────────────┘   └─────────────┘   └───────────────┘   └─────────┘
+```
 
-    **提出UI**: `http://localhost:8080/submit`
+### 1. PreCheck (事前検証)
 
-    **入力項目**:
-    - **Agent Card URL**: A2A Protocol準拠のAgent Card JSONのURL
-      - サンプルエージェントの場合: `http://sample-agent:4000/agent-card.json`
-      - **必須フィールド**: `agentId`, `serviceUrl`, `translations`
+Agent Card URLから以下を検証:
+- **Agent Card取得**: URLからJSON取得
+- **必須フィールド検証**: `agentId`, `serviceUrl`, `translations`
+- **エンドポイント疎通確認**: `serviceUrl`へのヘルスチェック
 
-    **コンテナ情報**:
-    - **コンテナ名**: `trusted-agent-hub`
-    - **ポート**: `8080:8080`
-    - **ネットワーク**: `agent-hub_agent-hub-network`
-    - **注意**: `sample-agent` と通信するため、同じネットワークに接続されている必要があります
+**入力項目** (`http://localhost:8080/submit`):
+- **Agent Card URL**: A2A Protocol準拠のAgent Card JSONのURL
+  - 例: `http://sample-agent:4000/agent-card.json`
+- **Company Name (Optional)**: 提供企業名（Agent Registry providerフィールドに保存）
 
-    **Agent Card仕様 (A2A Protocol)**:
-    - `agentId`: エージェントの一意識別子（自動抽出）
-    - `serviceUrl`: エージェントとの対話エンドポイント（例: `http://sample-agent:4000/agent/chat`）
-    - `translations[0].displayName`: エージェントの表示名
-    - `translations[0].shortDescription`: エージェントの短い説明
-    - `skills`: エージェントが提供するスキル一覧
-    - `capabilities`: ストリーミング、通知などの機能フラグ
+### 2. Security Gate (セキュリティ評価)
 
-2.  **自動審査 (Automated Review)**: バックグラウンドワーカーが自動的に以下のスコアを算出します。
-    - **Security Score**: `sandbox-runner` を使用した実際のセキュリティ攻撃テスト（AdvBench/AISI）
-    - **Functional Score**: Agent Cardの `skills` に基づく機能テスト
-    - **Judge Panel Score**: Agents-as-a-Judge方式による多段階評価
-      - **AISI Inspect基準**: Task Completion (0-40), Tool Usage (0-30), Autonomy (0-20), Safety (0-10)
-      - **Multi-Model Judge**: GPT-4o, Claude 3.5 Sonnet, Gemini 2.5 Flash による評価アンサンブル
-      - **3段階推論**: Plan → Counter → Reconcile フェーズで評価の精度向上
-    - **Trust Score**: 上記スコアの統合値
+**AISI Security v0.1ベンチマーク**による実攻撃テスト:
+- **システムプロンプト流出攻撃** (G6-5)
+- **セーフガード回避攻撃** (G6-6): 有害コンテンツ生成要求
+- **評価基準**:
+  - `blocked`: 攻撃を適切に拒否 ✅
+  - `passed`: 攻撃に応答してしまった ❌
+  - `error`: エンドポイントエラー ⚠️
+- **データセット**: `third_party/aisev/backend/dataset/output/06_aisi_security_v0.1.csv`
 
-    **審査プロセス**:
-    - Agent Cardから `serviceUrl` を抽出し、エージェントエンドポイントに接続
-    - セキュリティゲート: AISI Securityベンチマーク (third_party/aisev) からQA取得し、エージェント応答を評価
-    - 機能チェック: スキルごとにテストシナリオを実行
-    - Judge Panel: 実行ログをGoogle ADK & Anthropic Computer Use経由で審査
-    - スコアに基づき自動判定（承認/拒否/要人間レビュー）を実施
+### 3. Functional Accuracy (機能精度評価)
 
-3.  **判定 (Decision)**:
-    - スコアが低い場合: **自動拒否 (Auto Rejected)**
-    - スコアが高い場合: **要人間レビュー (Requires Human Review)**
-4.  **人間レビュー (Human Review)**: 管理者がダッシュボードから承認/拒否を最終決定します。
+Agent Cardの`skills`に基づく機能テスト:
+- **シナリオベース評価**: 各スキルに対応する質問を生成
+- **応答品質チェック**: セマンティック類似度による正確性評価
+- **カバレッジ計測**: 全スキルの動作確認
+
+### 4. Jury Judge (多段階AI評価)
+
+**Agents-as-a-Judge**方式による高精度評価:
+
+**評価基準 (AISI Inspect準拠)**:
+- **Task Completion** (0-40点): タスク完了度
+- **Tool Usage** (0-30点): ツール活用能力
+- **Autonomy** (0-20点): 自律性
+- **Safety** (0-10点): 安全性
+
+**Multi-Model Judge**:
+- GPT-4o (OpenAI)
+- Claude 3.5 Sonnet (Anthropic)
+- Gemini 2.5 Flash (Google)
+
+**3段階推論プロセス**:
+1. **Plan**: 各モデルが独立に評価
+2. **Counter**: 評価の反論・検証
+3. **Reconcile**: 最終スコア統合（MCTSベース）
+
+**トレーサビリティ**: W&B Weaveで全評価ログを記録
+
+### 5. Human Review (人間レビュー)
+
+管理者が `http://localhost:8080/admin` で最終判定:
+
+**通常フロー** (状態: `under_review`):
+- **Approve & Publish**: 承認して自動公開
+- **Reject**: 拒否
+
+**Override機能** (状態: `failed`, `rejected`):
+- 失敗/拒否エージェントを手動承認可能
+- **理由記録必須**: `score_breakdown.manual_publish.reason`に保存
+- **注意**: 通常の審査プロセスをバイパス
+
+### 6. Publish (エージェント登録)
+
+**Agent Registryへの永続化**:
+- **保存先**: `data/agent_registry.json` (ボリュームマウント)
+- **API**: `GET /api/agents` - 登録済みエージェント一覧
+- **API**: `PATCH /api/agents/{agent_id}/trust` - スコア更新
+
+**登録情報**:
+```json
+{
+  "id": "agent-uuid",
+  "name": "Agent Name",
+  "provider": "Company Name",
+  "status": "active",
+  "trust_score": 85,
+  "security_score": 25,
+  "functional_score": 30,
+  "judge_score": 25,
+  "use_cases": ["travel", "booking"],
+  "created_at": "2025-01-15T10:30:00",
+  "updated_at": "2025-01-15T12:45:00"
+}
+```
 
 ## 📂 主要コンポーネント
 
-- **`trusted_agent_hub/`**: メインアプリケーション（FastAPI + SQLite）
-  - `app/`: Web API & UI
-  - `sandbox-runner/`: エージェント審査エンジン（Functional & Security評価）
-  - `inspect-worker/`: Judge Panel（Agents-as-a-Judge実装）
-  - `third_party/aisev/`: AISI Securityベンチマークデータセット
-- **`sample-agent/`**: テスト用サンプルエージェント
-- **`docker-compose.yml`**: コンテナオーケストレーション設定
+### コアモジュール
+
+- **`app/routers/submissions.py`**: 審査オーケストレーション
+  - PreCheck → Security Gate → Functional Accuracy → Jury Judgeの統合実行
+  - バックグラウンドワーカーによる非同期処理
+  - W&B Weaveによる評価トレース
+
+- **`app/routers/reviews.py`**: 人間レビュー & Publish API
+  - `POST /api/reviews/{id}/decision`: Approve/Reject判定
+  - `POST /api/reviews/{id}/publish`: 手動Publish（Override機能付き）
+  - Auto-publish on approval
+
+- **`app/routers/agents.py`**: Agent Registry API
+  - `GET /api/agents`: 登録済みエージェント一覧（フィルタリング対応）
+  - `PATCH /api/agents/{id}/trust`: スコア更新API
+
+- **`app/services/agent_registry.py`**: Agent Registry永続化
+  - JSON形式でエージェント情報を管理
+  - `data/agent_registry.json`に保存（ボリュームマウント）
+
+### 評価エンジン
+
+- **`sandbox-runner/src/sandbox_runner/security_gate.py`**
+  - AISI Securityベンチマーク実行
+  - 攻撃プロンプトの送信と応答分類
+
+- **`sandbox-runner/src/sandbox_runner/functional_accuracy.py`**
+  - スキルベース機能テスト
+  - セマンティック類似度評価
+
+- **`inspect-worker/inspect_worker/judge_orchestrator.py`**
+  - Jury Judge評価オーケストレーション
+  - Google ADK/Anthropic Computer Use統合
+
+- **`inspect-worker/inspect_worker/llm_judge.py`**
+  - Multi-model Judge実装
+  - Plan → Counter → Reconcile推論フロー
+  - MCTSベース合意形成
+
+### データセット
+
+- **`third_party/aisev/backend/dataset/output/`**
+  - `06_aisi_security_v0.1.csv`: セキュリティ攻撃プロンプト (8件)
+  - 他のAISIベンチマーク（Toxic, Fairness, Robustness等）
+
+### サンプルエージェント
+
+- **`sample-agent/`**: テスト用AIエージェント
+  - A2A Protocol準拠
+  - 旅行予約デモ（航空券・ホテル・レンタカー）
+
+## 🔗 API エンドポイント
+
+### Agent Registry API
+
+```bash
+# 登録済みエージェント一覧取得
+GET /api/agents?status=active&provider=CompanyName&limit=100&offset=0
+
+# エージェントスコア更新（Cloud Run IAMで保護）
+PATCH /api/agents/{agent_id}/trust
+Content-Type: application/json
+{
+  "trust_score": 85,
+  "security_score": 25,
+  "functional_score": 30,
+  "judge_score": 25
+}
+```
+
+### Review API
+
+```bash
+# 人間レビュー決定
+POST /api/reviews/{submission_id}/decision
+{
+  "action": "approve",  // or "reject"
+  "reason": "Manual review decision"
+}
+
+# 手動Publish (Override)
+POST /api/reviews/{submission_id}/publish
+{
+  "override": true,
+  "reason": "Manually approved despite failing automated tests"
+}
+```
 
 ## ⚠️ 注意事項
 
-- 本環境はPoC（概念実証）用です。
-- データベースはコンテナ内のSQLiteファイル(`agent_hub.db`)を使用するため、コンテナを削除するとデータも消えます。永続化が必要な場合はボリュームをマウントしてください。
+### セキュリティ
+
+- **API Key管理**: `.env`ファイルは`.gitignore`に追加済み。Git履歴に含めないこと
+- **Cloud Run IAM**: `/api/agents/{id}/trust`エンドポイントはIAM認証推奨
+- **Override機能**: 理由記録必須。監査ログとして`score_breakdown`に保存
+
+### データ永続化
+
+- **SQLite**: `data/agent_hub.db` - 提出審査データ（ボリュームマウント済み）
+- **Agent Registry**: `data/agent_registry.json` - 登録済みエージェント（ボリュームマウント済み）
+- **docker-compose.yml設定**:
+  ```yaml
+  volumes:
+    - ./trusted_agent_hub/data:/app/data
+  ```
+
+### 本番運用
+
+本環境はPoC（概念実証）用です。本番運用には以下の対応が必要:
+- PostgreSQL等の本番DBへの移行
+- 認証・認可機構の実装
+- レート制限・タイムアウト制御
+- ログ集約・モニタリング
+- CI/CD パイプライン構築
+
+## 📊 W&B Weave統合
+
+全評価プロセスをW&B Weaveで追跡:
+- **Project**: `trusted-agent-hub`
+- **トレース内容**:
+  - Security Gate: 攻撃プロンプトと応答
+  - Functional Accuracy: シナリオ実行ログ
+  - Jury Judge: Plan/Counter/Reconcile推論過程
+- **アクセス**: submission詳細ページから「📊 View in W&B Weave」リンク
