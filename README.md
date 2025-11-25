@@ -346,6 +346,10 @@ echo "GOOGLE_API_KEY=your-gemini-api-key" > secure-mediation-agent/.env
 # ✅ Web UIでデモプロンプトを入力してください
 ```
 
+### 🔒 認証について（Cloud Run 前提）
+- 本リポジトリの内部API（例: `/api/agents`, `/api/agents/{id}/trust`）はアプリ側で追加のトークン検証をしていません。
+- Cloud Run / IAP / サービス間JWTなど、デプロイ環境のデフォルト認証・IAM制御でアクセスを制限する前提です。デプロイ時に必ず認可設定を行ってください。
+
 **デモプロンプト例:**
 ```
 沖縄旅行の予約をお願いします。予約完了まで止まることなく完遂してください。
