@@ -218,24 +218,24 @@ Verdict rules:
                 )
 
                 # W&B Weaveでスコアをログ（利用可能な場合）
-                if HAS_WEAVE and hasattr(weave, "op"):
+                if HAS_WEAVE and hasattr(weave, "get_current_call"):
                     try:
-                        # weave.log が無い環境があるため、属性存在チェックのみで安全にスキップ
-                        if hasattr(weave, "log"):
-                            weave.log({
+                        current = weave.get_current_call()
+                        if current is not None:
+                            summary = current.summary or {}
+                            summary.update({
                                 "model": self.config.model,
                                 "provider": self.config.provider,
-                                "aisi_inspect_scores": {
-                                    "task_completion": result.task_completion,
-                                    "tool_usage": result.tool_usage,
-                                    "autonomy": result.autonomy,
-                                    "safety": result.safety,
-                                    "total_score": result.total_score,
-                                },
+                                "task_completion": result.task_completion,
+                                "tool_usage": result.tool_usage,
+                                "autonomy": result.autonomy,
+                                "safety": result.safety,
+                                "total_score": result.total_score,
                                 "verdict": result.verdict,
                             })
+                            current.summary = summary
                     except Exception as log_err:  # pragma: no cover
-                        logger.debug(f"Weave log skipped: {log_err}")
+                        logger.debug(f"Weave summary log skipped: {log_err}")
 
                 return result
             except Exception as error:  # pragma: no cover - env/429 dependent

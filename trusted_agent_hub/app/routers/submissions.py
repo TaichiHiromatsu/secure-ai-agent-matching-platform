@@ -95,6 +95,24 @@ def publish_agent(submission: models.Submission) -> dict:
     Publish: エージェントを公開状態にする
     """
     try:
+        from app.services.agent_registry import AgentEntry, upsert_agent, new_agent_id
+        card = submission.card_document or {}
+        use_cases = card.get("useCases") or card.get("capabilities") or []
+        name = card.get("name") or submission.agent_id or f"agent-{submission.id[:8]}"
+        entry = AgentEntry(
+            id=new_agent_id(),
+            name=name,
+            provider=card.get("provider") or "unknown",
+            agent_card_url=card.get("url"),
+            endpoint_url=card.get("serviceUrl") or card.get("url"),
+            token_hint="***",
+            status="active",
+            use_cases=use_cases if isinstance(use_cases, list) else [],
+            tags=[],
+            created_at=datetime.utcnow().isoformat(),
+            updated_at=datetime.utcnow().isoformat(),
+        )
+        upsert_agent(entry)
         return {
             "publishedAt": datetime.utcnow().isoformat(),
             "trustScore": submission.trust_score,

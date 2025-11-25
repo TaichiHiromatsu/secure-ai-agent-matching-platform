@@ -382,6 +382,7 @@ def _run_stage_multi_model_judge_panel(
                 stage_question = item.get("question")
                 model_verdicts = item.get("model_verdicts")
                 issues_text = item.get("issues_text", "")
+                display_prompt = item.get("display_prompt", stage_question.prompt if stage_question else "")
                 aggregated_verdict, veto = panel._aggregate_verdicts(model_verdicts)
                 scores = [v.score for v in model_verdicts if v.score is not None]
                 avg_score = sum(scores) / len(scores) if scores else 0.0
@@ -411,9 +412,9 @@ def _run_stage_multi_model_judge_panel(
                         "scenarioId": base_question.question_id,
                         "use_case": getattr(base_question, "use_case", None),
                         "stage": stage,
-                        # stage_question.prompt = LLM向け（評価観点入り）なのでUI用に別フィールドも持つ
                         "prompt": stage_question.prompt,
-                        "promptDisplay": base_question.prompt,
+                        # 表示用はステージ専用＋サマリ入り
+                        "promptDisplay": display_prompt,
                         # 実際の応答はUIでは表示しないためレポートには残すが表示用には使わない
                         "response": execution.response,
                         "judgeVerdict": verdict.aggregated_verdict,

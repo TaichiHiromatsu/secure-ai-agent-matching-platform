@@ -3,7 +3,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
 from .database import engine, Base
-from .routers import submissions, reviews, ui
+from .routers import submissions, reviews, ui, agents
+from app.services.agent_registry import load_agents
 import os
 
 # Create tables
@@ -21,10 +22,18 @@ templates = Jinja2Templates(directory="app/templates")
 app.include_router(submissions.router)
 app.include_router(reviews.router)
 app.include_router(ui.router)
+app.include_router(agents.router)
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+    agents_list = load_agents()
+    return templates.TemplateResponse(
+        "index.html",
+        {
+            "request": request,
+            "agents": agents_list,
+        },
+    )
 
 @app.get("/health")
 async def health_check():
