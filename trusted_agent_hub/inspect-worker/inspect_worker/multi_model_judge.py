@@ -533,11 +533,20 @@ Plan要約: {prior_summary}
             rationales = [f"[{mv.model}:{mv.verdict}] {mv.rationale}" for mv in prior if mv.rationale]
             prior_summary = "\n".join(rationales[:5])
 
+        # ステージごとに渡すコンテキストを変える
+        response_snippet = execution.response[:800] + ("..." if execution.response and len(execution.response) > 800 else "") if execution.response else "(no response)"
+        if stage == "plan":
+            response_field = response_snippet
+        elif stage == "counter":
+            response_field = f"元応答: {response_snippet}\nPlan要約: {prior_summary or '(Plan要約なし)'}"
+        else:  # reconcile
+            response_field = f"元応答: {response_snippet}\nPlan/Counter要約: {prior_summary or '(要約なし)'}\n指摘リスト: {issues or '(no issues reported)'}"
+
         return tmpl.format(
             use_case=question.use_case or "(use_case not provided)",
             prompt=question.prompt,
             expected_behaviour=question.expected_behaviour,
-            response=execution.response[:1000] if execution.response else "",
+            response=response_field,
             prior_summary=prior_summary,
             issues=issues or "(no issues reported)",
         )
@@ -574,7 +583,8 @@ Plan要約: {prior_summary}
             return common + f"""
 Plan要約: {prior_txt or '(なし)'}"""
         return common + f"""
-Counter指摘: {issues or '(なし)'}"""
+Plan/Counter要約: {prior_txt or '(なし)'}
+指摘リスト: {issues or '(なし)'}"""
 
     def evaluate_stage(
         self,
