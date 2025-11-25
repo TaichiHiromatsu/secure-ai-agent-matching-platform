@@ -15,11 +15,17 @@
 """Matching sub-agent for finding and ranking agents."""
 
 import json
+import os
 from typing import Any
 
 import httpx
 from google.adk import Agent
 from google.genai import types
+
+# Agent Store API configuration
+# Default to localhost:8080 for development (trusted_agent_hub runs on 8080)
+# Override via environment variable for production
+AGENT_STORE_API_URL = os.getenv("AGENT_STORE_API_URL", "http://localhost:8080/api/agents")
 
 
 async def fetch_agent_card(agent_url: str) -> dict[str, Any]:
@@ -47,10 +53,66 @@ async def fetch_agent_card(agent_url: str) -> dict[str, Any]:
         }
 
 
+def _convert_agent_entry_to_matcher_format(agent: dict[str, Any]) -> dict[str, Any]:
+    """Convert Agent Store API response to matcher format.
+
+    Args:
+        agent: Agent entry from trusted_agent_hub API.
+
+    Returns:
+        Agent dictionary in matcher format.
+    """
+    # Extract skills from tags and use_cases
+    skills = []
+    tags = agent.get("tags", []) or []
+    use_cases = agent.get("use_cases", []) or []
+
+    # Create skills from use_cases with tags
+    for use_case in use_cases:
+        skills.append({
+            "id": use_case.replace(" ", "_").lower(),
+            "tags": tags + [use_case.lower()],
+        })
+
+    # If no use_cases, create a generic skill from tags
+    if not skills and tags:
+        skills.append({
+            "id": "general",
+            "tags": tags,
+        })
+
+    # Convert trust_score from 0-100 integer to 0.0-1.0 float
+    trust_score_raw = agent.get("trust_score")
+    if trust_score_raw is not None:
+        trust_score = float(trust_score_raw) / 100.0
+    else:
+        trust_score = 0.5  # Default trust score
+
+    return {
+        "name": agent.get("name", "unknown"),
+        "url": agent.get("endpoint_url") or agent.get("agent_card_url", ""),
+        "description": ", ".join(use_cases) if use_cases else f"Agent: {agent.get('name', 'unknown')}",
+        "skills": skills,
+        "capabilities": {
+            "booking": any("booking" in t.lower() for t in tags),
+            "search": any("search" in t.lower() for t in tags),
+        },
+        "trust_score": trust_score,
+        "defaultInputModes": ["text"],
+        "defaultOutputModes": ["text"],
+        "provider": agent.get("provider", ""),
+        "status": agent.get("status", "unknown"),
+        "agent_id": agent.get("id", ""),
+    }
+
+
 async def search_agent_store(
     query: str,
 ) -> str:
-    """Search multiple agent stores for matching agents.
+    """Search the agent store for matching agents.
+
+    Fetches agents from the trusted_agent_hub API and filters them
+    based on the search query.
 
     Args:
         query: Search query describing needed capabilities.
@@ -58,113 +120,74 @@ async def search_agent_store(
     Returns:
         JSON string with search results.
     """
-    # TODO: Replace this mock implementation with actual agent store integration
-    # when the agent store service is implemented.
-    # For now, we use the external-agents in the local environment as mock data.
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            # Fetch all active agents from the Agent Store API
+            response = await client.get(
+                AGENT_STORE_API_URL,
+                params={"status": "active", "limit": 100},
+            )
+            response.raise_for_status()
+            data = response.json()
 
-    # Mock implementation: Return the three external agents available locally
-    mock_agents = [
-        {
-            "name": "airline_agent",
-            "url": "http://localhost:8002/a2a/airline_agent",
-            "description": "Handles flight bookings and airline reservations",
-            "skills": [
-                {"id": "flight_search", "tags": ["travel", "airline", "booking"]},
-                {"id": "flight_booking", "tags": ["travel", "airline", "booking"]},
-            ],
-            "capabilities": {
-                "booking": True,
-                "search": True,
-                "cancellation": True,
-            },
-            "trust_score": 0.9,
-            "defaultInputModes": ["text"],
-            "defaultOutputModes": ["text"],
-        },
-        {
-            "name": "hotel_agent",
-            "url": "http://localhost:8003/a2a/hotel_agent",
-            "description": "Manages hotel reservations and accommodation bookings",
-            "skills": [
-                {"id": "hotel_search", "tags": ["travel", "hotel", "accommodation", "booking"]},
-                {"id": "hotel_booking", "tags": ["travel", "hotel", "accommodation", "booking"]},
-            ],
-            "capabilities": {
-                "booking": True,
-                "search": True,
-                "cancellation": True,
-            },
-            "trust_score": 0.85,
-            "defaultInputModes": ["text"],
-            "defaultOutputModes": ["text"],
-        },
-        {
-            "name": "car_rental_agent",
-            "url": "http://localhost:8004/a2a/car_rental_agent",
-            "description": "Provides car rental services and vehicle bookings",
-            "skills": [
-                {"id": "car_search", "tags": ["travel", "car", "rental", "booking"]},
-                {"id": "car_booking", "tags": ["travel", "car", "rental", "booking"]},
-            ],
-            "capabilities": {
-                "booking": True,
-                "search": True,
-                "cancellation": True,
-            },
-            "trust_score": 0.8,
-            "defaultInputModes": ["text"],
-            "defaultOutputModes": ["text"],
-        },
-    ]
+        # Convert API response to matcher format
+        all_agents = [
+            _convert_agent_entry_to_matcher_format(agent)
+            for agent in data.get("items", [])
+        ]
 
-    # Simple keyword-based filtering for mock implementation
-    query_lower = query.lower()
-    filtered_agents = []
+        # Filter agents based on query keywords
+        query_lower = query.lower()
+        query_keywords = query_lower.split()
+        filtered_agents = []
 
-    for agent in mock_agents:
-        # Check if query matches agent name, description, or skill tags
-        matches = False
-        if any(keyword in agent["description"].lower() for keyword in query_lower.split()):
-            matches = True
-        for skill in agent["skills"]:
-            if any(keyword in tag for tag in skill["tags"] for keyword in query_lower.split()):
+        for agent in all_agents:
+            matches = False
+
+            # Check agent name
+            if any(keyword in agent["name"].lower() for keyword in query_keywords):
                 matches = True
-                break
 
-        if matches:
-            filtered_agents.append(agent)
+            # Check description
+            if any(keyword in agent["description"].lower() for keyword in query_keywords):
+                matches = True
 
-    # If no specific matches, return all agents (broad search)
-    if not filtered_agents:
-        filtered_agents = mock_agents
+            # Check skill tags
+            for skill in agent.get("skills", []):
+                skill_tags = skill.get("tags", [])
+                if any(keyword in tag.lower() for tag in skill_tags for keyword in query_keywords):
+                    matches = True
+                    break
 
-    return json.dumps(
-        {"agents": filtered_agents, "count": len(filtered_agents)},
-        ensure_ascii=False,
-        indent=2,
-    )
+            # Check provider
+            if any(keyword in agent.get("provider", "").lower() for keyword in query_keywords):
+                matches = True
 
-    # TODO: Uncomment this when agent store is ready
-    # all_agents = []
-    #
-    # for store_url in store_urls:
-    #     try:
-    #         async with httpx.AsyncClient(timeout=10.0) as client:
-    #             # Assuming store has a search endpoint
-    #             response = await client.get(
-    #                 f"{store_url}/search",
-    #                 params={"q": query},
-    #             )
-    #             response.raise_for_status()
-    #             agents = response.json().get("agents", [])
-    #             all_agents.extend(agents)
-    #
-    #     except Exception as e:
-    #         # Log error but continue with other stores
-    #         print(f"Error searching store {store_url}: {e}")
-    #         continue
-    #
-    # return json.dumps({"agents": all_agents, "count": len(all_agents)}, ensure_ascii=False)
+            if matches:
+                filtered_agents.append(agent)
+
+        # If no specific matches, return all agents (broad search)
+        if not filtered_agents:
+            filtered_agents = all_agents
+
+        return json.dumps(
+            {"agents": filtered_agents, "count": len(filtered_agents)},
+            ensure_ascii=False,
+            indent=2,
+        )
+
+    except httpx.HTTPError as e:
+        # Return error information if API call fails
+        return json.dumps(
+            {
+                "agents": [],
+                "count": 0,
+                "error": f"Failed to fetch agents from store: {str(e)}",
+                "store_url": AGENT_STORE_API_URL,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
 
 
 async def rank_agents_by_trust(
