@@ -32,6 +32,7 @@
                             <th class="px-3 py-2 text-left">Name</th>
                             <th class="px-3 py-2 text-left">Provider</th>
                             <th class="px-3 py-2 text-left">Status</th>
+                            <th class="px-3 py-2 text-left">Trust Score</th>
                             <th class="px-3 py-2 text-left">Use Cases</th>
                             <th class="px-3 py-2 text-left">Updated</th>
                         </tr>
@@ -41,7 +42,26 @@
                         <tr class="border-t hover:bg-gray-50">
                             <td class="px-3 py-2 font-medium">{{ a.name }}</td>
                             <td class="px-3 py-2">{{ a.provider }}</td>
-                            <td class="px-3 py-2">{{ a.status }}</td>
+                            <td class="px-3 py-2">
+                                <span class="px-2 py-1 rounded text-xs {% if a.status == 'active' %}bg-green-100 text-green-800{% else %}bg-gray-100 text-gray-800{% endif %}">
+                                    {{ a.status }}
+                                </span>
+                            </td>
+                            <td class="px-3 py-2">
+                                {% if a.trust_score is not none %}
+                                <div class="flex items-center gap-2">
+                                    <span class="font-bold text-lg {% if a.trust_score >= 80 %}text-green-600{% elif a.trust_score >= 60 %}text-blue-600{% else %}text-yellow-600{% endif %}">
+                                        {{ a.trust_score }}
+                                    </span>
+                                    <span class="text-xs text-gray-500">/ 100</span>
+                                </div>
+                                <div class="text-xs text-gray-600 mt-1">
+                                    S:{{ a.security_score or 0 }} F:{{ a.functional_score or 0 }} J:{{ a.judge_score or 0 }}
+                                </div>
+                                {% else %}
+                                <span class="text-xs text-gray-400">N/A</span>
+                                {% endif %}
+                            </td>
                             <td class="px-3 py-2 text-xs text-gray-700">{{ ', '.join(a.use_cases or []) }}</td>
                             <td class="px-3 py-2 text-xs text-gray-600">{{ a.updated_at or a.created_at or '' }}</td>
                         </tr>

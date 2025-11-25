@@ -111,6 +111,12 @@ def publish_agent(submission: models.Submission) -> dict:
             tags=[],
             created_at=datetime.utcnow().isoformat(),
             updated_at=datetime.utcnow().isoformat(),
+            # Save evaluation scores
+            trust_score=submission.trust_score,
+            security_score=submission.security_score,
+            functional_score=submission.functional_score,
+            judge_score=submission.judge_score,
+            implementation_score=submission.implementation_score,
         )
         upsert_agent(entry)
         return {
