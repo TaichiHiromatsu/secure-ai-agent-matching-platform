@@ -12,7 +12,11 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import List, Optional
 
-REGISTRY_PATH = Path("/app/data/agents/registered-agents.json")
+import os
+
+# Support both Docker (/app/data) and local development via environment variable
+_default_path = "/app/data/agents/registered-agents.json"
+REGISTRY_PATH = Path(os.getenv("REGISTRY_PATH", _default_path))
 
 
 @dataclass

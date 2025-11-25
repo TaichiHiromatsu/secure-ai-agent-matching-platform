@@ -7,16 +7,22 @@ from .routers import submissions, reviews, ui, agents
 from app.services.agent_registry import load_agents
 import os
 
+# Base directory for static files and templates
+# Defaults to Docker structure, can be overridden via environment variable
+BASE_DIR = os.getenv("APP_BASE_DIR", "")
+
 # Create tables
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Trusted Agent Hub")
 
 # Mount static files
-app.mount("/static", StaticFiles(directory="static"), name="static")
+static_dir = os.path.join(BASE_DIR, "static") if BASE_DIR else "static"
+app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 # Setup templates
-templates = Jinja2Templates(directory="app/templates")
+templates_dir = os.path.join(BASE_DIR, "app/templates") if BASE_DIR else "app/templates"
+templates = Jinja2Templates(directory=templates_dir)
 
 # Include routers
 app.include_router(submissions.router)
