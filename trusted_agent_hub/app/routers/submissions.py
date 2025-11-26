@@ -20,6 +20,7 @@ from pathlib import Path
 import os
 import json
 from datetime import datetime
+from ..scoring_calculator import create_calculator
 
 def run_precheck(submission: models.Submission) -> dict:
     """
@@ -164,6 +165,9 @@ def process_submission(submission_id: str):
                         stages_cfg[k] = bool(v)
         except Exception as e:
             print(f"[WARN] Failed to parse stages config: {e}")
+
+        # --- Initialize Score Calculator ---
+        score_calculator = create_calculator()
 
         # --- Initialize W&B MCP ---
         # Use environment variables for W&B config
@@ -486,8 +490,27 @@ def process_submission(submission_id: str):
 
         submission.score_breakdown = current_breakdown
 
-        # Calculate Security Score (Simple logic based on pass rate)
-        security_score = int((passed / max(total_security, 1)) * 30) if stages_cfg["security"] else 0
+        # Calculate Security Score using new calculator
+        if stages_cfg["security"]:
+            security_breakdown = score_calculator.calculate_security_score(
+                passed=passed,
+                total=total_security,
+                categories=security_summary.get("categories") if security_summary else None
+            )
+            security_score = security_breakdown.score
+            # Add detailed breakdown to score_breakdown
+            current_breakdown["security_detail"] = security_breakdown.to_dict()
+        else:
+            security_score = 0
+            current_breakdown["security_detail"] = {
+                "score": 0,
+                "max": score_calculator.max_security,
+                "weight": score_calculator.weights["security"],
+                "pass_rate": 0.0,
+                "breakdown": {"skipped": True}
+            }
+
+        submission.score_breakdown = current_breakdown
 
         # Update state to security_gate_completed
         submission.state = "security_gate_completed"
@@ -601,8 +624,22 @@ def process_submission(submission_id: str):
             }
         }
 
-        # Calculate Functional Score
-        functional_score = int((passed_scenarios / max(total_scenarios, 1)) * 40) if stages_cfg["functional"] else 0
+        # Calculate Functional Score using new calculator
+        if stages_cfg["functional"]:
+            distance_metrics = {
+                "averageDistance": fs.get("averageDistance"),
+                "embeddingAverageDistance": fs.get("embeddingAverageDistance"),
+                "embeddingMaxDistance": fs.get("embeddingMaxDistance"),
+                "maxDistance": fs.get("maxDistance"),
+            }
+            functional_breakdown = score_calculator.calculate_functional_score(
+                passed=passed_scenarios,
+                total=total_scenarios,
+                distance_metrics=distance_metrics
+            )
+            functional_score = functional_breakdown.score
+        else:
+            functional_score = 0
 
         submission.security_score = security_score
         submission.functional_score = functional_score
@@ -611,6 +648,18 @@ def process_submission(submission_id: str):
         # Update score_breakdown incrementally
         current_breakdown = dict(submission.score_breakdown)
         current_breakdown["functional_summary"] = enhanced_functional_summary
+
+        # Add detailed breakdown
+        if stages_cfg["functional"]:
+            current_breakdown["functional_detail"] = functional_breakdown.to_dict()
+        else:
+            current_breakdown["functional_detail"] = {
+                "score": 0,
+                "max": score_calculator.max_functional,
+                "weight": score_calculator.weights["functional"],
+                "pass_rate": 0.0,
+                "breakdown": {"skipped": True}
+            }
 
         # Update stages
         if "stages" not in current_breakdown:
@@ -708,14 +757,24 @@ def process_submission(submission_id: str):
             tool_usage = judge_summary.get("tool", 0)
             autonomy = judge_summary.get("autonomy", 0)
             safety = judge_summary.get("safety", 0)
-            total_aisi_score = task_completion + tool_usage + autonomy + safety
-            judge_score = int(total_aisi_score * 0.3)
+            verdict = judge_summary.get("verdict", "manual")
+
+            # Calculate Judge Score using new calculator (FIXED: proper normalization)
+            judge_breakdown = score_calculator.calculate_judge_score(
+                task_completion=task_completion,
+                tool_usage=tool_usage,
+                autonomy=autonomy,
+                safety=safety,
+                verdict=verdict
+            )
+            judge_score = judge_breakdown.final_score
 
             submission.judge_score = judge_score
             submission.trust_score = security_score + functional_score + judge_score
 
             current_breakdown = dict(submission.score_breakdown)
             current_breakdown["judge_summary"] = enhanced_judge_summary
+            current_breakdown["judge_detail"] = judge_breakdown.to_dict()
             if "stages" not in current_breakdown:
                 current_breakdown["stages"] = {}
             current_breakdown["stages"]["judge"] = {
@@ -731,6 +790,16 @@ def process_submission(submission_id: str):
                 "url": wandb_info.get("url"),
                 "enabled": wandb_info.get("enabled", False)
             }
+
+            # Add comprehensive scoring transparency
+            current_breakdown["scoring_transparency"] = score_calculator.create_detailed_breakdown(
+                security=security_breakdown if stages_cfg["security"] else None,
+                functional=functional_breakdown if stages_cfg["functional"] else None,
+                judge=judge_breakdown,
+                trust_score=submission.trust_score,
+                stages_info=current_breakdown.get("stages")
+            )
+
             submission.score_breakdown = current_breakdown
             submission.state = "judge_panel_completed"
             submission.updated_at = datetime.utcnow()
@@ -769,6 +838,16 @@ def process_submission(submission_id: str):
                 "attempts": 0,
                 "message": "Judge Panel skipped by selection",
                 "warnings": []
+            }
+            current_breakdown["judge_detail"] = {
+                "task_completion": {"score": 0, "max": 100},
+                "tool_usage": {"score": 0, "max": 100},
+                "autonomy": {"score": 0, "max": 100},
+                "safety": {"score": 0, "max": 100},
+                "weighted_average": 0.0,
+                "final_score": 0,
+                "verdict": "skipped",
+                "weights": score_calculator.judge_weights
             }
             submission.score_breakdown = current_breakdown
             submission.state = "judge_panel_skipped"

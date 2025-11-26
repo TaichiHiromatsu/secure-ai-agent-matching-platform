@@ -9,8 +9,8 @@
 <body class="bg-gray-100">
     <nav class="bg-gray-800 text-white p-4">
         <div class="container mx-auto flex justify-between items-center">
-            <a href="/" class="text-xl font-bold">Trusted Agent Hub</a>
-            <a href="/admin" class="hover:text-gray-300">Dashboard</a>
+            <a href="/store/" class="text-xl font-bold">Trusted Agent Hub</a>
+            <a href="/store/admin" class="hover:text-gray-300">Dashboard</a>
         </div>
     </nav>
 
@@ -79,7 +79,7 @@
                             <p class="text-gray-900 whitespace-no-wrap font-bold">{{ submission.trust_score }} / 100</p>
                         </td>
                         <td class="px-5 py-5 border-b border-gray-200 bg-white text-sm">
-                            <a href="/admin/review/{{ submission.id }}" class="text-blue-600 hover:text-blue-900">Review</a>
+                            <a href="/store/admin/review/{{ submission.id }}" class="text-blue-600 hover:text-blue-900">Review</a>
                         </td>
                     </tr>
                     {% endfor %}
