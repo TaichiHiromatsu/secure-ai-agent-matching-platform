@@ -49,17 +49,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--skip-security-gate", action="store_true", help="Disable security gate run even if dataset is available")
     parser.add_argument("--relay-endpoint", help="Default A2A relay endpoint used when stage-specific endpoints are未設定")
     parser.add_argument("--relay-token", help="Bearer token shared across security/functional stages")
-    parser.add_argument("--functional-endpoint", help="Functional accuracy HTTP endpoint (defaults to relay endpoint)")
+    parser.add_argument("--functional-endpoint", help="Agent Card Accuracy HTTP endpoint (defaults to relay endpoint)")
     parser.add_argument("--functional-endpoint-token", help="Bearer token for the functional endpoint")
     parser.add_argument("--functional-timeout", type=float, default=20.0, help="Functional endpoint timeout seconds")
-    parser.add_argument("--agent-card", help="Path to AgentCard JSON used for functional accuracy evaluation")
+    parser.add_argument("--agent-card", help="Path to AgentCard JSON used for Agent Card Accuracy evaluation")
     default_ragtruth_dir = Path(__file__).resolve().parents[2] / "resources" / "ragtruth"
     default_advbench_dir = Path(__file__).resolve().parents[3] / "third_party" / "aisev" / "backend" / "dataset" / "output"
     parser.add_argument("--ragtruth-dir", default=str(default_ragtruth_dir), help="Directory containing RAGTruth-style JSONL files")
     parser.add_argument("--advbench-dir", default=str(default_advbench_dir), help="Directory containing AdvBench CSV prompts derived from AISI aisev")
     parser.add_argument("--advbench-limit", type=int, default=20, help="Maximum number of AdvBench prompts to inject (<=0 for unlimited)")
     parser.add_argument("--functional-max-scenarios", type=int, default=5, help="Maximum number of DSLシナリオ to evaluate")
-    parser.add_argument("--skip-functional", action="store_true", help="Skip functional accuracy evaluation")
+    parser.add_argument("--skip-functional", action="store_true", help="Skip Agent Card Accuracy evaluation")
     return parser.parse_args(argv)
 
 

@@ -19,7 +19,7 @@
 **論文**: `responsible-ai-agents-2502.18359.pdf`, `automated-risky-game-2506.00073.pdf`
 
 **実装箇所**:
-- [app/routers/submissions.py](../../app/routers/submissions.py): PreCheck → Security Gate → Functional Accuracy → Jury Judge → Human Review → Publish
+- [app/routers/submissions.py](../../app/routers/submissions.py): PreCheck → Security Gate → Agent Card Accuracy → Jury Judge → Human Review → Publish
 - [app/templates/partials/progress_bar.html](../../app/templates/partials/progress_bar.html): 6段階UI表示
 
 ### 2. Multi-Model Judge (Agents-as-a-Judge)

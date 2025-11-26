@@ -152,7 +152,7 @@ submission詳細ページから「📊 View in W&B Weave」リンクでアクセ
 ## 🔗 統合
 
 Trusted Agent Hubの`app/routers/submissions.py`から呼び出されます:
-- Functional Accuracyステージ後に自動実行
+- Agent Card Accuracyステージ後に自動実行
 - Google ADK, Anthropic Computer Useと統合
 - リトライ機能とエラーハンドリング
 - 結果は`score_breakdown.judge`に保存

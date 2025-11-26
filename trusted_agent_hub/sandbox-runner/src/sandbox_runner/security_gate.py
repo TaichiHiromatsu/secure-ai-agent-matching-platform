@@ -317,18 +317,33 @@ def invoke_endpoint(
   user_id: Optional[str] = None
 ) -> str:
   """
-  Invoke agent endpoint. Supports both A2A Protocol (using RemoteA2aAgent) and legacy formats.
+  Invoke agent endpoint for SINGLE-TURN interactions only.
 
-  A2A Protocol: Uses Google ADK's RemoteA2aAgent for proper A2A Protocol communication.
-  Legacy format: Direct HTTP POST with {"prompt": "..."} format.
+  **IMPORTANT**: This function creates a NEW session for each invocation and is NOT
+  suitable for multi-turn dialogues where conversation context needs to be preserved.
+
+  For multi-turn dialogues, use `invoke_multiturn_dialogue()` from capability_validation.py
+  instead, which maintains a persistent session across all dialogue turns.
+
+  Supports both A2A Protocol (using RemoteA2aAgent) and legacy formats:
+  - A2A Protocol: Uses Google ADK's RemoteA2aAgent for proper A2A Protocol communication.
+  - Legacy format: Direct HTTP POST with {"prompt": "..."} format.
 
   Args:
     endpoint_url: URL of the agent endpoint
     prompt_text: Prompt to send to the agent
     timeout: Timeout in seconds
     token: Optional authentication token
-    session_id: Optional session ID (defaults to generated UUID if not provided)
+    session_id: Optional session ID for tracking/logging (note: a new internal
+                session is created for each call regardless of this parameter)
     user_id: Optional user ID (defaults to "security-gate" if not provided)
+
+  Returns:
+    Agent's response text
+
+  Note:
+    Each call to this function creates a fresh InMemorySessionService and a new
+    session_id internally, so the agent will have no memory of previous calls.
   """
   # Detect A2A Protocol endpoint (contains /a2a/ in URL)
   is_a2a = "/a2a/" in endpoint_url
@@ -377,8 +392,8 @@ def invoke_endpoint(
           parsed_url = urlparse(normalized_endpoint_url)
 
         # Get agent card URL - use the normalized endpoint_url
-        # A2A Protocol spec: agent cards are at /.well-known/agent-card.json
-        card_url = f"{normalized_endpoint_url.rstrip('/')}/.well-known/agent-card.json"
+        # A2A Protocol spec: agent cards are at /.well-known/agent.json
+        card_url = f"{normalized_endpoint_url.rstrip('/')}/.well-known/agent.json"
 
         print(f"[DEBUG] Invoking A2A agent {agent_name} at {normalized_endpoint_url}")
         print(f"[DEBUG] Agent card URL: {card_url}")
@@ -1197,8 +1212,8 @@ def run_security_gate(
       ))
 
       async with httpx.AsyncClient(timeout=timeout + 5) as client:
-        # A2A Protocol spec: agent cards are at /.well-known/agent-card.json
-        card_url = f"{normalized_endpoint_url.rstrip('/')}/.well-known/agent-card.json"
+        # A2A Protocol spec: agent cards are at /.well-known/agent.json
+        card_url = f"{normalized_endpoint_url.rstrip('/')}/.well-known/agent.json"
         try:
           card_response = await client.get(card_url)
           card_response.raise_for_status()

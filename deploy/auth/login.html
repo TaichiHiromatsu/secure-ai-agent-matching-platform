@@ -96,10 +96,24 @@
     });
 
     // Check if already logged in
+    // Prevent redirect loop: only redirect if not coming from a failed auth attempt
     firebase.auth().onAuthStateChanged(function(user) {
       if (user) {
+        // Check if we're in a redirect loop (came from / within last 5 seconds)
+        const redirectLoop = sessionStorage.getItem('auth_redirect_time');
+        const now = Date.now();
+        if (redirectLoop && (now - parseInt(redirectLoop)) < 5000) {
+          // In redirect loop - don't redirect again, show error
+          console.warn('Redirect loop detected, staying on login page');
+          document.getElementById('error-message').textContent = 'Authentication service unavailable. Please try again later or contact administrator.';
+          document.getElementById('error-message').style.display = 'block';
+          sessionStorage.removeItem('auth_redirect_time');
+          return;
+        }
+
         user.getIdToken(true).then(function(idToken) {
           document.cookie = `session=${idToken}; path=/; max-age=3600; SameSite=Lax`;
+          sessionStorage.setItem('auth_redirect_time', now.toString());
           window.location.href = '/';
         });
       }

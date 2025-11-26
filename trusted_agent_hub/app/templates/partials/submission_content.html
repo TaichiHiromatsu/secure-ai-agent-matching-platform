@@ -100,7 +100,7 @@
             <div class="mb-3 text-xs text-gray-500">
                 <p>Project: {{ submission.score_breakdown.wandb.project }}</p>
                 <p>Entity: {{ submission.score_breakdown.wandb.entity }}</p>
-                <p class="mt-2 text-xs">Track LLM evaluations across Jury Judge, Security Gate, and Agent Card Capability Check stages</p>
+                <p class="mt-2 text-xs">Track LLM evaluations across Jury Judge, Security Gate, and Agent Card Accuracy stages</p>
             </div>
             <a href="https://wandb.ai/{{ submission.score_breakdown.wandb.entity }}/{{ submission.score_breakdown.wandb.project }}/weave" target="_blank" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded inline-flex items-center justify-center transition duration-150 ease-in-out shadow-sm w-full">
                 <span>Open Weave Traces</span>
@@ -353,10 +353,10 @@
         <p class="ml-7 text-sm text-gray-500">No security test results available</p>
         {% endif %}
     </details>
-    <!-- Agent Card Capability Check -->
+    <!-- Agent Card Accuracy -->
     <details id="details-functional" class="mb-6 bg-gray-50 p-4 rounded-lg">
         <summary class="text-lg font-semibold mb-2 flex items-center cursor-pointer">
-            <span class="mr-2">📋</span> Agent Card Capability Check
+            <span class="mr-2">📋</span> Agent Card Accuracy
         </summary>
         {% if submission.score_breakdown.functional_summary %}
         <div class="ml-7 space-y-4 mt-2">
@@ -380,43 +380,6 @@
                 </div>
             </div>
 
-            <!-- AdvBench Information -->
-            <div class="border-t pt-4">
-                <h4 class="font-semibold mb-2">AdvBench Configuration</h4>
-                <div class="grid grid-cols-3 gap-4 text-sm">
-                    <div>
-                        <span class="text-gray-500">AdvBench Scenarios:</span>
-                        <span class="font-medium ml-2">{{ submission.score_breakdown.functional_summary.advbenchScenarios or 0 }}</span>
-                    </div>
-                    <div>
-                        <span class="text-gray-500">AdvBench Limit:</span>
-                        <span class="font-medium ml-2">{{ submission.score_breakdown.functional_summary.advbenchLimit or "Unlimited" }}</span>
-                    </div>
-                    <div>
-                        <span class="text-gray-500">RAGTruth Records:</span>
-                        <span class="font-medium ml-2">{{ submission.score_breakdown.functional_summary.ragtruthRecords or 0 }}</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Distance Scores -->
-            <div class="border-t pt-4">
-                <h4 class="font-semibold mb-2">Semantic Similarity Scores</h4>
-                <div class="grid grid-cols-3 gap-4 text-sm">
-                    <div>
-                        <span class="text-gray-500">Average Distance:</span>
-                        <span class="font-medium ml-2">{{ "%.4f"|format(submission.score_breakdown.functional_summary.averageDistance) if submission.score_breakdown.functional_summary.averageDistance is not none else "N/A" }}</span>
-                    </div>
-                    <div>
-                        <span class="text-gray-500">Embedding Avg:</span>
-                        <span class="font-medium ml-2">{{ "%.4f"|format(submission.score_breakdown.functional_summary.embeddingAverageDistance) if submission.score_breakdown.functional_summary.embeddingAverageDistance is not none else "N/A" }}</span>
-                    </div>
-                    <div>
-                        <span class="text-gray-500">Embedding Max:</span>
-                        <span class="font-medium ml-2">{{ "%.4f"|format(submission.score_breakdown.functional_summary.embeddingMaxDistance) if submission.score_breakdown.functional_summary.embeddingMaxDistance is not none else "N/A" }}</span>
-                    </div>
-                </div>
-            </div>
             <!-- Evaluation Mode Indicator -->
             <div class="border-t pt-4">
                 <h4 class="font-semibold mb-2">🔧 評価モード</h4>
@@ -466,13 +429,13 @@
                         </div>
                         <div class="text-xs text-gray-600 mb-2">
                             Distance: {{ "%.4f"|format(scenario.evaluation.distance) if scenario.evaluation.distance is not none else '-' }}
-                            {% if scenario.evaluation.topic_relevance is not none %}
-                            | Topic Relevance: {{ "%.4f"|format(scenario.evaluation.topic_relevance) }}
+                            {% if scenario.evaluation.get('topic_relevance') is not none %}
+                            | Topic Relevance: {{ '✓' if scenario.evaluation.topic_relevance else '✗' }}
                             {% endif %}
-                            {% if scenario.evaluation.dialogue_progress is not none %}
-                            | Dialogue Progress: {{ "%.4f"|format(scenario.evaluation.dialogue_progress) }}
+                            {% if scenario.evaluation.get('dialogue_progress') is not none %}
+                            | Dialogue Progress: {{ '✓' if scenario.evaluation.dialogue_progress else '✗' }}
                             {% endif %}
-                            {% if scenario.evaluation.total_turns %}
+                            {% if scenario.evaluation.get('total_turns') %}
                             | Turns: {{ scenario.evaluation.total_turns }}
                             {% endif %}
                         </div>

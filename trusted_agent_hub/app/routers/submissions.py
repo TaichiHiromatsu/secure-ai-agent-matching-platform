@@ -532,14 +532,14 @@ def process_submission(submission_id: str):
 
         # --- 2. Functional Check ---
         if stages_cfg["functional"]:
-            print(f"Running Agent Card Capability Check for submission {submission_id}")
+            print(f"Running Agent Card Accuracy for submission {submission_id}")
             current_breakdown = dict(submission.score_breakdown)
             if "stages" not in current_breakdown:
                 current_breakdown["stages"] = {}
             current_breakdown["stages"]["functional"] = {
                 "status": "running",
                 "attempts": 1,
-                "message": "Agent Card Capability Check is running..."
+                "message": "Agent Card Accuracy is running..."
             }
             submission.score_breakdown = current_breakdown
             submission.state = "capability_validation_running"
@@ -560,7 +560,10 @@ def process_submission(submission_id: str):
                 endpoint_token=None,
                 timeout=20.0,
                 session_id=submission.id,
-                user_id="functional-accuracy"
+                user_id="functional-accuracy",
+                use_multiturn=os.getenv("FUNCTIONAL_USE_MULTITURN", "true").lower() == "true",
+                max_turns=int(os.getenv("FUNCTIONAL_MAX_TURNS", "5")),
+                use_adk_generator=os.getenv("FUNCTIONAL_USE_ADK_GENERATOR", "false").lower() == "true"
             )
 
             wandb_mcp.log_stage_summary("functional", functional_summary)
@@ -573,7 +576,7 @@ def process_submission(submission_id: str):
             current_breakdown["stages"]["functional"] = {
                 "status": "skipped",
                 "attempts": 0,
-                "message": "Agent Card Capability Check skipped by selection",
+                "message": "Agent Card Accuracy skipped by selection",
                 "warnings": []
             }
             submission.score_breakdown = current_breakdown
@@ -679,7 +682,7 @@ def process_submission(submission_id: str):
         current_breakdown["stages"]["functional"] = {
             "status": "completed" if stages_cfg["functional"] else "skipped",
             "attempts": 1 if stages_cfg["functional"] else 0,
-            "message": f"Functional Accuracy completed: {passed_scenarios}/{total_scenarios} passed" if stages_cfg["functional"] else "Functional Accuracy skipped by selection",
+            "message": f"Agent Card Accuracy completed: {passed_scenarios}/{total_scenarios} passed" if stages_cfg["functional"] else "Agent Card Accuracy skipped by selection",
             "warnings": [f"{needs_review_scenarios} scenarios need review"] if needs_review_scenarios > 0 else []
         }
 
@@ -698,7 +701,7 @@ def process_submission(submission_id: str):
         submission.state = "functional_accuracy_completed"
         submission.updated_at = datetime.utcnow()
         db.commit()
-        print(f"Functional Accuracy completed for submission {submission_id}, score: {functional_score}, total trust: {submission.trust_score}")
+        print(f"Agent Card Accuracy completed for submission {submission_id}, score: {functional_score}, total trust: {submission.trust_score}")
 
         # --- 3. Judge Panel ---
         if stages_cfg["judge"]:

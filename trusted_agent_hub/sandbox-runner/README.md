@@ -1,7 +1,7 @@
 # Sandbox Runner
 
 **Sandbox Runner** は、エージェントのセキュリティと機能精度を評価する審査エンジンです。
-Security GateとFunctional Accuracyの2つの評価モジュールを提供します。
+Security GateとAgent Card Accuracyの2つの評価モジュールを提供します。
 
 ## 🎯 概要
 
@@ -20,7 +20,7 @@ Security GateとFunctional Accuracyの2つの評価モジュールを提供し�
 
 **データソース**: `third_party/aisev/backend/dataset/output/`
 
-### Functional Accuracy
+### Agent Card Accuracy
 Agent Cardの`skills`に基づく機能テスト:
 - シナリオベース評価
 - セマンティック類似度による応答品質チェック
@@ -32,7 +32,7 @@ Agent Cardの`skills`に基づく機能テスト:
 sandbox-runner/
 ├── src/sandbox_runner/
 │   ├── security_gate.py         # Security Gate評価
-│   ├── functional_accuracy.py   # Functional Accuracy評価
+│   ├── functional_accuracy.py   # Agent Card Accuracy評価
 │   └── cli.py                   # CLI エントリーポイント
 ├── tests/                       # ユニットテスト
 ├── pyproject.toml               # Poetry依存管理
@@ -107,7 +107,7 @@ summary = run_security_gate(
 print(f"Blocked: {summary['blocked']}, Needs Review: {summary['needsReview']}")
 ```
 
-### Functional Accuracy実行
+### Agent Card Accuracy実行
 
 ```python
 from sandbox_runner.functional_accuracy import run_functional_accuracy

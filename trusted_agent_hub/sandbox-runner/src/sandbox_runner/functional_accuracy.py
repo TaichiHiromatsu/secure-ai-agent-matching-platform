@@ -7,17 +7,10 @@ import math
 import os
 import random
 import time
-import uuid
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Tuple
-from urllib.parse import urlparse, urlunparse
-
-from google.adk.agents.remote_a2a_agent import RemoteA2aAgent
-from google.adk import Runner
-from google.adk.sessions.in_memory_session_service import InMemorySessionService
-import google.genai.types as types
+from typing import Any, Dict, Iterable, List, Optional
 
 from .security_gate import invoke_endpoint
 
@@ -89,7 +82,7 @@ def generate_scenarios_with_question_generator(
 
     from inspect_worker.question_generator import AgentQuestionGenerator
 
-    generator = AgentQuestionGenerator(model_name="gemini-2.5-flash", use_agent=True)
+    generator = AgentQuestionGenerator(model_name="gemini-2.0-flash-exp", use_agent=True)
     question_specs = generator.generate_questions(card_path, max_questions=max_scenarios)
 
     scenarios: List[Scenario] = []
@@ -579,9 +572,9 @@ def evaluate_response(expected: str, response: Optional[str], threshold: float =
   }
 
 
-def _is_task_completed(response: str, use_case: str = "") -> bool:
+def _is_goal_achieved(response: str, use_case: str) -> bool:
   """
-  Simple heuristic to detect if the agent has completed the task.
+  Simple heuristic to detect if the agent has achieved the goal.
   Looks for completion indicators in the response.
   """
   completion_keywords = [
@@ -602,318 +595,27 @@ def _is_task_completed(response: str, use_case: str = "") -> bool:
   return False
 
 
-async def invoke_multiturn_dialogue(
-    endpoint_url: str,
-    initial_prompt: str,
-    use_case: str,
-    max_turns: int = 5,
-    timeout: float = 20.0,
-    session_id: Optional[str] = None,
-    user_id: Optional[str] = None
-) -> Dict[str, Any]:
+def _generate_next_prompt(turn_number: int, previous_response: str, use_case: str) -> str:
   """
-  Execute a multi-turn dialogue with an A2A agent, maintaining conversation context.
-
-  This function creates a persistent session across all dialogue turns, allowing the
-  agent to remember previous exchanges and build upon them naturally.
-
-  Args:
-      endpoint_url: A2A agent endpoint URL
-      initial_prompt: First user message to start the dialogue
-      use_case: Description of the use case being tested
-      max_turns: Maximum number of dialogue turns (default: 5)
-      timeout: Timeout for each agent response (default: 20.0 seconds)
-      session_id: Optional session ID for tracking (used for logging)
-      user_id: Optional user ID (default: "functional-accuracy")
-
-  Returns:
-      Dictionary containing:
-          - dialogue_history: List of {turn, user, agent} dictionaries
-          - total_turns: Number of turns executed
-          - task_completed: Whether the task was completed
-          - final_response: Last agent response
-          - error: Error message if any
+  Generate the next user prompt based on the agent's previous response.
+  Simple rule-based approach.
   """
-  if user_id is None:
-    user_id = "functional-accuracy"
-
-  dialogue_history = []
-  task_completed = False
-  error_message = None
-
-  try:
-    # Normalize endpoint URL for Docker networking
-    parsed = urlparse(endpoint_url)
-    if parsed.hostname in ("0.0.0.0", "localhost", "127.0.0.1"):
-      service_name = "host.docker.internal"
-      port = parsed.port or 8002
-      netloc = f"{service_name}:{port}"
-      endpoint_url = urlunparse((parsed.scheme, netloc, parsed.path, parsed.params, parsed.query, parsed.fragment))
-      logger.info(f"Normalized endpoint URL for multi-turn dialogue: {endpoint_url}")
-
-    # Fetch agent card from the endpoint
-    import httpx
-    import tempfile
-    import json
-
-    # Construct agent card URL from endpoint URL
-    parsed_url = urlparse(endpoint_url)
-    card_url = f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path}/.well-known/agent.json"
-
-    logger.info(f"Fetching agent card from: {card_url}")
-
-    try:
-      # Use synchronous httpx client to avoid event loop conflict
-      with httpx.Client(timeout=10.0) as client:
-        response = client.get(card_url)
-        response.raise_for_status()
-        agent_card_data = response.json()
-
-      # Fix agent card URL if needed (replace 0.0.0.0 with correct hostname)
-      if "url" in agent_card_data and "0.0.0.0" in agent_card_data["url"]:
-        agent_card_data["url"] = agent_card_data["url"].replace("0.0.0.0", parsed_url.hostname)
-        logger.info(f"Fixed agent card URL: {agent_card_data['url']}")
-
-      # Save agent card to temporary file
-      with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
-        json.dump(agent_card_data, f)
-        temp_card_path = f.name
-
-      logger.info(f"Saved agent card to: {temp_card_path}")
-
-    except Exception as e:
-      error_msg = f"Failed to fetch agent card: {str(e)}"
-      logger.error(error_msg)
-      return {
-        "dialogue_history": [],
-        "total_turns": 0,
-        "task_completed": False,
-        "final_response": "",
-        "error": error_msg
-      }
-
-    # Create RemoteA2aAgent - this will be reused across all turns
-    remote_agent = RemoteA2aAgent(
-      name="multiturn_test_agent",
-      agent_card=temp_card_path,
-      timeout=timeout
-    )
-
-    # Create session service and runner ONCE for the entire dialogue
-    session_service = InMemorySessionService()
-    runner = Runner(
-      agent=remote_agent,
-      app_name="multiturn_capability_check",
-      session_service=session_service
-    )
-
-    # Generate a single session_id for the entire dialogue
-    dialogue_session_id = f"multiturn-{uuid.uuid4().hex[:8]}"
-
-    # Create session ONCE
-    session_service.create_session_sync(
-      app_name="multiturn_capability_check",
-      user_id=user_id,
-      session_id=dialogue_session_id,
-      state={}
-    )
-
-    logger.info(f"Starting multi-turn dialogue with session_id={dialogue_session_id}, max_turns={max_turns}")
-
-    current_prompt = initial_prompt
-
-    for turn in range(1, max_turns + 1):
-      logger.info(f"Turn {turn}/{max_turns}: User says: {current_prompt[:100]}...")
-
-      # Create message for this turn
-      new_message = types.Content(
-        parts=[types.Part(text=current_prompt)],
-        role="user"
-      )
-
-      agent_response = ""
-
-      # Run agent with the SAME session_id - this maintains conversation context
-      try:
-        async for event in runner.run_async(
-          user_id=user_id,
-          session_id=dialogue_session_id,  # Same session across all turns!
-          new_message=new_message
-        ):
-          if hasattr(event, 'content') and event.content and hasattr(event.content, 'parts'):
-            for part in event.content.parts:
-              if hasattr(part, 'text') and part.text:
-                agent_response += part.text
-      except Exception as e:
-        logger.error(f"Turn {turn} failed: {e}")
-        agent_response = f"[Error: {str(e)}]"
-        error_message = str(e)
-        break
-
-      logger.info(f"Turn {turn}/{max_turns}: Agent says: {agent_response[:100]}...")
-
-      # Record this turn in dialogue history
-      dialogue_history.append({
-        "turn": turn,
-        "user": current_prompt,
-        "agent": agent_response
-      })
-
-      # Check if task is completed
-      if _is_task_completed(agent_response):
-        logger.info(f"Task completed at turn {turn}")
-        task_completed = True
-        break
-
-      # Check if we've reached max turns
-      if turn >= max_turns:
-        logger.info(f"Reached max turns ({max_turns})")
-        break
-
-      # Generate next user response based on conversation context
-      next_prompt, should_end = await _generate_contextual_user_response(
-        dialogue_history=dialogue_history,
-        use_case=use_case
-      )
-
-      if should_end:
-        logger.info("User decided to end dialogue")
-        break
-
-      current_prompt = next_prompt
-
-  except Exception as e:
-    logger.error(f"Multi-turn dialogue failed: {e}")
-    error_message = str(e)
-
-  return {
-    "dialogue_history": dialogue_history,
-    "total_turns": len(dialogue_history),
-    "task_completed": task_completed,
-    "final_response": dialogue_history[-1]["agent"] if dialogue_history else "",
-    "error": error_message
-  }
-
-
-async def _generate_contextual_user_response(
-    dialogue_history: List[Dict[str, Any]],
-    use_case: str,
-    model_name: str = "gemini-2.5-flash"
-) -> Tuple[str, bool]:
-  """
-  Generate a contextually appropriate user response using an LLM.
-
-  This function uses Gemini to understand the conversation context and generate
-  a natural user response that:
-  - Answers agent's questions appropriately
-  - Doesn't repeat information already provided
-  - Progresses the conversation towards task completion
-
-  Args:
-      dialogue_history: List of previous dialogue turns
-      use_case: Description of what the user wants to accomplish
-      model_name: LLM model to use (default: gemini-2.5-flash)
-
-  Returns:
-      Tuple of (response_text, should_end_dialogue)
-  """
-  import google.generativeai as genai
-
-  # Format conversation history for the LLM
-  conversation_text = "\n\n".join([
-    f"Turn {turn['turn']}:\nUser: {turn['user']}\nAgent: {turn['agent']}"
-    for turn in dialogue_history
-  ])
-
-  # Get the latest agent response
-  latest_agent_response = dialogue_history[-1]["agent"] if dialogue_history else ""
-
-  # Construct prompt for the LLM
-  system_prompt = f"""あなたは対話評価システムのユーザーシミュレーターです。
-
-【ユースケース】
-{use_case}
-
-【これまでの対話履歴】
-{conversation_text}
-
-【あなたの役割】
-1. 最新のエージェントの応答を理解する
-2. 対話の文脈を考慮し、自然なユーザー応答を生成する
-3. 既に提供した情報は繰り返さない
-4. エージェントの質問には具体的に答える
-5. タスク完了に向けて対話を進める
-
-【応答形式】
-以下のJSON形式で応答してください：
-{{
-  "user_response": "ユーザーの次の発言",
-  "reasoning": "この応答を選んだ理由",
-  "should_end": false
-}}
-
-should_endは、タスクが完了したと判断した場合にtrueにしてください。
-
-エージェントの最新の応答: {latest_agent_response}
-
-上記を踏まえて、自然で文脈に沿ったユーザー応答を生成してください。"""
-
-  try:
-    # Initialize Gemini
-    api_key = os.getenv("GOOGLE_API_KEY")
-    if not api_key:
-      logger.warning("GOOGLE_API_KEY not set, using fallback response generation")
-      return _generate_fallback_response(latest_agent_response), False
-
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel(model_name)
-
-    # Generate response
-    response = model.generate_content(system_prompt)
-    response_text = response.text
-
-    # Parse JSON response
-    try:
-      # Extract JSON from response (handle markdown code blocks)
-      if "```json" in response_text:
-        json_start = response_text.find("```json") + 7
-        json_end = response_text.find("```", json_start)
-        response_text = response_text[json_start:json_end].strip()
-      elif "```" in response_text:
-        json_start = response_text.find("```") + 3
-        json_end = response_text.find("```", json_start)
-        response_text = response_text[json_start:json_end].strip()
-
-      parsed = json.loads(response_text)
-      user_response = parsed.get("user_response", "")
-      should_end = parsed.get("should_end", False)
-      reasoning = parsed.get("reasoning", "")
-
-      logger.info(f"Generated user response: {user_response} (reasoning: {reasoning})")
-
-      return user_response, should_end
-
-    except json.JSONDecodeError as e:
-      logger.warning(f"Failed to parse LLM JSON response: {e}, using fallback")
-      return _generate_fallback_response(latest_agent_response), False
-
-  except Exception as e:
-    logger.error(f"LLM response generation failed: {e}, using fallback")
-    return _generate_fallback_response(latest_agent_response), False
-
-
-def _generate_fallback_response(agent_response: str) -> str:
-  """Generate a simple fallback response when LLM is unavailable."""
-  if "?" in agent_response or "ください" in agent_response:
-    if "出発" in agent_response or "目的地" in agent_response:
+  # Look for questions in the previous response
+  if "?" in previous_response or "ください" in previous_response or "教えて" in previous_response:
+    # Agent is asking for information - provide generic answers
+    if "出発" in previous_response or "目的地" in previous_response:
       return "東京から大阪です"
-    elif "日時" in agent_response or "いつ" in agent_response:
+    elif "日時" in previous_response or "いつ" in previous_response:
       return "明日の午前中でお願いします"
-    elif "人数" in agent_response:
+    elif "人数" in previous_response or "何名" in previous_response:
       return "2名です"
+    elif "予算" in previous_response or "価格" in previous_response:
+      return "予算は特に決めていません"
     else:
-      return "はい、お願いします"
+      # Generic information provision
+      return "はい、それでお願いします"
   else:
+    # Agent provided information - ask for confirmation or next step
     return "わかりました。それで進めてください"
 
 
@@ -1037,68 +739,75 @@ def run_functional_accuracy(
 
       # Execute evaluation based on mode
       if use_multiturn:
-        # Multi-turn dialogue evaluation using new implementation
-        import asyncio
+        # Multi-turn dialogue evaluation
+        dialogue_turns: List[DialogueTurn] = []
+        current_prompt = scenario.prompt
+        status = "ok"
+        error_text = None
 
-        if dry_run or not endpoint_url:
-          # Dry run mode: simulate simple dialogue
-          dialogue_result = {
-            "dialogue_history": [
-              {"turn": 1, "user": scenario.prompt, "agent": "(dry-run) 必要な情報を教えてください。"},
-              {"turn": 2, "user": "東京から大阪です", "agent": "(dry-run) ご希望の日時を教えてください。"},
-              {"turn": 3, "user": "明日の午前中", "agent": f"(dry-run) {scenario.use_case}を完了しました。"}
-            ],
-            "total_turns": 3,
-            "task_completed": True,
-            "final_response": f"(dry-run) {scenario.use_case}を完了しました。",
-            "error": None
-          }
-        else:
-          # Real multi-turn dialogue with context preservation
-          dialogue_result = asyncio.run(invoke_multiturn_dialogue(
-            endpoint_url=endpoint_url,
-            initial_prompt=scenario.prompt,
-            use_case=scenario.use_case,
-            max_turns=max_turns,
-            timeout=timeout,
-            session_id=session_id,
-            user_id=user_id
+        for turn_num in range(1, max_turns + 1):
+          if dry_run or not endpoint_url:
+            # Dry run mode: simulate dialogue
+            if turn_num == 1:
+              response_text = "(dry-run) 必要な情報を教えてください。出発地と目的地はどちらですか？"
+            elif turn_num == 2:
+              response_text = "(dry-run) ご希望の日時を教えてください。"
+            else:
+              response_text = f"(dry-run) {scenario.use_case}を完了しました。"
+              dialogue_turns.append(DialogueTurn(
+                user_message=current_prompt,
+                agent_response=response_text,
+                turn_number=turn_num
+              ))
+              break
+          else:
+            try:
+              response_text = invoke_endpoint(
+                endpoint_url,
+                current_prompt,
+                timeout=timeout,
+                token=endpoint_token,
+                session_id=session_id,
+                user_id=user_id
+              )
+            except Exception as exc:
+              status = "error"
+              error_text = str(exc)[:300]
+              break
+
+          dialogue_turns.append(DialogueTurn(
+            user_message=current_prompt,
+            agent_response=response_text,
+            turn_number=turn_num
           ))
 
-        # Check if dialogue had errors
-        if dialogue_result.get("error"):
+          # Check if goal is achieved (simple heuristic: look for completion indicators)
+          if _is_goal_achieved(response_text, scenario.use_case):
+            logger.info(f"Goal achieved at turn {turn_num} for scenario {scenario.id}")
+            break
+
+          # Generate next turn prompt (simple approach)
+          current_prompt = _generate_next_prompt(turn_num, response_text, scenario.use_case)
+
+        # Evaluate entire dialogue
+        if status == "error":
           evaluation = {
             "task_completion": 0.0,
             "dialogue_naturalness": 0.0,
             "information_gathering": 0.0,
             "verdict": "error",
             "distance": 1.0,
-            "errors": [dialogue_result["error"]],
-            "rationale": f"Dialogue error: {dialogue_result['error']}"
+            "errors": [error_text],
+            "rationale": f"Dialogue error: {error_text}"
           }
           error_count += 1
-          response_text = dialogue_result.get("final_response", "(error)")
-          status = "error"
-          error_text = dialogue_result["error"]
         else:
-          # Convert dialogue_history to DialogueTurn objects for evaluator
-          dialogue_turns = [
-            DialogueTurn(
-              user_message=turn["user"],
-              agent_response=turn["agent"],
-              turn_number=turn["turn"]
-            )
-            for turn in dialogue_result["dialogue_history"]
-          ]
-
-          # Evaluate entire dialogue
           multiturn_eval = multiturn_evaluator.evaluate_dialogue(
             use_case=scenario.use_case,
             expected_behavior=scenario.expected_answer,
             dialogue_turns=dialogue_turns,
             agent_card=card
           )
-
           # Convert multi-turn evaluation to standard format
           evaluation = {
             "similarity": multiturn_eval.get("confidence", 0.5),
@@ -1110,18 +819,18 @@ def run_functional_accuracy(
             "dialogue_naturalness": multiturn_eval.get("dialogue_naturalness", 0.0),
             "information_gathering": multiturn_eval.get("information_gathering", 0.0),
             "errors": multiturn_eval.get("errors", []),
-            "total_turns": dialogue_result["total_turns"],
-            "dialogue_history": dialogue_result["dialogue_history"]
+            "total_turns": len(dialogue_turns),
+            "dialogue_history": [
+              {"turn": t.turn_number, "user": t.user_message, "agent": t.agent_response}
+              for t in dialogue_turns
+            ]
           }
-
           if evaluation["verdict"] == "pass":
             passes += 1
           else:
             needs_review += 1
 
-          response_text = dialogue_result.get("final_response", "(no response)")
-          status = "success"
-          error_text = ""
+        response_text = dialogue_turns[-1].agent_response if dialogue_turns else "(no response)"
 
       else:
         # Single-turn evaluation (original behavior)
