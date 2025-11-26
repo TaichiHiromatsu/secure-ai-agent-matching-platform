@@ -1,15 +1,13 @@
 from fastapi import APIRouter, Depends, Request, HTTPException
-from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 from .. import models
 from ..database import get_db
+from ..dependencies import templates
 
 router = APIRouter(
     tags=["ui"],
 )
-
-templates = Jinja2Templates(directory="app/templates")
 
 @router.get("/submit", response_class=HTMLResponse)
 async def submit_page(request: Request):
