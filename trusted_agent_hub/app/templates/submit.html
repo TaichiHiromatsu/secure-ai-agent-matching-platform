@@ -101,7 +101,7 @@
                     const result = await response.json();
                     // alert('Submission successful!');
                     // Redirect to submission status page
-                    window.location.href = `/submissions/${result.id}/status`;
+                    window.location.href = `/agent-hub/submissions/${result.id}/status`;
                 } else {
                     const error = await response.json();
                     alert('Submission failed: ' + (error.detail || 'Unknown error'));

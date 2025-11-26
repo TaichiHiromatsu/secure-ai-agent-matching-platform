@@ -6,6 +6,7 @@ from ..database import get_db, SessionLocal
 import uuid
 import time
 import random
+import os
 
 router = APIRouter(
     prefix="/api/submissions",
@@ -282,7 +283,8 @@ def process_submission(submission_id: str):
             db.commit()
 
         # Setup paths
-        base_dir = Path("/app")
+        app_base_dir = os.getenv("APP_BASE_DIR", "/app")
+        base_dir = Path(app_base_dir) if app_base_dir else Path("/app")
         output_dir = base_dir / "data" / "artifacts" / submission_id
         output_dir.mkdir(parents=True, exist_ok=True)
 
