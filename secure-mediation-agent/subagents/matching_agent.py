@@ -23,9 +23,10 @@ from google.adk import Agent
 from google.genai import types
 
 # Agent Store API configuration
-# Default to localhost:8080 for development (trusted_agent_hub runs on 8080)
-# Override via environment variable for production
-AGENT_STORE_API_URL = os.getenv("AGENT_STORE_API_URL", "http://localhost:8080/api/agents")
+# Default to 127.0.0.1:8001 for container deployment (trusted_agent_hub internal port)
+# In Cloud Run container, nginx is on 8080, but trusted_agent_hub listens directly on 8001
+# Override via environment variable for different configurations
+AGENT_STORE_API_URL = os.getenv("AGENT_STORE_API_URL", "http://127.0.0.1:8001/api/agents")
 
 
 async def fetch_agent_card(agent_url: str) -> dict[str, Any]:
