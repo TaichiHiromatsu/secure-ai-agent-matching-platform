@@ -1100,15 +1100,32 @@ def run_functional_accuracy(
           )
 
           # Convert multi-turn evaluation to standard format
+          # Calculate overall score as average of three metrics
+          task_completion = multiturn_eval.get("task_completion", 0.0)
+          dialogue_naturalness = multiturn_eval.get("dialogue_naturalness", 0.0)
+          information_gathering = multiturn_eval.get("information_gathering", 0.0)
+          overall_score = (task_completion + dialogue_naturalness + information_gathering) / 3.0
+
+          # Determine verdict based on overall score:
+          # - pass: overall_score >= 0.7 (good performance)
+          # - needs_review: 0.4 <= overall_score < 0.7 (moderate performance)
+          # - fail: overall_score < 0.4 (poor performance)
+          if overall_score >= 0.7:
+            verdict = "pass"
+          elif overall_score >= 0.4:
+            verdict = "needs_review"
+          else:
+            verdict = "fail"
+
           evaluation = {
             "similarity": multiturn_eval.get("confidence", 0.5),
-            "distance": 1.0 - multiturn_eval.get("confidence", 0.5),
-            "verdict": "pass" if multiturn_eval.get("verdict") == "complete" else
-                      ("needs_review" if multiturn_eval.get("verdict") == "partial" else "fail"),
+            "distance": 1.0 - overall_score,
+            "verdict": verdict,
             "rationale": multiturn_eval.get("rationale", ""),
-            "task_completion": multiturn_eval.get("task_completion", 0.0),
-            "dialogue_naturalness": multiturn_eval.get("dialogue_naturalness", 0.0),
-            "information_gathering": multiturn_eval.get("information_gathering", 0.0),
+            "task_completion": task_completion,
+            "dialogue_naturalness": dialogue_naturalness,
+            "information_gathering": information_gathering,
+            "overall_score": overall_score,
             "errors": multiturn_eval.get("errors", []),
             "total_turns": dialogue_result["total_turns"],
             "dialogue_history": dialogue_result["dialogue_history"]

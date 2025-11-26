@@ -315,16 +315,20 @@
             <div class="border-t pt-4">
                 <h4 class="font-semibold mb-2">📋 確認ポイント (登録者向け)</h4>
                 <ul class="text-sm space-y-1 list-disc ml-5">
-                    <li>Security summaryのカテゴリ別結果と一覧に出力されたpromptsを確認し、想定した攻撃観点が網羅されているかを検証</li>
-                    <li>report/summaryでneedsReviewの有無とfail reasonsを確認</li>
+                    <li>多データセット攻撃プロンプト評価の結果を確認 (AISI Security/Toxic/Robustness/Fairness + AdvBench)</li>
+                    <li>優先度別・カテゴリ別の結果を確認し、想定した攻撃観点が網羅されているかを検証</li>
+                    <li>「要確認シナリオ」セクションでneeds_review項目の詳細を確認し、適切な拒否応答かを判断</li>
+                    <li>blocked/total の比率を確認し、セキュリティスコアの妥当性を評価</li>
                 </ul>
             </div>
 
             <div class="border-t pt-4">
                 <h4 class="font-semibold mb-2">🔧 確認ポイント (管理者向け)</h4>
                 <ul class="text-sm space-y-1 list-disc ml-5">
-                    <li>実行時のプロンプト（prompts artifact）とsecurity reportを開き、禁止語検出やrelayログのエラーをチェック</li>
-                    <li>Security ledger entryが送信済みか、必要なら再送</li>
+                    <li>security_report.jsonl を確認し、各プロンプトの詳細ログとLLM評価結果をレビュー</li>
+                    <li>信頼度(confidence)が0.5未満のエントリを特定し、再評価が必要か判断</li>
+                    <li>エンドポイント失敗(endpointFailures)やタイムアウト(timeoutFailures)の原因を調査</li>
+                    <li>エージェントコンテキスト適用により、専門分野外の要求が適切に識別されているか確認</li>
                 </ul>
             </div>
 
@@ -579,16 +583,21 @@
             <div class="border-t pt-4">
                 <h4 class="font-semibold mb-2">📋 確認ポイント (登録者向け)</h4>
                 <ul class="text-sm space-y-1 list-disc ml-5">
-                    <li>Functional summaryに記載されたpasses / needsReviewを確認し、AdvBenchを含むシナリオが期待どおりに取り込まれているか検証</li>
-                    <li>Semantic距離（averageDistance, embeddingAverageDistance）やRAGTruth期待値との一致度をチェック</li>
+                    <li>Agent Card skillsから自動生成されたシナリオの内容を確認し、期待する能力が適切にテストされているかを検証</li>
+                    <li>pass/needs_review/fail の判定理由を確認し、失敗シナリオの改善ポイントを特定</li>
+                    <li>Topic Relevance(話題関連性)とDialogue Progress(対話進展)の評価結果を確認</li>
+                    <li>距離メトリクス(averageDistance, similarity)を確認し、応答品質の定量評価を把握</li>
                 </ul>
             </div>
 
             <div class="border-t pt-4">
                 <h4 class="font-semibold mb-2">🔧 確認ポイント (管理者向け)</h4>
                 <ul class="text-sm space-y-1 list-disc ml-5">
-                    <li>Functional reportを開いてtopic/dialogue指標やerrorsを確認し、不具合があったシナリオをEvidenceとして保存</li>
-                    <li>AdvBenchとAgentCardのシナリオ構成を確認し、summaryでadvbenchScenariosが0でないことを確認</li>
+                    <li>functional_report.jsonl を確認し、5段階LLM評価(Intent/Topic/Dialogue/Error/Verdict)の詳細をレビュー</li>
+                    <li>質問形式の応答が「pass」と判定されているか確認(適切な対話継続として評価されるべき)</li>
+                    <li>RAGTruthデータセットとのマッチング結果を確認(期待答の設定に使用)</li>
+                    <li>エラー応答(responsesWithError)の内容を確認し、タイムアウトやエンドポイント問題を調査</li>
+                    <li>マルチターン対話評価モードが有効な場合、対話履歴の自然さと進展を確認</li>
                 </ul>
             </div>
 
@@ -847,16 +856,22 @@
             <div class="border-t pt-4">
                 <h4 class="font-semibold mb-2">📋 確認ポイント (登録者向け)</h4>
                 <ul class="text-sm space-y-1 list-disc ml-5">
-                    <li>Judge verdictがapprove/reject/manualのどれかを確認</li>
-                    <li>reject/manualの場合は、シナリオ詳細のLLM判定理由（Rationale）を確認し、改善点や反論材料を整理</li>
+                    <li>Plan/Counter/Reconcileの3ステージ評価結果を確認し、各段階での判定の変化を把握</li>
+                    <li>Counter Findingsセクションで指摘された問題点を確認し、Reconcileでどう対処されたかを理解</li>
+                    <li>各LLMモデル(GPT-4o, Claude Haiku, Gemini 2.5 Flash)の判定とMinority-Veto発動状況を確認</li>
+                    <li>AISI Inspect基準スコア(Task Completion/Tool Usage/Autonomy/Safety)の内訳を確認し、弱点を特定</li>
+                    <li>reject/manualの場合は、各LLMのRationaleを確認し、改善点や反論材料を整理</li>
                 </ul>
             </div>
 
             <div class="border-t pt-4">
                 <h4 class="font-semibold mb-2">🔧 確認ポイント (管理者向け)</h4>
                 <ul class="text-sm space-y-1 list-disc ml-5">
-                    <li>Judge reportを開き、各LLMのスコア分布やVeto発動状況を確認</li>
-                    <li>Manual reviewが必要なシナリオについて、人間の目で最終判断を下す</li>
+                    <li>judge_report.jsonl を確認し、各ステージの詳細評価とLLMモデル別のスコア分布をレビュー</li>
+                    <li>Minority-Veto閾値(デフォルト30%)が適切か評価し、必要に応じて環境変数で調整</li>
+                    <li>Plan/Counter/Reconcileの3ステージプロセスが正常に機能しているか確認</li>
+                    <li>Manual reviewが必要なシナリオについて、各LLMの判定理由を精査し、人間の目で最終判断を下す</li>
+                    <li>W&B Weave Tracesで詳細な実行ログとLLM呼び出しのトレースを確認</li>
                 </ul>
             </div>
 
