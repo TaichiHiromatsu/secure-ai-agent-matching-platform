@@ -212,7 +212,8 @@ def _execute_questions_a2a(
     netloc = f"{service_name}:{port}" if parsed.hostname == "0.0.0.0" else parsed.netloc
     normalized_endpoint = urlunparse((parsed.scheme, netloc, parsed.path, parsed.params, parsed.query, parsed.fragment))
 
-    card_url = f"{normalized_endpoint.rstrip('/')}/.well-known/agent.json"
+    # A2A Protocol spec: agent cards are at /.well-known/agent-card.json
+    card_url = f"{normalized_endpoint.rstrip('/')}/.well-known/agent-card.json"
     try:
         card_resp = httpx.get(card_url, timeout=10.0)
         card_resp.raise_for_status()
