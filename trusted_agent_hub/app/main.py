@@ -11,6 +11,10 @@ import os
 # Defaults to Docker structure, can be overridden via environment variable
 BASE_DIR = os.getenv("APP_BASE_DIR", "")
 
+# URL prefix for links when running behind a reverse proxy (e.g., /store in Cloud Run)
+# Empty string for local development, "/store" for Cloud Run deployment
+URL_PREFIX = os.getenv("URL_PREFIX", "")
+
 # Create tables
 Base.metadata.create_all(bind=engine)
 
@@ -23,6 +27,9 @@ app.mount("/static", StaticFiles(directory=static_dir), name="static")
 # Setup templates
 templates_dir = os.path.join(BASE_DIR, "app/templates") if BASE_DIR else "app/templates"
 templates = Jinja2Templates(directory=templates_dir)
+
+# Add URL_PREFIX as a global variable for all templates
+templates.env.globals["url_prefix"] = URL_PREFIX
 
 # Include routers
 app.include_router(submissions.router)
