@@ -53,34 +53,144 @@ def select_translation(card: Dict[str, Any]) -> Dict[str, Any]:
   }
 
 
-def generate_scenarios(card: Dict[str, Any], *, agent_id: str, revision: str, max_scenarios: int) -> List[Scenario]:
+def generate_scenarios_with_question_generator(
+  card_path: Path,
+  *,
+  agent_id: str,
+  revision: str,
+  max_scenarios: int
+) -> List[Scenario]:
+  """
+  Generate scenarios using AgentQuestionGenerator from inspect-worker.
+  This provides more sophisticated scenario generation using Google ADK.
+
+  Args:
+    card_path: Path to agent card file
+    agent_id: Agent ID
+    revision: Agent revision
+    max_scenarios: Maximum number of scenarios
+
+  Returns:
+    List of Scenario objects
+  """
+  try:
+    # Import AgentQuestionGenerator from inspect-worker
+    import sys
+    inspect_worker_path = Path(__file__).parent.parent.parent / "inspect-worker"
+    if str(inspect_worker_path) not in sys.path:
+      sys.path.insert(0, str(inspect_worker_path))
+
+    from inspect_worker.question_generator import AgentQuestionGenerator
+
+    generator = AgentQuestionGenerator(model_name="gemini-2.5-flash", use_agent=True)
+    question_specs = generator.generate_questions(card_path, max_questions=max_scenarios)
+
+    scenarios: List[Scenario] = []
+    for idx, q_spec in enumerate(question_specs):
+      scenarios.append(
+        Scenario(
+          id=f"{agent_id}-{revision}-adkgen-{idx+1}",
+          locale="ja-JP",
+          use_case=q_spec.use_case or q_spec.perspective,
+          prompt=q_spec.prompt,
+          expected_answer=q_spec.expected_behaviour
+        )
+      )
+
+    logger.info(f"Generated {len(scenarios)} scenarios using AgentQuestionGenerator (Google ADK)")
+    return scenarios
+
+  except Exception as e:
+    logger.warning(f"Failed to use AgentQuestionGenerator: {e}. Falling back to standard generation.")
+    # Fallback to standard scenario generation
+    card = load_agent_card(card_path)
+    return generate_scenarios(card, agent_id=agent_id, revision=revision, max_scenarios=max_scenarios)
+
+
+def generate_scenarios(card: Dict[str, Any], *, agent_id: str, revision: str, max_scenarios: int, use_enhanced: bool = True) -> List[Scenario]:
+  """
+  Generate evaluation scenarios from agent card.
+
+  Args:
+    card: Agent card dictionary (A2A Protocol or legacy format)
+    agent_id: Agent ID for scenario naming
+    revision: Agent revision
+    max_scenarios: Maximum number of scenarios to generate
+    use_enhanced: If True, use enhanced scenario generation with detailed skill descriptions
+
+  Returns:
+    List of Scenario objects
+  """
   translation = select_translation(card)
   locale = translation.get("locale", card.get("defaultLocale", "ja-JP"))
-  use_cases: List[str] = translation.get("useCases", [])
-  if not use_cases:
-    # fallback to capabilities if no useCases
-    use_cases = translation.get("capabilities", [])
 
-  # A2A Protocol: extract from skills if useCases is empty
-  if not use_cases:
-    skills = card.get("skills", [])
-    if isinstance(skills, list):
-      use_cases = [skill.get("name", "") for skill in skills if skill.get("name")]
+  # Extract skills with descriptions (A2A Protocol preferred)
+  skills = card.get("skills", [])
+  agent_description = card.get("description", "")
 
   scenarios: List[Scenario] = []
-  for idx, use_case in enumerate(use_cases[:max_scenarios]):
-    if not use_case:
-      continue
-    prompt = f"{use_case} に関するユーザーの質問に回答してください。"
-    scenarios.append(
-      Scenario(
-        id=f"{agent_id}-{revision}-scn-{idx+1}",
-        locale=locale,
-        use_case=use_case,
-        prompt=prompt,
-        expected_answer=""
+
+  if use_enhanced and skills:
+    # Enhanced scenario generation using skill descriptions
+    for idx, skill in enumerate(skills[:max_scenarios]):
+      if not skill or not skill.get("name"):
+        continue
+
+      skill_name = skill.get("name", "")
+      skill_description = skill.get("description", "")
+      skill_tags = skill.get("tags", [])
+
+      # Create detailed scenario prompt based on skill metadata
+      if skill_description:
+        # Use description to create more specific evaluation scenario
+        prompt = (
+          f"**シナリオ**: {skill_description}\n\n"
+          f"このシナリオに基づいて、{skill_name}を実行してください。"
+          "具体的な状況を説明し、ユーザーとして回答を求めてください。"
+        )
+        expected = (
+          f"{skill_description} に関して、適切な情報収集または具体的な提案を行う。"
+          f"エージェントカードに記載された {skill_name} の機能を正しく実行できることを示す。"
+        )
+      else:
+        # Fallback to skill name only
+        prompt = f"{skill_name} に関する具体的なシナリオを想定し、ユーザーとして質問してください。"
+        expected = f"{skill_name} に関して適切な応答を行う。"
+
+      scenarios.append(
+        Scenario(
+          id=f"{agent_id}-{revision}-skill-{idx+1}",
+          locale=locale,
+          use_case=skill_name,
+          prompt=prompt,
+          expected_answer=expected
+        )
       )
-    )
+  else:
+    # Legacy/fallback scenario generation using simple use cases
+    use_cases: List[str] = translation.get("useCases", [])
+    if not use_cases:
+      use_cases = translation.get("capabilities", [])
+
+    # A2A Protocol: extract from skills if useCases is empty
+    if not use_cases and skills:
+      if isinstance(skills, list):
+        use_cases = [skill.get("name", "") for skill in skills if skill.get("name")]
+
+    for idx, use_case in enumerate(use_cases[:max_scenarios]):
+      if not use_case:
+        continue
+      prompt = f"{use_case} に関するユーザーの質問に回答してください。"
+      scenarios.append(
+        Scenario(
+          id=f"{agent_id}-{revision}-scn-{idx+1}",
+          locale=locale,
+          use_case=use_case,
+          prompt=prompt,
+          expected_answer=""
+        )
+      )
+
   return scenarios
 
 
@@ -462,6 +572,53 @@ def evaluate_response(expected: str, response: Optional[str], threshold: float =
   }
 
 
+def _is_goal_achieved(response: str, use_case: str) -> bool:
+  """
+  Simple heuristic to detect if the agent has achieved the goal.
+  Looks for completion indicators in the response.
+  """
+  completion_keywords = [
+    "完了", "予約しました", "確認しました", "手続きが完了",
+    "ご案内します", "以上です", "よろしいでしょうか"
+  ]
+
+  # Check if response contains completion indicators
+  response_lower = response.lower()
+  for keyword in completion_keywords:
+    if keyword in response:
+      return True
+
+  # If response is long and detailed, it might be a final answer
+  if len(response) > 200:
+    return True
+
+  return False
+
+
+def _generate_next_prompt(turn_number: int, previous_response: str, use_case: str) -> str:
+  """
+  Generate the next user prompt based on the agent's previous response.
+  Simple rule-based approach.
+  """
+  # Look for questions in the previous response
+  if "?" in previous_response or "ください" in previous_response or "教えて" in previous_response:
+    # Agent is asking for information - provide generic answers
+    if "出発" in previous_response or "目的地" in previous_response:
+      return "東京から大阪です"
+    elif "日時" in previous_response or "いつ" in previous_response:
+      return "明日の午前中でお願いします"
+    elif "人数" in previous_response or "何名" in previous_response:
+      return "2名です"
+    elif "予算" in previous_response or "価格" in previous_response:
+      return "予算は特に決めていません"
+    else:
+      # Generic information provision
+      return "はい、それでお願いします"
+  else:
+    # Agent provided information - ask for confirmation or next step
+    return "わかりました。それで進めてください"
+
+
 def _execute_functional_prompt(
   prompt: str,
   *,
@@ -501,7 +658,10 @@ def run_functional_accuracy(
   endpoint_token: Optional[str],
   timeout: float,
   session_id: Optional[str] = None,
-  user_id: Optional[str] = None
+  user_id: Optional[str] = None,
+  use_multiturn: bool = False,
+  max_turns: int = 5,
+  use_adk_generator: bool = False
 ) -> Dict[str, Any]:
   """
   Run functional accuracy evaluation on an agent.
@@ -519,6 +679,9 @@ def run_functional_accuracy(
     timeout: Timeout for agent invocations
     session_id: Optional session ID (will be passed to invoke_endpoint)
     user_id: Optional user ID (defaults to "functional-accuracy")
+    use_multiturn: If True, use multi-turn dialogue evaluation
+    max_turns: Maximum number of dialogue turns (default: 5)
+    use_adk_generator: If True, use AgentQuestionGenerator for scenario creation
   """
   output_dir.mkdir(parents=True, exist_ok=True)
   if not agent_card_path.exists():
@@ -530,15 +693,31 @@ def run_functional_accuracy(
     (output_dir / "functional_summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
     return summary
 
-  card = load_agent_card(agent_card_path)
-  scenarios = generate_scenarios(card, agent_id=agent_id, revision=revision, max_scenarios=max_scenarios)
-  ragtruth_records = load_ragtruth(ragtruth_dir)
-  attach_expected_answers(scenarios, ragtruth_records)
+  # Generate scenarios using appropriate method
+  if use_adk_generator:
+    logger.info("Using AgentQuestionGenerator for scenario generation")
+    scenarios = generate_scenarios_with_question_generator(
+      agent_card_path,
+      agent_id=agent_id,
+      revision=revision,
+      max_scenarios=max_scenarios
+    )
+  else:
+    logger.info("Using standard scenario generation")
+    card = load_agent_card(agent_card_path)
+    scenarios = generate_scenarios(card, agent_id=agent_id, revision=revision, max_scenarios=max_scenarios)
+    ragtruth_records = load_ragtruth(ragtruth_dir)
+    attach_expected_answers(scenarios, ragtruth_records)
 
-  # Google ADKスタイルのエージェント評価器を初期化
-  # GOOGLE_API_KEY環境変数が必須
-  agent_evaluator = AgentResponseEvaluator()
-  logger.info(f"Functional Accuracy評価開始 (model: {agent_evaluator.model_name})")
+  card = load_agent_card(agent_card_path)  # Load card for evaluation context
+
+  # Initialize evaluators based on mode
+  if use_multiturn:
+    multiturn_evaluator = MultiTurnDialogueEvaluator()
+    logger.info(f"Multi-turn Capability Validation開始 (model: {multiturn_evaluator.model_name}, max_turns: {max_turns})")
+  else:
+    agent_evaluator = AgentResponseEvaluator()
+    logger.info(f"Capability Validation評価開始 (model: {agent_evaluator.model_name})")
 
   report_path = output_dir / "functional_report.jsonl"
   prompts_path = output_dir / "functional_scenarios.jsonl"
@@ -558,40 +737,138 @@ def run_functional_accuracy(
         logger.info(f"レート制限対策: 次の評価まで{wait_time}秒待機中 ({idx+1}/{len(scenarios)})")
         time.sleep(wait_time)
 
-      response_text, status, error_text = _execute_functional_prompt(
-        scenario.prompt,
-        endpoint_url=endpoint_url,
-        endpoint_token=endpoint_token,
-        timeout=timeout,
-        dry_run=dry_run or not endpoint_url,
-        session_id=session_id,
-        user_id=user_id
-      )
+      # Execute evaluation based on mode
+      if use_multiturn:
+        # Multi-turn dialogue evaluation
+        dialogue_turns: List[DialogueTurn] = []
+        current_prompt = scenario.prompt
+        status = "ok"
+        error_text = None
 
-      # エージェントベース評価を使用
-      evaluation = agent_evaluator.evaluate_response(
-        use_case=scenario.use_case,
-        expected_answer=scenario.expected_answer,
-        actual_response=response_text or "",
-        agent_card=card
-      )
+        for turn_num in range(1, max_turns + 1):
+          if dry_run or not endpoint_url:
+            # Dry run mode: simulate dialogue
+            if turn_num == 1:
+              response_text = "(dry-run) 必要な情報を教えてください。出発地と目的地はどちらですか？"
+            elif turn_num == 2:
+              response_text = "(dry-run) ご希望の日時を教えてください。"
+            else:
+              response_text = f"(dry-run) {scenario.use_case}を完了しました。"
+              dialogue_turns.append(DialogueTurn(
+                user_message=current_prompt,
+                agent_response=response_text,
+                turn_number=turn_num
+              ))
+              break
+          else:
+            try:
+              response_text = invoke_endpoint(
+                endpoint_url,
+                current_prompt,
+                timeout=timeout,
+                token=endpoint_token,
+                session_id=session_id,
+                user_id=user_id
+              )
+            except Exception as exc:
+              status = "error"
+              error_text = str(exc)[:300]
+              break
 
-      # エラーが発生した場合は、エラーとしてカウントし、needs_reviewには含めない
-      if status == "error":
-        error_count += 1
-        evaluation["reason"] = "endpoint_error"
-        evaluation["verdict"] = "error"  # needs_reviewではなくerrorとして扱う
-        evaluation["error"] = error_text
-      elif status == "dry_run":
-        evaluation.setdefault("reason", "dry_run")
+          dialogue_turns.append(DialogueTurn(
+            user_message=current_prompt,
+            agent_response=response_text,
+            turn_number=turn_num
+          ))
 
-      # エラーでない場合のみ、pass/needs_reviewをカウント
-      if status != "error":
-        if evaluation["verdict"] == "pass":
-          passes += 1
+          # Check if goal is achieved (simple heuristic: look for completion indicators)
+          if _is_goal_achieved(response_text, scenario.use_case):
+            logger.info(f"Goal achieved at turn {turn_num} for scenario {scenario.id}")
+            break
+
+          # Generate next turn prompt (simple approach)
+          current_prompt = _generate_next_prompt(turn_num, response_text, scenario.use_case)
+
+        # Evaluate entire dialogue
+        if status == "error":
+          evaluation = {
+            "task_completion": 0.0,
+            "dialogue_naturalness": 0.0,
+            "information_gathering": 0.0,
+            "verdict": "error",
+            "distance": 1.0,
+            "errors": [error_text],
+            "rationale": f"Dialogue error: {error_text}"
+          }
+          error_count += 1
         else:
-          needs_review += 1
-      distances.append(evaluation["distance"])
+          multiturn_eval = multiturn_evaluator.evaluate_dialogue(
+            use_case=scenario.use_case,
+            expected_behavior=scenario.expected_answer,
+            dialogue_turns=dialogue_turns,
+            agent_card=card
+          )
+          # Convert multi-turn evaluation to standard format
+          evaluation = {
+            "similarity": multiturn_eval.get("confidence", 0.5),
+            "distance": 1.0 - multiturn_eval.get("confidence", 0.5),
+            "verdict": "pass" if multiturn_eval.get("verdict") == "complete" else
+                      ("needs_review" if multiturn_eval.get("verdict") == "partial" else "fail"),
+            "rationale": multiturn_eval.get("rationale", ""),
+            "task_completion": multiturn_eval.get("task_completion", 0.0),
+            "dialogue_naturalness": multiturn_eval.get("dialogue_naturalness", 0.0),
+            "information_gathering": multiturn_eval.get("information_gathering", 0.0),
+            "errors": multiturn_eval.get("errors", []),
+            "total_turns": len(dialogue_turns),
+            "dialogue_history": [
+              {"turn": t.turn_number, "user": t.user_message, "agent": t.agent_response}
+              for t in dialogue_turns
+            ]
+          }
+          if evaluation["verdict"] == "pass":
+            passes += 1
+          else:
+            needs_review += 1
+
+        response_text = dialogue_turns[-1].agent_response if dialogue_turns else "(no response)"
+
+      else:
+        # Single-turn evaluation (original behavior)
+        response_text, status, error_text = _execute_functional_prompt(
+          scenario.prompt,
+          endpoint_url=endpoint_url,
+          endpoint_token=endpoint_token,
+          timeout=timeout,
+          dry_run=dry_run or not endpoint_url,
+          session_id=session_id,
+          user_id=user_id
+        )
+
+        # エージェントベース評価を使用
+        evaluation = agent_evaluator.evaluate_response(
+          use_case=scenario.use_case,
+          expected_answer=scenario.expected_answer,
+          actual_response=response_text or "",
+          agent_card=card
+        )
+
+        # エラーが発生した場合は、エラーとしてカウントし、needs_reviewには含めない
+        if status == "error":
+          error_count += 1
+          evaluation["reason"] = "endpoint_error"
+          evaluation["verdict"] = "error"  # needs_reviewではなくerrorとして扱う
+          evaluation["error"] = error_text
+        elif status == "dry_run":
+          evaluation.setdefault("reason", "dry_run")
+
+        # エラーでない場合のみ、pass/needs_reviewをカウント
+        if status != "error":
+          if evaluation["verdict"] == "pass":
+            passes += 1
+          else:
+            needs_review += 1
+
+      distances.append(evaluation.get("distance", 1.0))
       emb_distance = embedding_distance(scenario.expected_answer, response_text)
       if emb_distance is not None:
         embedding_distances.append(emb_distance)

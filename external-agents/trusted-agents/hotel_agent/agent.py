@@ -236,7 +236,7 @@ async def get_hotel_details(hotel_id: str) -> str:
 
 
 root_agent = Agent(
-    model='gemini-2.0-flash-exp',
+    model='gemini-2.5-flash',
     name='hotel_booking_agent',
     description=(
         'Hotel booking agent that can search for hotels and make reservations. '

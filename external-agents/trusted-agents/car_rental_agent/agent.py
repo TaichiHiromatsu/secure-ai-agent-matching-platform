@@ -207,7 +207,7 @@ async def get_rental_terms(location: str = "general") -> str:
 
 
 root_agent = Agent(
-    model='gemini-2.0-flash-exp',
+    model='gemini-2.5-flash',
     name='car_rental_agent',
     description=(
         'Car rental agent that can search for rental cars and make reservations. '

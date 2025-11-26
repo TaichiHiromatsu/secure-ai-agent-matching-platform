@@ -32,7 +32,7 @@
                     <span><span data-score="security">{{ submission.security_score }}</span> / 30</span>
                 </div>
                 <div class="flex justify-between">
-                    <span>Functional</span>
+                    <span>Agent Card</span>
                     <span><span data-score="functional">{{ submission.functional_score }}</span> / 40</span>
                 </div>
                 <div class="flex justify-between">
@@ -100,7 +100,7 @@
             <div class="mb-3 text-xs text-gray-500">
                 <p>Project: {{ submission.score_breakdown.wandb.project }}</p>
                 <p>Entity: {{ submission.score_breakdown.wandb.entity }}</p>
-                <p class="mt-2 text-xs">Track LLM evaluations across Jury Judge, Security Gate, and Functional Accuracy stages</p>
+                <p class="mt-2 text-xs">Track LLM evaluations across Jury Judge, Security Gate, and Agent Card Capability Check stages</p>
             </div>
             <a href="https://wandb.ai/{{ submission.score_breakdown.wandb.entity }}/{{ submission.score_breakdown.wandb.project }}/weave" target="_blank" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded inline-flex items-center justify-center transition duration-150 ease-in-out shadow-sm w-full">
                 <span>Open Weave Traces</span>
@@ -353,10 +353,10 @@
         <p class="ml-7 text-sm text-gray-500">No security test results available</p>
         {% endif %}
     </details>
-    <!-- Functional Accuracy Check -->
+    <!-- Agent Card Capability Check -->
     <details id="details-functional" class="mb-6 bg-gray-50 p-4 rounded-lg">
         <summary class="text-lg font-semibold mb-2 flex items-center cursor-pointer">
-            <span class="mr-2">🧪</span> Functional Accuracy Check
+            <span class="mr-2">📋</span> Agent Card Capability Check
         </summary>
         {% if submission.score_breakdown.functional_summary %}
         <div class="ml-7 space-y-4 mt-2">
@@ -417,7 +417,36 @@
                     </div>
                 </div>
             </div>
-            <!-- Failed Scenarios (Top 3) -->
+            <!-- Evaluation Mode Indicator -->
+            <div class="border-t pt-4">
+                <h4 class="font-semibold mb-2">🔧 評価モード</h4>
+                <div class="bg-blue-50 p-3 rounded border border-blue-200">
+                    <div class="flex items-center gap-2">
+                        {% if submission.score_breakdown.functional_summary.evaluationMode %}
+                        <span class="px-3 py-1 bg-blue-600 text-white rounded-full text-sm font-medium">
+                            {{ submission.score_breakdown.functional_summary.evaluationMode }}
+                        </span>
+                        {% else %}
+                        <span class="px-3 py-1 bg-gray-600 text-white rounded-full text-sm font-medium">
+                            Standard Mode
+                        </span>
+                        {% endif %}
+                        <div class="text-xs text-gray-600">
+                            {% if submission.score_breakdown.functional_summary.useMultiturn %}
+                            <span class="mr-2">✓ マルチターン対話</span>
+                            <span class="mr-2">Max Turns: {{ submission.score_breakdown.functional_summary.maxTurns or 5 }}</span>
+                            {% else %}
+                            <span>シングルターン評価</span>
+                            {% endif %}
+                            {% if submission.score_breakdown.functional_summary.useAdkGenerator %}
+                            <span class="ml-2">✓ ADK Generator</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Failed Scenarios (Top 3) with Multi-turn Dialogue -->
             {% if submission.score_breakdown.functional_summary.scenarios %}
             <div class="border-t pt-4">
                 <h4 class="font-semibold mb-2">❌ 失敗シナリオの詳細 (上位3件)</h4>
@@ -437,17 +466,78 @@
                         </div>
                         <div class="text-xs text-gray-600 mb-2">
                             Distance: {{ "%.4f"|format(scenario.evaluation.distance) if scenario.evaluation.distance is not none else '-' }}
-                            | Topic Relevance: {{ "%.4f"|format(scenario.evaluation.topic_relevance) if scenario.evaluation.topic_relevance is not none else '−' }}
-                            | Dialogue Progress: {{ "%.4f"|format(scenario.evaluation.dialogue_progress) if scenario.evaluation.dialogue_progress is not none else '−' }}
+                            {% if scenario.evaluation.topic_relevance is not none %}
+                            | Topic Relevance: {{ "%.4f"|format(scenario.evaluation.topic_relevance) }}
+                            {% endif %}
+                            {% if scenario.evaluation.dialogue_progress is not none %}
+                            | Dialogue Progress: {{ "%.4f"|format(scenario.evaluation.dialogue_progress) }}
+                            {% endif %}
+                            {% if scenario.evaluation.total_turns %}
+                            | Turns: {{ scenario.evaluation.total_turns }}
+                            {% endif %}
                         </div>
+
+                        <!-- Multi-turn Dialogue History -->
+                        {% if scenario.evaluation.dialogue_history %}
+                        <div class="text-xs mb-2 border-l-4 border-purple-400 pl-3">
+                            <strong class="text-purple-700">💬 対話履歴 ({{ scenario.evaluation.total_turns }} turns):</strong>
+                            <div class="space-y-2 mt-2">
+                                {% for turn in scenario.evaluation.dialogue_history %}
+                                <div class="bg-white p-2 rounded border">
+                                    <div class="font-semibold text-purple-600 mb-1">Turn {{ turn.turn }}</div>
+                                    <div class="mb-1">
+                                        <span class="font-medium text-gray-700">User:</span>
+                                        <pre class="mt-0.5 whitespace-pre-wrap bg-blue-50 p-1.5 rounded text-xs">{{ turn.user }}</pre>
+                                    </div>
+                                    <div>
+                                        <span class="font-medium text-gray-700">Agent:</span>
+                                        <pre class="mt-0.5 whitespace-pre-wrap bg-green-50 p-1.5 rounded text-xs">{{ turn.agent }}</pre>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% else %}
+                        <!-- Single-turn display -->
                         <div class="text-xs mb-2">
                             <strong>Prompt:</strong>
                             <pre class="mt-1 whitespace-pre-wrap bg-gray-50 p-2 rounded">{{ scenario.prompt or scenario.output or 'N/A' }}</pre>
                         </div>
                         <div class="text-xs mb-2">
+                            <strong>Response:</strong>
+                            <pre class="mt-1 whitespace-pre-wrap bg-gray-50 p-2 rounded">{{ scenario.response or 'N/A' }}</pre>
+                        </div>
+                        {% endif %}
+
+                        <div class="text-xs mb-2">
                             <strong>Expected:</strong>
                             <pre class="mt-1 whitespace-pre-wrap bg-gray-50 p-2 rounded">{{ scenario.expected or 'N/A' }}</pre>
                         </div>
+
+                        <!-- Multi-turn Quality Metrics -->
+                        {% if scenario.evaluation.task_completion is not none %}
+                        <div class="text-xs mb-2 bg-purple-50 p-2 rounded border border-purple-200">
+                            <strong class="text-purple-700">マルチターン品質指標:</strong>
+                            <div class="grid grid-cols-3 gap-2 mt-1">
+                                <div>
+                                    <span class="text-gray-600">Task Completion:</span>
+                                    <span class="font-medium">{{ "%.2f"|format(scenario.evaluation.task_completion) }}</span>
+                                </div>
+                                {% if scenario.evaluation.dialogue_naturalness is not none %}
+                                <div>
+                                    <span class="text-gray-600">Naturalness:</span>
+                                    <span class="font-medium">{{ "%.2f"|format(scenario.evaluation.dialogue_naturalness) }}</span>
+                                </div>
+                                {% endif %}
+                                {% if scenario.evaluation.information_gathering is not none %}
+                                <div>
+                                    <span class="text-gray-600">Info Gathering:</span>
+                                    <span class="font-medium">{{ "%.2f"|format(scenario.evaluation.information_gathering) }}</span>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endif %}
                         {% if scenario.evaluation.errors and scenario.evaluation.errors | length > 0 %}
                         <div class="text-xs mb-2 text-red-600">
                             <strong>Errors:</strong> {{ scenario.evaluation.errors | join(', ') }}

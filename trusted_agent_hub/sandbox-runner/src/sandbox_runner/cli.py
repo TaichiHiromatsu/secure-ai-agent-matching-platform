@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Set
 from jsonschema import Draft202012Validator, ValidationError
 
 from .security_gate import run_security_gate
-from .functional_accuracy import run_functional_accuracy
+from .capability_validation import run_functional_accuracy
 from .wandb_mcp import create_wandb_mcp
 
 try:

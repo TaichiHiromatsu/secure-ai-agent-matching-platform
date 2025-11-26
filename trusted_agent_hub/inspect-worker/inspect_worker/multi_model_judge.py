@@ -103,7 +103,7 @@ class MultiModelJudge:
                 # Claude 3.5 Sonnetは提供終了。安価で現行提供のHaikuへ切替。
                 models.append("claude-3-haiku-20240307")
             if enable_google:
-                models.append("gemini-2.0-flash-exp")
+                models.append("gemini-2.5-flash")
 
         self.models = models
         self.judges: List[LLMJudge] = []

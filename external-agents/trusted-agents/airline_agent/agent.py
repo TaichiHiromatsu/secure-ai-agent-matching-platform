@@ -147,7 +147,7 @@ async def cancel_booking(booking_id: str) -> str:
 
 
 root_agent = Agent(
-    model='gemini-2.0-flash-exp',
+    model='gemini-2.5-flash',
     name='airline_booking_agent',
     description=(
         'Airline booking agent that can search for flights and make reservations. '

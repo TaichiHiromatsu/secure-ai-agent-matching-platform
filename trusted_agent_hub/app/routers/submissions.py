@@ -14,7 +14,7 @@ router = APIRouter(
 )
 
 from sandbox_runner.security_gate import run_security_gate, SecurityGateConfig, DatasetConfig
-from sandbox_runner.functional_accuracy import run_functional_accuracy
+from sandbox_runner.capability_validation import run_functional_accuracy
 from sandbox_runner.judge_orchestrator import run_judge_panel
 from pathlib import Path
 import os
@@ -302,6 +302,7 @@ def process_submission(submission_id: str):
         # Multi-dataset Security Gate configuration
         datasets_base = base_dir / "third_party/aisev/backend/dataset/output"
         advbench_base = base_dir / "third_party/advbench"
+
         security_gate_config = SecurityGateConfig(
             datasets=[
                 DatasetConfig(
@@ -335,7 +336,7 @@ def process_submission(submission_id: str):
                     max_samples=int(os.getenv("ADVBENCH_MAX_SAMPLES", "10"))  # デフォルト10件
                 ),
             ],
-            max_total_prompts=100,  # 50 → 100に拡張（AdvBench含む）
+            max_total_prompts=int(os.getenv("SECURITY_GATE_MAX_PROMPTS", "10")),  # デフォルト10件（開発用）、本番は50-100推奨
             sampling_strategy="priority_balanced"
         )
         endpoint_url = submission.card_document.get("url") or submission.card_document.get("serviceUrl")
@@ -347,13 +348,23 @@ def process_submission(submission_id: str):
             return
         from urllib.parse import urlparse, urlunparse
         parsed_endpoint = urlparse(endpoint_url)
-        if parsed_endpoint.hostname == "0.0.0.0":
+
+        # Normalize endpoint URL: replace 0.0.0.0, localhost, 127.0.0.1 with appropriate hostname
+        if parsed_endpoint.hostname in ("0.0.0.0", "localhost", "127.0.0.1"):
             agent_name = submission.agent_id
             if not agent_name:
                 path_parts = parsed_endpoint.path.strip('/').split('/')
                 if len(path_parts) >= 2 and path_parts[0] == "a2a":
                     agent_name = path_parts[1]
-            service_name = agent_name if agent_name else "localhost"
+
+            # In Docker environment, use host.docker.internal to access host machine
+            # In development, agent services are typically on the host
+            service_name = agent_name if agent_name else "host.docker.internal"
+
+            # If hostname is localhost/127.0.0.1 and we're in Docker, use host.docker.internal
+            if parsed_endpoint.hostname in ("localhost", "127.0.0.1"):
+                service_name = "host.docker.internal"
+
             normalized_netloc = f"{service_name}:{parsed_endpoint.port}"
             normalized_endpoint = urlunparse((
                 parsed_endpoint.scheme,
@@ -394,7 +405,7 @@ def process_submission(submission_id: str):
                     attempts=50,  # Max prompts from config
                     endpoint_url=endpoint_url,
                     endpoint_token=None,
-                    timeout=10.0,
+                    timeout=float(os.getenv("SECURITY_GATE_TIMEOUT", "10.0")),
                     dry_run=False,
                     agent_card=submission.card_document,
                     session_id=submission.id,
@@ -521,17 +532,17 @@ def process_submission(submission_id: str):
 
         # --- 2. Functional Check ---
         if stages_cfg["functional"]:
-            print(f"Running Functional Accuracy for submission {submission_id}")
+            print(f"Running Agent Card Capability Check for submission {submission_id}")
             current_breakdown = dict(submission.score_breakdown)
             if "stages" not in current_breakdown:
                 current_breakdown["stages"] = {}
             current_breakdown["stages"]["functional"] = {
                 "status": "running",
                 "attempts": 1,
-                "message": "Functional Accuracy is running..."
+                "message": "Agent Card Capability Check is running..."
             }
             submission.score_breakdown = current_breakdown
-            submission.state = "functional_accuracy_running"
+            submission.state = "capability_validation_running"
             submission.updated_at = datetime.utcnow()
             db.commit()
 
@@ -562,11 +573,11 @@ def process_submission(submission_id: str):
             current_breakdown["stages"]["functional"] = {
                 "status": "skipped",
                 "attempts": 0,
-                "message": "Functional Accuracy skipped by selection",
+                "message": "Agent Card Capability Check skipped by selection",
                 "warnings": []
             }
             submission.score_breakdown = current_breakdown
-            submission.state = "functional_accuracy_skipped"
+            submission.state = "capability_validation_skipped"
             db.commit()
 
         # Transform functional_summary to match UI expectations

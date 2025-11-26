@@ -92,54 +92,28 @@ echo -e "${GREEN}✓ Trusted Agent Hub started on port 8080${NC}"
 echo ""
 
 # ============================================
-# 2. Start Airline Agent (Python)
+# 2. Start A2A API Server (All External Agents)
 # ============================================
-echo -e "${BLUE}[2/5] Starting Airline Agent...${NC}"
+echo -e "${BLUE}[2/4] Starting A2A API Server (Airline, Hotel, Car Rental Agents)...${NC}"
 
-cd external-agents/trusted-agents/airline_agent
-nohup python3 agent.py > "$LOG_DIR/airline_agent.log" 2>&1 &
-AIRLINE_PID=$!
-echo $AIRLINE_PID > "$PID_DIR/airline_agent.pid"
 cd "$PROJECT_ROOT"
+nohup "$PROJECT_ROOT/.venv/bin/adk" api_server --a2a --host 0.0.0.0 --port 8002 external-agents/trusted-agents/ > "$LOG_DIR/a2a_api_server.log" 2>&1 &
+A2A_PID=$!
+echo $A2A_PID > "$PID_DIR/a2a_api_server.pid"
 
-echo -e "${GREEN}✓ Airline Agent started on port 8002 (PID: $AIRLINE_PID)${NC}"
+echo -e "${GREEN}✓ A2A API Server started on port 8002 (PID: $A2A_PID)${NC}"
+echo -e "${GREEN}  - Airline Agent: http://localhost:8002/a2a/airline_agent${NC}"
+echo -e "${GREEN}  - Hotel Agent: http://localhost:8002/a2a/hotel_agent${NC}"
+echo -e "${GREEN}  - Car Rental Agent: http://localhost:8002/a2a/car_rental_agent${NC}"
 echo ""
 
 # ============================================
-# 3. Start Hotel Agent (Python)
+# 3. Start Secure Mediation Agent (ADK Web)
 # ============================================
-echo -e "${BLUE}[3/5] Starting Hotel Agent...${NC}"
-
-cd external-agents/trusted-agents/hotel_agent
-nohup python3 agent.py > "$LOG_DIR/hotel_agent.log" 2>&1 &
-HOTEL_PID=$!
-echo $HOTEL_PID > "$PID_DIR/hotel_agent.pid"
-cd "$PROJECT_ROOT"
-
-echo -e "${GREEN}✓ Hotel Agent started on port 8003 (PID: $HOTEL_PID)${NC}"
-echo ""
-
-# ============================================
-# 4. Start Car Rental Agent (Python)
-# ============================================
-echo -e "${BLUE}[4/5] Starting Car Rental Agent...${NC}"
-
-cd external-agents/trusted-agents/car_rental_agent
-nohup python3 agent.py > "$LOG_DIR/car_rental_agent.log" 2>&1 &
-CAR_PID=$!
-echo $CAR_PID > "$PID_DIR/car_rental_agent.pid"
-cd "$PROJECT_ROOT"
-
-echo -e "${GREEN}✓ Car Rental Agent started on port 8004 (PID: $CAR_PID)${NC}"
-echo ""
-
-# ============================================
-# 5. Start Secure Mediation Agent (ADK Web)
-# ============================================
-echo -e "${BLUE}[5/5] Starting Secure Mediation Agent (with ADK Web)...${NC}"
+echo -e "${BLUE}[3/4] Starting Secure Mediation Agent (with ADK Web)...${NC}"
 
 cd secure-mediation-agent
-nohup python3 -m adk web . --port 8000 --reload > "$LOG_DIR/secure_mediation_agent.log" 2>&1 &
+nohup "$PROJECT_ROOT/.venv/bin/adk" web . --port 8000 --reload > "$LOG_DIR/secure_mediation_agent.log" 2>&1 &
 MEDIATION_PID=$!
 echo $MEDIATION_PID > "$PID_DIR/secure_mediation_agent.pid"
 cd "$PROJECT_ROOT"
@@ -165,17 +139,20 @@ echo -e "${BLUE}Access URLs:${NC}"
 echo -e "  • Trusted Agent Hub:          ${GREEN}http://localhost:8080${NC}"
 echo -e "  • Secure Mediation Agent:     ${GREEN}http://localhost:8000${NC}"
 echo -e "  • ADK Web (Dev UI):           ${GREEN}http://localhost:8000/dev-ui${NC}"
-echo -e "  • Airline Agent:              ${GREEN}http://localhost:8002${NC}"
-echo -e "  • Hotel Agent:                ${GREEN}http://localhost:8003${NC}"
-echo -e "  • Car Rental Agent:           ${GREEN}http://localhost:8004${NC}"
+echo -e "  • A2A API Server:             ${GREEN}http://localhost:8002${NC}"
+echo -e "    - Airline Agent:            ${GREEN}http://localhost:8002/a2a/airline_agent${NC}"
+echo -e "    - Hotel Agent:              ${GREEN}http://localhost:8002/a2a/hotel_agent${NC}"
+echo -e "    - Car Rental Agent:         ${GREEN}http://localhost:8002/a2a/car_rental_agent${NC}"
 echo ""
-echo -e "${BLUE}Agent Card URL (for submission):${NC}"
+echo -e "${BLUE}Agent Card URLs (for submission):${NC}"
 echo -e "  ${YELLOW}http://host.docker.internal:8002/a2a/airline_agent/.well-known/agent.json${NC}"
+echo -e "  ${YELLOW}http://host.docker.internal:8002/a2a/hotel_agent/.well-known/agent.json${NC}"
+echo -e "  ${YELLOW}http://host.docker.internal:8002/a2a/car_rental_agent/.well-known/agent.json${NC}"
 echo ""
 echo -e "${BLUE}Useful Commands:${NC}"
 echo -e "  ./deploy/stop-local.sh                  # Stop all services"
 echo -e "  docker logs -f secure-platform          # View hub logs"
-echo -e "  tail -f $LOG_DIR/airline_agent.log      # View airline logs"
+echo -e "  tail -f $LOG_DIR/a2a_api_server.log     # View A2A API server logs"
 echo -e "  tail -f $LOG_DIR/secure_mediation_agent.log   # View mediation logs"
 echo ""
 echo -e "${YELLOW}Note: It may take 10-20 seconds for all services to be fully ready.${NC}"

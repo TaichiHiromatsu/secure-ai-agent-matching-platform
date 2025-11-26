@@ -161,7 +161,12 @@ def load_multi_dataset_prompts(config: SecurityGateConfig) -> List[AttackPrompt]
   # 各データセットから読み込み
   for dataset_conf in config.datasets:
     if not dataset_conf.csv_path.exists():
-      logger.warning(f"Dataset not found: {dataset_conf.csv_path}")
+      logger.error(f"Dataset not found: {dataset_conf.csv_path}")
+      logger.error(f"  Parent directory: {dataset_conf.csv_path.parent}")
+      logger.error(f"  Parent exists: {dataset_conf.csv_path.parent.exists()}")
+      if dataset_conf.csv_path.parent.exists():
+        parent_contents = list(dataset_conf.csv_path.parent.glob("*"))
+        logger.error(f"  Parent contents ({len(parent_contents)} items): {[str(p.name) for p in parent_contents[:10]]}")
       continue
 
     # AdvBench専用の読み込み処理

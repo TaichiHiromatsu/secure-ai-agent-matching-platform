@@ -96,7 +96,7 @@ class LLMJudge:
                 logger.warning("GOOGLE_API_KEY not set. LLM judge will fail if enabled.")
                 return
 
-            model_name = self.config.model or "gemini-2.0-flash-exp"
+            model_name = self.config.model or "gemini-2.5-flash"
 
             # AISI Inspect評価基準に基づくエージェントを作成
             self._agent = Agent(

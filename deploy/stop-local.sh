@@ -21,7 +21,7 @@ PID_DIR="/tmp/agent-platform-pids"
 # ============================================
 # 1. Stop Docker Container
 # ============================================
-echo -e "${YELLOW}[1/5] Stopping Trusted Agent Hub (Docker)...${NC}"
+echo -e "${YELLOW}[1/3] Stopping Trusted Agent Hub (Docker)...${NC}"
 
 if docker ps -q -f name=secure-platform &> /dev/null; then
     docker stop secure-platform 2>/dev/null || true
@@ -33,66 +33,28 @@ fi
 echo ""
 
 # ============================================
-# 2. Stop Airline Agent
+# 2. Stop A2A API Server
 # ============================================
-echo -e "${YELLOW}[2/5] Stopping Airline Agent...${NC}"
+echo -e "${YELLOW}[2/3] Stopping A2A API Server...${NC}"
 
-if [ -f "$PID_DIR/airline_agent.pid" ]; then
-    AIRLINE_PID=$(cat "$PID_DIR/airline_agent.pid")
-    if ps -p $AIRLINE_PID > /dev/null 2>&1; then
-        kill $AIRLINE_PID 2>/dev/null || true
-        echo -e "${GREEN}✓ Airline Agent stopped (PID: $AIRLINE_PID)${NC}"
+if [ -f "$PID_DIR/a2a_api_server.pid" ]; then
+    A2A_PID=$(cat "$PID_DIR/a2a_api_server.pid")
+    if ps -p $A2A_PID > /dev/null 2>&1; then
+        kill $A2A_PID 2>/dev/null || true
+        echo -e "${GREEN}✓ A2A API Server stopped (PID: $A2A_PID)${NC}"
     else
-        echo -e "${YELLOW}  Process not found (PID: $AIRLINE_PID)${NC}"
+        echo -e "${YELLOW}  Process not found (PID: $A2A_PID)${NC}"
     fi
-    rm -f "$PID_DIR/airline_agent.pid"
+    rm -f "$PID_DIR/a2a_api_server.pid"
 else
     echo -e "${YELLOW}  PID file not found${NC}"
 fi
 echo ""
 
 # ============================================
-# 3. Stop Hotel Agent
+# 3. Stop Secure Mediation Agent
 # ============================================
-echo -e "${YELLOW}[3/5] Stopping Hotel Agent...${NC}"
-
-if [ -f "$PID_DIR/hotel_agent.pid" ]; then
-    HOTEL_PID=$(cat "$PID_DIR/hotel_agent.pid")
-    if ps -p $HOTEL_PID > /dev/null 2>&1; then
-        kill $HOTEL_PID 2>/dev/null || true
-        echo -e "${GREEN}✓ Hotel Agent stopped (PID: $HOTEL_PID)${NC}"
-    else
-        echo -e "${YELLOW}  Process not found (PID: $HOTEL_PID)${NC}"
-    fi
-    rm -f "$PID_DIR/hotel_agent.pid"
-else
-    echo -e "${YELLOW}  PID file not found${NC}"
-fi
-echo ""
-
-# ============================================
-# 4. Stop Car Rental Agent
-# ============================================
-echo -e "${YELLOW}[4/5] Stopping Car Rental Agent...${NC}"
-
-if [ -f "$PID_DIR/car_rental_agent.pid" ]; then
-    CAR_PID=$(cat "$PID_DIR/car_rental_agent.pid")
-    if ps -p $CAR_PID > /dev/null 2>&1; then
-        kill $CAR_PID 2>/dev/null || true
-        echo -e "${GREEN}✓ Car Rental Agent stopped (PID: $CAR_PID)${NC}"
-    else
-        echo -e "${YELLOW}  Process not found (PID: $CAR_PID)${NC}"
-    fi
-    rm -f "$PID_DIR/car_rental_agent.pid"
-else
-    echo -e "${YELLOW}  PID file not found${NC}"
-fi
-echo ""
-
-# ============================================
-# 5. Stop Secure Mediation Agent
-# ============================================
-echo -e "${YELLOW}[5/5] Stopping Secure Mediation Agent...${NC}"
+echo -e "${YELLOW}[3/3] Stopping Secure Mediation Agent...${NC}"
 
 if [ -f "$PID_DIR/secure_mediation_agent.pid" ]; then
     MEDIATION_PID=$(cat "$PID_DIR/secure_mediation_agent.pid")
@@ -113,7 +75,7 @@ echo ""
 # ============================================
 echo -e "${YELLOW}Cleaning up any remaining processes on ports...${NC}"
 
-for PORT in 8000 8002 8003 8004; do
+for PORT in 8000 8002; do
     PID=$(lsof -ti:$PORT 2>/dev/null || true)
     if [ ! -z "$PID" ]; then
         kill $PID 2>/dev/null || true
