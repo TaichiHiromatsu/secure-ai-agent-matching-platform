@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login - Secure Mediation A2A Platform</title>
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/ui/6.1.0/firebase-ui-auth.js"></script>
+  <link rel="stylesheet" href="https://www.gstatic.com/firebasejs/ui/6.1.0/firebase-ui-auth.css">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      margin: 0;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    .login-container {
+      background: white;
+      padding: 40px;
+      border-radius: 12px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+      text-align: center;
+      max-width: 400px;
+      width: 90%;
+    }
+    h1 {
+      color: #333;
+      margin-bottom: 10px;
+      font-size: 24px;
+    }
+    p {
+      color: #666;
+      margin-bottom: 30px;
+    }
+    #firebaseui-auth-container {
+      margin-top: 20px;
+    }
+    .error-message {
+      color: #e74c3c;
+      margin-top: 20px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="login-container">
+    <h1>Secure Mediation A2A Platform</h1>
+    <p>Please sign in to continue</p>
+    <div id="firebaseui-auth-container"></div>
+    <div id="error-message" class="error-message"></div>
+  </div>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyDZe6TJSZ9nBhkeqjiZYOEzNLxfHX_A44Y",
+      authDomain: "mediation-a2a-platform.firebaseapp.com",
+      projectId: "mediation-a2a-platform",
+      storageBucket: "mediation-a2a-platform.firebasestorage.app",
+      messagingSenderId: "366409135946",
+      appId: "1:366409135946:web:d2a433466c605f03d4f3b3",
+      measurementId: "G-9SLLF8PNHM"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+
+    const ui = new firebaseui.auth.AuthUI(firebase.auth());
+
+    ui.start('#firebaseui-auth-container', {
+      signInOptions: [
+        firebase.auth.EmailAuthProvider.PROVIDER_ID
+      ],
+      signInFlow: 'popup',
+      callbacks: {
+        signInSuccessWithAuthResult: function(authResult, redirectUrl) {
+          // Get Firebase ID token and set as cookie
+          firebase.auth().currentUser.getIdToken(true).then(function(idToken) {
+            // Set cookie with token (expires in 1 hour, matching token expiry)
+            document.cookie = `session=${idToken}; path=/; max-age=3600; SameSite=Lax`;
+            // Redirect to main app
+            window.location.href = '/';
+          }).catch(function(error) {
+            document.getElementById('error-message').textContent = 'Authentication error: ' + error.message;
+            document.getElementById('error-message').style.display = 'block';
+          });
+          return false;
+        },
+        signInFailure: function(error) {
+          document.getElementById('error-message').textContent = 'Sign in failed: ' + error.message;
+          document.getElementById('error-message').style.display = 'block';
+        }
+      }
+    });
+
+    // Check if already logged in
+    firebase.auth().onAuthStateChanged(function(user) {
+      if (user) {
+        user.getIdToken(true).then(function(idToken) {
+          document.cookie = `session=${idToken}; path=/; max-age=3600; SameSite=Lax`;
+          window.location.href = '/';
+        });
+      }
+    });
+  </script>
+</body>
+</html>
