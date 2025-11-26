@@ -154,3 +154,5 @@ trusted_agent_hub/inspect-worker/.env.inspect
 *.bak
 *.backup
 *.old
+
+trusted_agent_hub/wandb/
