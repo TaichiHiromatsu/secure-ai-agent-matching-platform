@@ -26,14 +26,14 @@
 **論文**: `governance-as-a-service-2508.18765.pdf`, `automated-risky-game-2506.00073.pdf`
 
 **実装箇所**:
-- [inspect-worker/inspect_worker/judge_orchestrator.py](../../inspect-worker/inspect_worker/judge_orchestrator.py): Plan → Counter → Reconcile推論
-- [inspect-worker/inspect_worker/llm_judge.py](../../inspect-worker/inspect_worker/llm_judge.py): GPT-4o/Claude/Gemini統合
+- [jury-judge-worker/jury_judge_worker/judge_orchestrator.py](../../jury-judge-worker/jury_judge_worker/judge_orchestrator.py): Plan → Counter → Reconcile推論
+- [jury-judge-worker/jury_judge_worker/llm_judge.py](../../jury-judge-worker/jury_judge_worker/llm_judge.py): GPT-4o/Claude/Gemini統合
 
 ### 3. Security Gate (AISI Security)
 **論文**: `responsible-ai-agents-2502.18359.pdf`, `automated-risky-game-2506.00073.pdf`
 
 **実装箇所**:
-- [sandbox-runner/src/sandbox_runner/security_gate.py](../../sandbox-runner/src/sandbox_runner/security_gate.py): AISI Securityベンチマーク実行
+- [evaluation-runner/src/evaluation_runner/security_gate.py](../../evaluation-runner/src/evaluation_runner/security_gate.py): AISI Securityベンチマーク実行
 - [third_party/aisev/backend/dataset/output/06_aisi_security_v0.1.csv](../../third_party/aisev/backend/dataset/output/06_aisi_security_v0.1.csv): 攻撃プロンプト
 
 ### 4. Agent Registry & Trust Score

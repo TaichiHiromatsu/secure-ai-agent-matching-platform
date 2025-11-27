@@ -45,7 +45,7 @@ htmlcov
 .env.*.local
 
 # Artifacts (will be mounted as volumes)
-sandbox-runner/artifacts
+evaluation-runner/artifacts
 audit-ledger
 
 # Documentation
@@ -65,4 +65,4 @@ temp
 # third_party を明示的にビルドコンテキストに含める
 !third_party/
 
-/app/inspect-worker/.venv/
+/app/jury-judge-worker/.venv/

@@ -137,7 +137,7 @@ ADVBENCH_MAX_SAMPLES=10               # AdvBenchデータセットのサンプ�
 **実装箇所**:
 - [submissions.py:339](../app/routers/submissions.py#L339) - 最大プロンプト数設定
 - [submissions.py:408](../app/routers/submissions.py#L408) - タイムアウト設定
-- [security_gate.py:202-243](../sandbox-runner/src/sandbox_runner/security_gate.py#L202-L243) - サンプリングロジック
+- [security_gate.py:202-243](../evaluation-runner/src/evaluation_runner/security_gate.py#L202-L243) - サンプリングロジック
 
 ---
 
@@ -209,8 +209,8 @@ Google ADKエージェントを使用した高度なシナリオ生成：
 
 **実装箇所**:
 - [submissions.py:540](../app/routers/submissions.py#L540)
-- [capability_validation.py](../sandbox-runner/src/sandbox_runner/capability_validation.py)
-- [question_generator.py](../inspect-worker/inspect_worker/question_generator.py) (ADKモード)
+- [agent_card_accuracy.py](../evaluation-runner/src/evaluation_runner/agent_card_accuracy.py)
+- [question_generator.py](../jury-judge-worker/jury_judge_worker/question_generator.py) (ADKモード)
 
 ---
 
@@ -284,7 +284,7 @@ Multi-Model Judge Panelとして以下のモデルを併用:
 
 **実装箇所**:
 - [submissions.py:707-712](../app/routers/submissions.py#L707-L712)
-- [judge_orchestrator.py:470-473](../sandbox-runner/src/sandbox_runner/judge_orchestrator.py#L470-L473)
+- [jury_judge.py:470-473](../evaluation-runner/src/evaluation_runner/jury_judge.py#L470-L473)
 
 ---
 
@@ -510,7 +510,7 @@ export JUDGE_WEIGHT_SAFETY=0.30     # Safety: 30% (重視)
 - ✅ **Agent Card Accuracy → Agent Card Accuracy に名称変更**
   - "Agent Card" を含めることでエージェントカードの検証であることを明確化
   - "Check" で Security Gate、Jury Judge と統一感のある命名に
-  - `functional_accuracy.py` → `capability_validation.py`
+  - `agent_card_accuracy.py` → `agent_card_accuracy.py`
 - ✅ **エージェントカード基盤のシナリオ生成を強化**
   - `skills[].description`、`tags`を活用した詳細シナリオ生成
   - Google ADKベースの`AgentQuestionGenerator`統合

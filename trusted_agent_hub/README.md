@@ -33,12 +33,12 @@ trusted_agent_hub/
 │       ├── index.html      # 登録済みエージェント一覧
 │       ├── admin/review.html  # レビューUI
 │       └── partials/       # 再利用可能コンポーネント
-├── sandbox-runner/         # エージェント審査エンジン (Functional & Security評価)
-│   └── src/sandbox_runner/
-│       ├── security_gate.py      # AISI Security評価
-│       └── functional_accuracy.py  # 機能精度評価
-├── inspect-worker/         # Jury Judge (Agents-as-a-Judge実装)
-│   └── inspect_worker/
+├── evaluation-runner/      # エージェント審査エンジン (Functional & Security評価)
+│   └── src/evaluation_runner/
+│       ├── security_gate.py         # AISI Security評価
+│       └── agent_card_accuracy.py   # 機能精度評価
+├── jury-judge-worker/         # Jury Judge (Agents-as-a-Judge実装)
+│   └── jury_judge_worker/
 │       ├── judge_orchestrator.py  # 評価オーケストレーション
 │       └── llm_judge.py          # Multi-model Judge (GPT-4o/Claude/Gemini)
 ├── third_party/
@@ -222,19 +222,19 @@ Agent Cardの`skills`に基づく機能テスト:
 
 ### 評価エンジン
 
-- **`sandbox-runner/src/sandbox_runner/security_gate.py`**
+- **`evaluation-runner/src/evaluation_runner/security_gate.py`**
   - AISI Securityベンチマーク実行
   - 攻撃プロンプトの送信と応答分類
 
-- **`sandbox-runner/src/sandbox_runner/functional_accuracy.py`**
+- **`evaluation-runner/src/evaluation_runner/agent_card_accuracy.py`**
   - スキルベース機能テスト
   - セマンティック類似度評価
 
-- **`inspect-worker/inspect_worker/judge_orchestrator.py`**
+- **`jury-judge-worker/jury_judge_worker/judge_orchestrator.py`**
   - Jury Judge評価オーケストレーション
   - Google ADK/Anthropic Computer Use統合
 
-- **`inspect-worker/inspect_worker/llm_judge.py`**
+- **`jury-judge-worker/jury_judge_worker/llm_judge.py`**
   - Multi-model Judge実装
   - Plan → Counter → Reconcile推論フロー
   - MCTSベース合意形成

@@ -8,7 +8,7 @@ runtime:
 
 prompts:
   manifest_path: ../../prompts/aisi/manifest.tier3.json
-  response_samples: ../../sandbox-runner/artifacts/response_samples.jsonl
+  response_samples: ../../evaluation-runner/artifacts/response_samples.jsonl
 
 evaluations:
   - name: policy_compliance

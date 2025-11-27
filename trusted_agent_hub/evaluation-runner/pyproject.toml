@@ -1,7 +1,7 @@
 [project]
-name = "sandbox-runner"
+name = "evaluation-runner"
 version = "0.0.1"
-description = "Placeholder sandbox runner CLI"
+description = "Agent evaluation pipeline CLI"
 requires-python = ">=3.11"
 readme = "README.md"
 authors = [{ name = "Agent Store Team" }]
@@ -14,7 +14,7 @@ dependencies = [
 optional-dependencies = { dev = ["pytest>=8.3.0"] }
 
 [project.scripts]
-sandbox-runner = "sandbox_runner.cli:main"
+evaluation-runner = "evaluation_runner.cli:main"
 
 [build-system]
 requires = ["setuptools>=68", "wheel"]

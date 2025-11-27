@@ -26,15 +26,15 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen
 
 # ============================================
-# Trusted Agent Hub dependencies (sandbox-runner, inspect-worker)
+# Trusted Agent Hub dependencies (evaluation-runner, jury-judge-worker)
 # ============================================
-COPY trusted_agent_hub/sandbox-runner /app/sandbox-runner
+COPY trusted_agent_hub/evaluation-runner /app/evaluation-runner
 COPY trusted_agent_hub/third_party /app/third_party
-COPY trusted_agent_hub/inspect-worker /app/inspect-worker
+COPY trusted_agent_hub/jury-judge-worker /app/jury-judge-worker
 
-RUN uv pip install -e /app/sandbox-runner
-RUN uv pip install --no-cache-dir -r /app/inspect-worker/requirements.txt
-RUN uv pip install -e /app/inspect-worker
+RUN uv pip install -e /app/evaluation-runner
+RUN uv pip install --no-cache-dir -r /app/jury-judge-worker/requirements.txt
+RUN uv pip install -e /app/jury-judge-worker
 
 # Copy trusted_agent_hub application
 COPY trusted_agent_hub/app /app/trusted_agent_hub/app
@@ -73,7 +73,7 @@ RUN chmod +x /app/start.sh /app/start-nginx.sh
 RUN mkdir -p /var/log/nginx /var/log/supervisor /app/logs
 
 # Set environment variables
-ENV PYTHONPATH=/app:/app/trusted_agent_hub:/app/inspect-worker:/app/sandbox-runner/src
+ENV PYTHONPATH=/app:/app/trusted_agent_hub:/app/jury-judge-worker:/app/evaluation-runner/src
 ENV DATABASE_URL=sqlite:////app/trusted_agent_hub/data/agent_store.db
 
 # Cloud Run uses port 8080

@@ -1,6 +1,6 @@
-# Sandbox Runner
+# Evaluation Runner
 
-**Sandbox Runner** は、エージェントのセキュリティと機能精度を評価する審査エンジンです。
+**Evaluation Runner** は、エージェントのセキュリティと機能精度を評価する審査エンジンです。
 Security GateとAgent Card Accuracyの2つの評価モジュールを提供します。
 
 ## 🎯 概要
@@ -29,13 +29,13 @@ Agent Cardの`skills`に基づく機能テスト:
 ## 📦 構成
 
 ```
-sandbox-runner/
-├── src/sandbox_runner/
+evaluation-runner/
+├── src/evaluation_runner/
 │   ├── security_gate.py         # Security Gate評価
-│   ├── functional_accuracy.py   # Agent Card Accuracy評価
+│   ├── agent_card_accuracy.py   # Agent Card Accuracy評価
 │   └── cli.py                   # CLI エントリーポイント
 ├── tests/                       # ユニットテスト
-├── pyproject.toml               # Poetry依存管理
+├── pyproject.toml               # 依存管理
 └── Dockerfile                   # コンテナイメージ定義
 ```
 
@@ -44,7 +44,7 @@ sandbox-runner/
 ### インストール
 
 ```bash
-cd sandbox-runner
+cd evaluation-runner
 pip install -e .
 ```
 
@@ -52,7 +52,7 @@ pip install -e .
 
 **マルチデータセットモード (推奨)**:
 ```python
-from sandbox_runner.security_gate import run_security_gate, SecurityGateConfig, DatasetConfig
+from evaluation_runner.security_gate import run_security_gate, SecurityGateConfig, DatasetConfig
 from pathlib import Path
 
 config = SecurityGateConfig(
@@ -92,7 +92,7 @@ print(f"By Priority: {summary['byPriority']}")
 
 **レガシーモード (単一データセット)**:
 ```python
-from sandbox_runner.security_gate import run_security_gate
+from evaluation_runner.security_gate import run_security_gate
 
 summary = run_security_gate(
     agent_id="demo-agent",
@@ -110,7 +110,7 @@ print(f"Blocked: {summary['blocked']}, Needs Review: {summary['needsReview']}")
 ### Agent Card Accuracy実行
 
 ```python
-from sandbox_runner.functional_accuracy import run_functional_accuracy
+from evaluation_runner.agent_card_accuracy import run_functional_accuracy
 
 summary = run_functional_accuracy(
     agent_id="demo-agent",
@@ -127,7 +127,7 @@ print(f"Average score: {summary['average_score']}")
 ## 🧪 テスト
 
 ```bash
-cd sandbox-runner
+cd evaluation-runner
 pip install -e .[dev]
 pytest
 ```
@@ -135,8 +135,8 @@ pytest
 ## 🐳 Docker
 
 ```bash
-docker build -t sandbox-runner:latest sandbox-runner/
-docker run sandbox-runner:latest --help
+docker build -t evaluation-runner:latest evaluation-runner/
+docker run evaluation-runner:latest --help
 ```
 
 ## 📊 W&B統合

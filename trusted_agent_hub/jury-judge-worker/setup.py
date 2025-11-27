@@ -1,10 +1,10 @@
 """
-Setup script for inspect-worker package
+Setup script for jury-judge-worker package
 """
 from setuptools import setup, find_packages
 
 setup(
-    name="inspect-worker",
+    name="jury-judge-worker",
     version="0.1.0",
     description="AI Agent evaluation framework using AISI Inspect criteria",
     packages=find_packages(),

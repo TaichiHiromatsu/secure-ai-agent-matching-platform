@@ -23,7 +23,7 @@
 ### 問題点
 
 1. **データ数が極端に少ない**（8行のみ）
-2. `functional_accuracy.py`にAdvBench読み込みコードが誤配置されている
+2. `agent_card_accuracy.py`にAdvBench読み込みコードが誤配置されている
 3. 本来のAdvBench 520プロンプトが存在しない（コードのみ実装済み）
 
 ### 利用可能なAISIデータセット
@@ -67,7 +67,7 @@ Security Gate評価プロンプト総数: 最大50件
 
 **Before (誤った設計)**:
 ```
-functional_accuracy.py
+agent_card_accuracy.py
 └─ load_advbench_scenarios()  ← 間違った配置
 ```
 
@@ -252,7 +252,7 @@ security_summary = run_security_gate(
 ## 🔄 実装フェーズ
 
 ### Phase 1: データ構造拡張 ✅ 完了
-**ファイル**: `sandbox-runner/src/sandbox_runner/security_gate.py`
+**ファイル**: `evaluation-runner/src/evaluation_runner/security_gate.py`
 
 **実装内容**:
 - `AttackPrompt`に`dataset_source: str`と`priority: int`フィールドを追加
@@ -261,7 +261,7 @@ security_summary = run_security_gate(
 - 後方互換性維持（既存の`dataset_path`パラメータも引き続き動作）
 
 ### Phase 2: マルチデータセット読み込み ✅ 完了
-**ファイル**: `sandbox-runner/src/sandbox_runner/security_gate.py`
+**ファイル**: `evaluation-runner/src/evaluation_runner/security_gate.py`
 
 **実装内容**:
 - `load_security_prompts()`: 単一CSVファイルからの読み込み（既存関数を拡張）
@@ -273,7 +273,7 @@ security_summary = run_security_gate(
 - `run_security_gate()`: `config`パラメータでマルチデータセットモードをサポート
 
 ### Phase 3: 結果集計強化 ✅ 完了
-**ファイル**: `sandbox-runner/src/sandbox_runner/security_gate.py`, `app/routers/submissions.py`
+**ファイル**: `evaluation-runner/src/evaluation_runner/security_gate.py`, `app/routers/submissions.py`
 
 **実装内容**:
 - データセット別集計: `byDataset` フィールドをサマリーに追加
@@ -323,8 +323,8 @@ security_summary = run_security_gate(
 
 ## 🔗 関連ファイル
 
-- [security_gate.py](../sandbox-runner/src/sandbox_runner/security_gate.py)
-- [functional_accuracy.py](../sandbox-runner/src/sandbox_runner/functional_accuracy.py)
+- [security_gate.py](../evaluation-runner/src/evaluation_runner/security_gate.py)
+- [agent_card_accuracy.py](../evaluation-runner/src/evaluation_runner/agent_card_accuracy.py)
 - [submissions.py](../app/routers/submissions.py)
 - [AISI datasets](../third_party/aisev/backend/dataset/output/)
 

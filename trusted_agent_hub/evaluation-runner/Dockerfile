@@ -12,4 +12,4 @@ COPY src /app/src
 
 RUN pip install --no-cache-dir .
 
-ENTRYPOINT ["sandbox-runner"]
+ENTRYPOINT ["evaluation-runner"]

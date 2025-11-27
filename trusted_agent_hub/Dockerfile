@@ -10,16 +10,16 @@ RUN apt-get update && apt-get install -y \
 
 # Install Python dependencies
 COPY trusted_agent_hub/requirements.txt .
-COPY trusted_agent_hub/sandbox-runner /app/sandbox-runner
+COPY trusted_agent_hub/evaluation-runner /app/evaluation-runner
 COPY trusted_agent_hub/third_party /app/third_party
 
-# Copy inspect-worker for Judge Panel (Agents-as-a-Judge)
-COPY trusted_agent_hub/inspect-worker /app/inspect-worker
+# Copy jury-judge-worker for Judge Panel (Agents-as-a-Judge)
+COPY trusted_agent_hub/jury-judge-worker /app/jury-judge-worker
 
 RUN pip install --no-cache-dir -r requirements.txt
-RUN pip install -e /app/sandbox-runner
-RUN pip install --no-cache-dir -r /app/inspect-worker/requirements.txt
-RUN pip install -e /app/inspect-worker
+RUN pip install -e /app/evaluation-runner
+RUN pip install --no-cache-dir -r /app/jury-judge-worker/requirements.txt
+RUN pip install -e /app/jury-judge-worker
 
 # Copy application code
 COPY trusted_agent_hub/app /app/app
@@ -32,7 +32,7 @@ RUN mkdir -p /app/data/agents
 COPY trusted_agent_hub/data/agents/registered-agents.json /app/data/agents/
 
 # Set environment variables
-ENV PYTHONPATH=/app:/app/inspect-worker
+ENV PYTHONPATH=/app:/app/jury-judge-worker
 ENV DATABASE_URL=sqlite:////app/data/agent_store.db
 
 # Expose port

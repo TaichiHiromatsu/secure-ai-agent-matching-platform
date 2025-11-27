@@ -14,14 +14,14 @@ services:
     environment:
       # Override only non-secret variables
       - DATABASE_URL=sqlite:////app/data/agent_store.db
-      - PYTHONPATH=/app:/app/inspect-worker:/app/evaluation-runner/src
+      - PYTHONPATH=/app:/app/jury-judge-worker:/app/evaluation-runner/src
     volumes:
       # Mount data directory to host for easy access
       - ./trusted_agent_hub/data:/app/data
       # Development: Mount source code for hot reload
       - ./trusted_agent_hub/app:/app/app
       - ./trusted_agent_hub/evaluation-runner/src:/app/evaluation-runner/src
-      - ./trusted_agent_hub/inspect-worker:/app/inspect-worker
+      - ./trusted_agent_hub/jury-judge-worker:/app/jury-judge-worker
     networks:
       - agent-net
     command: uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload

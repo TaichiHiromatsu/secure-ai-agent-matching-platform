@@ -68,7 +68,7 @@ def generate_scenarios_with_question_generator(
   max_scenarios: int
 ) -> List[Scenario]:
   """
-  Generate scenarios using AgentQuestionGenerator from inspect-worker.
+  Generate scenarios using AgentQuestionGenerator from jury-judge-worker.
   This provides more sophisticated scenario generation using Google ADK.
 
   Args:
@@ -81,13 +81,13 @@ def generate_scenarios_with_question_generator(
     List of Scenario objects
   """
   try:
-    # Import AgentQuestionGenerator from inspect-worker
+    # Import AgentQuestionGenerator from jury-judge-worker
     import sys
-    inspect_worker_path = Path(__file__).parent.parent.parent / "inspect-worker"
-    if str(inspect_worker_path) not in sys.path:
-      sys.path.insert(0, str(inspect_worker_path))
+    jury_judge_worker_path = Path(__file__).parent.parent.parent / "jury-judge-worker"
+    if str(jury_judge_worker_path) not in sys.path:
+      sys.path.insert(0, str(jury_judge_worker_path))
 
-    from inspect_worker.question_generator import AgentQuestionGenerator
+    from jury_judge_worker.question_generator import AgentQuestionGenerator
 
     generator = AgentQuestionGenerator(model_name="gemini-2.5-flash", use_agent=True)
     question_specs = generator.generate_questions(card_path, max_questions=max_scenarios)

@@ -13,13 +13,13 @@ PACKAGE_ROOT = Path(__file__).resolve().parents[1]
 if str(PACKAGE_ROOT) not in sys.path:
     sys.path.insert(0, str(PACKAGE_ROOT))
 
-from inspect_worker import MCTSJudgeOrchestrator, dispatch_questions, generate_questions
-from inspect_worker.llm_judge import LLMJudge, LLMJudgeConfig
-from inspect_worker.wandb_logger import WandbConfig, init_wandb, log_artifact, log_metrics, update_config
+from jury_judge_worker import MCTSJudgeOrchestrator, dispatch_questions, generate_questions
+from jury_judge_worker.llm_judge import LLMJudge, LLMJudgeConfig
+from jury_judge_worker.wandb_logger import WandbConfig, init_wandb, log_artifact, log_metrics, update_config
 
 ROOT = Path(__file__).resolve().parents[3]
-PROJECT_SCENARIO = ROOT / "prototype/inspect-worker/scenarios/generic_eval.yaml"
-OUTPUT_DIR = ROOT / "prototype/inspect-worker/out"
+PROJECT_SCENARIO = ROOT / "prototype/jury-judge-worker/scenarios/generic_eval.yaml"
+OUTPUT_DIR = ROOT / "prototype/jury-judge-worker/out"
 AISEV_ROOT = Path(os.environ.get("AISEV_HOME", ROOT / "third_party/aisev"))
 AISEV_DATASET_DIR = AISEV_ROOT / "backend/dataset/output"
 AISEV_DATASET_CACHE: Dict[str, List[Dict[str, str]]] = {}
@@ -340,7 +340,7 @@ def _run_inspect_eval(
         from inspect_ai._eval.eval import eval as inspect_eval
         from inspect_ai._eval.task import Task
     except ImportError as error:
-        print(f"[inspect-worker] inspect_ai import failed: {error}. Falling back to placeholder evaluation.")
+        print(f"[jury-judge-worker] inspect_ai import failed: {error}. Falling back to placeholder evaluation.")
         return _placeholder_eval(records)
 
     if not records:
@@ -400,11 +400,11 @@ def _run_inspect_eval(
             score_display=False,
         )
     except Exception as error:
-        print(f"[inspect-worker] inspect eval execution failed: {error}. Falling back to placeholder evaluation.")
+        print(f"[jury-judge-worker] inspect eval execution failed: {error}. Falling back to placeholder evaluation.")
         return _placeholder_eval(records)
 
     if not logs:
-        print("[inspect-worker] inspect eval returned no logs. Falling back to placeholder evaluation.")
+        print("[jury-judge-worker] inspect eval returned no logs. Falling back to placeholder evaluation.")
         return _placeholder_eval(records)
 
     log = logs[0]
@@ -508,7 +508,7 @@ def _run_judge_panel(
     panel_judge_instance = None
     use_panel = False
     try:
-        from inspect_worker.panel_judge import MultiModelJudgePanel
+        from jury_judge_worker.panel_judge import MultiModelJudgePanel
         # 環境変数から各モデルの有効化を確認
         enable_openai = bool(os.getenv("OPENAI_API_KEY"))
         enable_anthropic = bool(os.getenv("ANTHROPIC_API_KEY"))

@@ -25,8 +25,8 @@ Multi-Model Judge (GPT-4o/Claude/Gemini) による3段階推論で評価の信�
 ## 📦 構成
 
 ```
-inspect-worker/
-├── inspect_worker/
+jury-judge-worker/
+├── jury_judge_worker/
 │   ├── judge_orchestrator.py    # 評価オーケストレーション
 │   ├── llm_judge.py             # Multi-model Judge実装
 │   └── mcts_reconcile.py        # MCTSベース合意形成
@@ -40,7 +40,7 @@ inspect-worker/
 ### 1. 依存インストール
 
 ```bash
-cd inspect-worker
+cd jury-judge-worker
 pip install -r requirements.txt
 ```
 
@@ -59,7 +59,7 @@ WANDB_API_KEY=your_wandb_key
 ### Judge Orchestratorによる統合評価
 
 ```python
-from inspect_worker.judge_orchestrator import run_jury_judge
+from jury_judge_worker.judge_orchestrator import run_jury_judge
 
 summary = run_jury_judge(
     agent_id="demo-agent",
@@ -93,7 +93,7 @@ print(f"Tool Usage: {summary['tool_usage']}")
 ## 🧪 テスト
 
 ```bash
-cd inspect-worker
+cd jury-judge-worker
 pip install -e .[dev]
 pytest
 ```

@@ -33,20 +33,20 @@ except ImportError:
         def init(project_name):
             pass
 
-# Try to import inspect-worker components
+# Try to import jury-judge-worker components
 try:
-    from inspect_worker.multi_model_judge import MultiModelJudge
-    from inspect_worker.question_generator import QuestionSpec
-    from inspect_worker.question_generator import generate_questions
-    from inspect_worker.execution_agent import ExecutionResult
-    from inspect_worker.execution_agent import _detect_flags, _build_response_snippet
-    from inspect_worker.jury_judge_collaborative import CollaborativeJuryJudge
-    HAS_INSPECT_WORKER = True
+    from jury_judge_worker.multi_model_judge import MultiModelJudge
+    from jury_judge_worker.question_generator import QuestionSpec
+    from jury_judge_worker.question_generator import generate_questions
+    from jury_judge_worker.execution_agent import ExecutionResult
+    from jury_judge_worker.execution_agent import _detect_flags, _build_response_snippet
+    from jury_judge_worker.jury_judge_collaborative import CollaborativeJuryJudge
+    HAS_JURY_JUDGE_WORKER = True
 except ImportError:
-    HAS_INSPECT_WORKER = False
-    print("Warning: inspect-worker not available, falling back to mock implementation")
+    HAS_JURY_JUDGE_WORKER = False
+    print("Warning: jury-judge-worker not available, falling back to mock implementation")
 
-from sandbox_runner.mcts_orchestrator import orchestrate_mcts, MCTSParams
+from evaluation_runner.mcts_orchestrator import orchestrate_mcts, MCTSParams
 
 
 @weave.op()
@@ -96,8 +96,8 @@ def run_judge_panel(
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    if not HAS_INSPECT_WORKER:
-        raise RuntimeError("inspect-worker is required for Judge Panel but is not available")
+    if not HAS_JURY_JUDGE_WORKER:
+        raise RuntimeError("jury-judge-worker is required for Judge Panel but is not available")
     if not agent_card_path.exists():
         raise FileNotFoundError(f"Agent card not found: {agent_card_path}")
     if not endpoint_url:
@@ -153,7 +153,7 @@ def run_judge_panel(
         )
 
     # Use Multi-Model Judge Panel if available
-    if HAS_INSPECT_WORKER and not dry_run:
+    if HAS_JURY_JUDGE_WORKER and not dry_run:
         def _eval_once():
             return _run_stage_multi_model_judge_panel(
                 scenarios,
@@ -391,10 +391,10 @@ def _run_collaborative_jury_evaluation(
                 "use_case": getattr(base_question, "use_case", None),
                 "prompt": base_question.prompt,
                 "response": execution.response,
-                "finalVerdict": result.final_judgment.final_verdict,
-                "finalScore": result.final_judgment.final_score,
-                "confidence": result.final_judgment.confidence,
-                "consensusStatus": result.consensus_status.value if result.consensus_status else None,
+                "finalVerdict": result.final_verdict,
+                "finalScore": result.final_score,
+                "confidence": result.phase3_judgment.confidence if result.phase3_judgment else 0.0,
+                "consensusStatus": result.phase1_consensus.consensus_status.value if result.phase1_consensus else None,
                 "totalRounds": result.total_rounds,
                 "earlyTermination": result.early_termination,
                 "phase1Evaluations": [
@@ -420,20 +420,20 @@ def _run_collaborative_jury_evaluation(
                             for stmt in round.statements
                         ],
                         "consensusCheck": {
-                            "consensusStatus": round.consensus_check.consensus_status.value,
-                            "consensusReached": round.consensus_check.consensus_reached,
-                            "consensusVerdict": round.consensus_check.consensus_verdict,
+                            "consensusStatus": round.consensus_check.consensus_status.value if round.consensus_check else None,
+                            "consensusReached": round.consensus_check.consensus_reached if round.consensus_check else False,
+                            "consensusVerdict": round.consensus_check.consensus_verdict if round.consensus_check else None,
                         } if round.consensus_check else None,
                     }
-                    for round in (result.discussion_rounds or [])
+                    for round in (result.phase2_rounds or [])
                 ],
                 "finalJudgment": {
-                    "method": result.final_judgment.method,
-                    "finalVerdict": result.final_judgment.final_verdict,
-                    "finalScore": result.final_judgment.final_score,
-                    "confidence": result.final_judgment.confidence,
-                    "rationale": result.final_judgment.rationale,
-                    "scoreBreakdown": result.final_judgment.score_breakdown,
+                    "method": result.phase3_judgment.method if result.phase3_judgment else "unknown",
+                    "finalVerdict": result.final_verdict,
+                    "finalScore": result.final_score,
+                    "confidence": result.phase3_judgment.confidence if result.phase3_judgment else 0.0,
+                    "rationale": result.phase3_judgment.rationale if result.phase3_judgment else "",
+                    "scoreBreakdown": result.phase3_judgment.score_breakdown if result.phase3_judgment else {},
                 }
             })
 
@@ -450,13 +450,13 @@ def _run_collaborative_jury_evaluation(
 
     # 統計情報を集計
     total_evaluations = len(all_evaluations)
-    approve_count = sum(1 for ev in all_evaluations if ev.final_judgment.final_verdict == "safe_pass")
-    reject_count = sum(1 for ev in all_evaluations if ev.final_judgment.final_verdict == "unsafe_fail")
-    manual_count = sum(1 for ev in all_evaluations if ev.final_judgment.final_verdict == "needs_review")
+    approve_count = sum(1 for ev in all_evaluations if ev.final_verdict == "safe_pass")
+    reject_count = sum(1 for ev in all_evaluations if ev.final_verdict == "unsafe_fail")
+    manual_count = sum(1 for ev in all_evaluations if ev.final_verdict == "needs_review")
 
     # スコアの平均を計算
     if all_evaluations:
-        avg_final_score = sum(ev.final_judgment.final_score for ev in all_evaluations) / len(all_evaluations)
+        avg_final_score = sum(ev.final_score for ev in all_evaluations) / len(all_evaluations)
     else:
         avg_final_score = 0.0
 
@@ -741,7 +741,7 @@ def _generate_mock_judge_results(
     agent_id: str,
     revision: str
 ) -> Dict[str, Any]:
-    """Generate mock judge results for dry run or when inspect-worker is unavailable."""
+    """Generate mock judge results for dry run or when jury-judge-worker is unavailable."""
 
     # Count verdicts from functional tests
     pass_count = sum(1 for s in scenarios if s.get("evaluation", {}).get("verdict") == "pass")

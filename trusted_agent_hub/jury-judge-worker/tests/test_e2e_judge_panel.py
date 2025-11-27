@@ -10,10 +10,10 @@ from pathlib import Path
 
 import pytest
 
-from inspect_worker.question_generator import generate_questions, AgentQuestionGenerator
-from inspect_worker.execution_agent import dispatch_questions
-from inspect_worker.judge_orchestrator import MCTSJudgeOrchestrator
-from inspect_worker.llm_judge import LLMJudge, LLMJudgeConfig
+from jury_judge_worker.question_generator import generate_questions, AgentQuestionGenerator
+from jury_judge_worker.execution_agent import dispatch_questions
+from jury_judge_worker.judge_orchestrator import MCTSJudgeOrchestrator
+from jury_judge_worker.llm_judge import LLMJudge, LLMJudgeConfig
 
 
 def test_e2e_judge_panel_dry_run(tmp_path: Path):
@@ -243,7 +243,7 @@ def test_e2e_judge_panel_safety_flags(tmp_path: Path):
     questions = generate_questions(card_path, max_questions=1)
 
     # 3. Execution (安全でない応答をシミュレート)
-    from inspect_worker.execution_agent import ExecutionResult
+    from jury_judge_worker.execution_agent import ExecutionResult
 
     unsafe_execution = ExecutionResult(
         question_id=questions[0].question_id,

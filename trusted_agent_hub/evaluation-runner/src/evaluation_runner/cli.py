@@ -23,7 +23,7 @@ WANDB_DISABLED = os.environ.get("WANDB_DISABLED", "false").lower() == "true"
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Sandbox runner minimal CLI")
+    parser = argparse.ArgumentParser(description="Evaluation runner CLI")
     parser.add_argument("--agent-id", required=True)
     parser.add_argument("--revision", required=True)
     parser.add_argument("--template", required=True, choices=["google-adk", "langgraph"])
@@ -32,7 +32,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--wandb-project", default="agent-store-sandbox")
     parser.add_argument("--wandb-entity", default="local")
     parser.add_argument("--wandb-base-url", default="https://wandb.fake")
-    # NOTE: schemas live at sandbox-runner/schemas rather than inside src/
+    # NOTE: schemas live at evaluation-runner/schemas rather than inside src/
     # Using parents[2] keeps the default stable even when the package is installed editable.
     default_schema_dir = Path(__file__).resolve().parents[2] / "schemas"
     default_manifest = Path(__file__).resolve().parents[3] / "prompts/aisi/manifest.sample.json"
@@ -190,7 +190,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         validate_artifacts(response_samples, policy_score, fairness_probe, schema_dir, manifest_path)
     except ValidationError as exc:
-        print(f"[sandbox-runner] validation error: {exc.message}", file=sys.stderr)
+        print(f"[evaluation-runner] validation error: {exc.message}", file=sys.stderr)
         return 2
 
     wandb_info = init_wandb_run(
@@ -302,7 +302,7 @@ def main(argv: list[str] | None = None) -> int:
             if run is not None:
                 run.finish()
 
-    print(f"[sandbox-runner] generated artifacts in {output_dir}")
+    print(f"[evaluation-runner] generated artifacts in {output_dir}")
     return 0
 
 

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from inspect_worker.execution_agent import ExecutionResult
-from inspect_worker.llm_judge import LLMJudge, LLMJudgeConfig
-from inspect_worker.question_generator import QuestionSpec
+from jury_judge_worker.execution_agent import ExecutionResult
+from jury_judge_worker.llm_judge import LLMJudge, LLMJudgeConfig
+from jury_judge_worker.question_generator import QuestionSpec
 
 
 def _dummy_question() -> QuestionSpec:

@@ -13,9 +13,9 @@ router = APIRouter(
     tags=["submissions"],
 )
 
-from sandbox_runner.security_gate import run_security_gate, SecurityGateConfig, DatasetConfig
-from sandbox_runner.agent_card_accuracy import run_functional_accuracy
-from sandbox_runner.jury_judge import run_judge_panel
+from evaluation_runner.security_gate import run_security_gate, SecurityGateConfig, DatasetConfig
+from evaluation_runner.agent_card_accuracy import run_functional_accuracy
+from evaluation_runner.jury_judge import run_judge_panel
 from pathlib import Path
 import os
 import json
@@ -141,7 +141,7 @@ def publish_agent(submission: models.Submission) -> dict:
 
 def process_submission(submission_id: str):
     """
-    Execute the real review pipeline using sandbox-runner.
+    Execute the real review pipeline using evaluation-runner.
     """
     db = SessionLocal()
     try:
@@ -176,8 +176,8 @@ def process_submission(submission_id: str):
         wandb_base_url = os.environ.get("WANDB_BASE_URL", "https://wandb.ai")
 
         # Initialize W&B run first
-        from sandbox_runner.cli import init_wandb_run
-        from sandbox_runner.wandb_logger import create_wandb_logger
+        from evaluation_runner.cli import init_wandb_run
+        from evaluation_runner.wandb_logger import create_wandb_logger
 
         # Initialize the W&B run to start tracking
         wandb_info = init_wandb_run(
@@ -546,7 +546,7 @@ def process_submission(submission_id: str):
             submission.updated_at = datetime.utcnow()
             db.commit()
 
-            ragtruth_dir = base_dir / "sandbox-runner/resources/ragtruth"
+            ragtruth_dir = base_dir / "evaluation-runner/resources/ragtruth"
 
             functional_summary = run_functional_accuracy(
                 agent_id=submission.agent_id,

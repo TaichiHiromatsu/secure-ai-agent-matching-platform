@@ -13,11 +13,11 @@ from pathlib import Path
 
 import pytest
 
-from inspect_worker.panel_judge import MultiModelJudgePanel, ModelVerdict, PanelVerdict
-from inspect_worker.question_generator import QuestionSpec
-from inspect_worker.execution_agent import ExecutionResult
-from inspect_worker.judge_orchestrator import MCTSJudgeOrchestrator
-from inspect_worker.llm_judge import LLMJudge, LLMJudgeConfig, LLMJudgeResult
+from jury_judge_worker.panel_judge import MultiModelJudgePanel, ModelVerdict, PanelVerdict
+from jury_judge_worker.question_generator import QuestionSpec
+from jury_judge_worker.execution_agent import ExecutionResult
+from jury_judge_worker.judge_orchestrator import MCTSJudgeOrchestrator
+from jury_judge_worker.llm_judge import LLMJudge, LLMJudgeConfig, LLMJudgeResult
 
 
 class _StubLLMJudge:

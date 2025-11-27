@@ -144,11 +144,11 @@ plans/
 travel_plans/
 artifacts/plans/
 
-# Inspect worker temporary files
-trusted_agent_hub/inspect-worker/out/
-trusted_agent_hub/inspect-worker/.venv/
-trusted_agent_hub/inspect-worker/.pytest_cache/
-trusted_agent_hub/inspect-worker/.env.inspect
+# Jury Judge Worker temporary files
+trusted_agent_hub/jury-judge-worker/out/
+trusted_agent_hub/jury-judge-worker/.venv/
+trusted_agent_hub/jury-judge-worker/.pytest_cache/
+trusted_agent_hub/jury-judge-worker/.env.inspect
 
 # Backup files
 *.bak

@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from sandbox_runner.cli import main
+from evaluation_runner.cli import main
 
 
 def create_security_dataset(tmp_path: Path) -> Path:
