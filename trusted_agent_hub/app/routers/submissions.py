@@ -14,8 +14,8 @@ router = APIRouter(
 )
 
 from sandbox_runner.security_gate import run_security_gate, SecurityGateConfig, DatasetConfig
-from sandbox_runner.capability_validation import run_functional_accuracy
-from sandbox_runner.judge_orchestrator import run_judge_panel
+from sandbox_runner.agent_card_accuracy import run_functional_accuracy
+from sandbox_runner.jury_judge import run_judge_panel
 from pathlib import Path
 import os
 import json
@@ -177,7 +177,7 @@ def process_submission(submission_id: str):
 
         # Initialize W&B run first
         from sandbox_runner.cli import init_wandb_run
-        from sandbox_runner.wandb_mcp import create_wandb_mcp
+        from sandbox_runner.wandb_logger import create_wandb_logger
 
         # Initialize the W&B run to start tracking
         wandb_info = init_wandb_run(
@@ -202,8 +202,8 @@ def process_submission(submission_id: str):
             }
         }
 
-        # Create WandbMCP helper for logging
-        wandb_mcp = create_wandb_mcp(
+        # Create WandbLogger helper for logging
+        wandb_logger = create_wandb_logger(
             base_metadata=base_metadata,
             wandb_info=wandb_info,
             project=wandb_project,
@@ -411,8 +411,8 @@ def process_submission(submission_id: str):
                     session_id=submission.id,
                     user_id="security-gate"
                 )
-                wandb_mcp.log_stage_summary("security", security_summary)
-                wandb_mcp.save_artifact("security", output_dir / "security" / "security_report.jsonl", name="security-report")
+                wandb_logger.log_stage_summary("security", security_summary)
+                wandb_logger.save_artifact("security", output_dir / "security" / "security_report.jsonl", name="security-report")
             except Exception as e:
                 security_summary = {"error": str(e), "status": "failed"}
                 print(f"Security Gate failed for submission {submission_id}: {e}")
@@ -566,8 +566,8 @@ def process_submission(submission_id: str):
                 use_adk_generator=os.getenv("FUNCTIONAL_USE_ADK_GENERATOR", "false").lower() == "true"
             )
 
-            wandb_mcp.log_stage_summary("functional", functional_summary)
-            wandb_mcp.save_artifact("functional", output_dir / "functional" / "functional_report.jsonl", name="functional-report")
+            wandb_logger.log_stage_summary("functional", functional_summary)
+            wandb_logger.save_artifact("functional", output_dir / "functional" / "functional_report.jsonl", name="functional-report")
         else:
             functional_summary = None
             current_breakdown = dict(submission.score_breakdown)
@@ -720,6 +720,18 @@ def process_submission(submission_id: str):
             submission.updated_at = datetime.utcnow()
             db.commit()
 
+            # Prepare security_gate_results and agent_card_accuracy for collaborative jury judge
+            security_gate_results = enhanced_security_summary if security_summary else None
+            agent_card_accuracy = enhanced_functional_summary if functional_summary else None
+
+            # Create WebSocket callback for real-time updates
+            from app.routers.websockets import get_connection_manager
+            ws_manager = get_connection_manager()
+
+            async def websocket_callback(data: dict):
+                """Send real-time updates to WebSocket clients"""
+                await ws_manager.send_progress(submission_id, data)
+
             judge_summary = run_judge_panel(
                 agent_id=submission.agent_id,
                 revision="v1",
@@ -728,11 +740,14 @@ def process_submission(submission_id: str):
                 dry_run=False,
                 endpoint_url=endpoint_url,
                 endpoint_token=None,
-                max_questions=5
+                max_questions=5,
+                security_gate_results=security_gate_results,
+                agent_card_accuracy=agent_card_accuracy,
+                websocket_callback=websocket_callback
             )
 
-            wandb_mcp.log_stage_summary("judge", judge_summary)
-            wandb_mcp.save_artifact("judge", output_dir / "judge" / "judge_report.jsonl", name="judge-report")
+            wandb_logger.log_stage_summary("judge", judge_summary)
+            wandb_logger.save_artifact("judge", output_dir / "judge" / "judge_report.jsonl", name="judge-report")
 
             judge_report_path = output_dir / "judge" / "judge_report.jsonl"
             judge_scenarios = []

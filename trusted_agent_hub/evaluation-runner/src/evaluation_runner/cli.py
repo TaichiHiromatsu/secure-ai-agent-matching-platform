@@ -11,8 +11,8 @@ from typing import Any, Dict, List, Set
 from jsonschema import Draft202012Validator, ValidationError
 
 from .security_gate import run_security_gate
-from .capability_validation import run_functional_accuracy
-from .wandb_mcp import create_wandb_mcp
+from .agent_card_accuracy import run_functional_accuracy
+from .wandb_logger import create_wandb_logger
 
 try:
     import wandb  # type: ignore
@@ -223,7 +223,7 @@ def main(argv: list[str] | None = None) -> int:
             "baseUrl": args.wandb_base_url
         },
     }
-    wandb_mcp = create_wandb_mcp(
+    wandb_logger = create_wandb_logger(
         base_metadata=metadata,
         wandb_info=wandb_info,
         project=args.wandb_project,
@@ -254,9 +254,9 @@ def main(argv: list[str] | None = None) -> int:
             agent_card=agent_card_data
         )
         metadata["securityGate"] = security_summary
-        wandb_mcp.log_stage_summary("security", security_summary)
-        wandb_mcp.save_artifact("security", security_output / "security_report.jsonl", name="security-report")
-        wandb_mcp.save_artifact("security", security_output / "security_prompts.jsonl", name="security-prompts")
+        wandb_logger.log_stage_summary("security", security_summary)
+        wandb_logger.save_artifact("security", security_output / "security_report.jsonl", name="security-report")
+        wandb_logger.save_artifact("security", security_output / "security_prompts.jsonl", name="security-prompts")
 
     functional_summary = None
     if not args.skip_functional and args.agent_card:
@@ -276,10 +276,10 @@ def main(argv: list[str] | None = None) -> int:
             timeout=args.functional_timeout
         )
         metadata["functionalAccuracy"] = functional_summary
-        wandb_mcp.log_stage_summary("functional", functional_summary)
-        wandb_mcp.save_artifact("functional", functional_output / "functional_report.jsonl", name="functional-report")
+        wandb_logger.log_stage_summary("functional", functional_summary)
+        wandb_logger.save_artifact("functional", functional_output / "functional_report.jsonl", name="functional-report")
 
-    metadata["wandbMcp"] = wandb_mcp.export_metadata()
+    metadata["wandbLogger"] = wandb_logger.export_metadata()
     (output_dir / "metadata.json").write_text(json.dumps(metadata, ensure_ascii=False, indent=2))
 
     if wandb_info.get("enabled") and wandb is not None:

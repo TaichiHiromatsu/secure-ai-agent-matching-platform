@@ -5,8 +5,8 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 
-class WandbMCP:
-  """Simple helper to attach stage artifacts/logs to a shared W&B run via MCP."""
+class WandbLogger:
+  """Simple helper to attach stage artifacts/logs to a shared W&B run."""
 
   def __init__(
     self,
@@ -73,17 +73,17 @@ class WandbMCP:
     }
 
 
-def create_wandb_mcp(
+def create_wandb_logger(
   *,
   base_metadata: Dict[str, Any],
   wandb_info: Dict[str, Any],
   project: str,
   entity: str,
   base_url: str
-) -> WandbMCP:
+) -> WandbLogger:
   enabled = bool(wandb_info.get("enabled"))
   run_id = wandb_info.get("runId") or base_metadata.get("wandb", {}).get("runId") or base_metadata.get("runId") or "sandbox"
-  return WandbMCP(
+  return WandbLogger(
     enabled=enabled,
     project=project,
     entity=entity,

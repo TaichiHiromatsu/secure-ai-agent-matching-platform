@@ -3,7 +3,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
 from .database import engine, Base
-from .routers import submissions, reviews, ui, agents
+from .routers import submissions, reviews, ui, agents, websockets
 from app.services.agent_registry import load_agents
 import os
 
@@ -37,6 +37,7 @@ app.include_router(reviews.router)
 app.include_router(ui.router)
 app.include_router(agents.router)
 app.include_router(agents.api_router)
+app.include_router(websockets.router)  # WebSocket for real-time jury judge updates
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):

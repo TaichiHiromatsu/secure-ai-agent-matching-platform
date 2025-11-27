@@ -627,10 +627,91 @@
         {% endif %}
     </details>
     <!-- Jury Judge -->
-    <details id="details-judge" class="mb-6 bg-gray-50 p-4 rounded-lg">
+    <details id="details-judge" class="mb-6 bg-gray-50 p-4 rounded-lg" open>
         <summary class="text-lg font-semibold mb-2 flex items-center cursor-pointer">
             <span class="mr-2">⚖️</span> Jury Judge (Agents-as-a-Judge)
         </summary>
+
+        <!-- Real-time Collaborative Jury Judge Progress (WebSocket) -->
+        <div id="jury-realtime-container" class="ml-7 space-y-4 mt-2 hidden">
+            <div class="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                <h4 class="font-semibold mb-3 flex items-center">
+                    <span class="mr-2">🔴</span>
+                    <span>リアルタイム協調評価進捗</span>
+                    <span id="ws-status" class="ml-auto text-xs px-2 py-1 rounded bg-yellow-100 text-yellow-800">接続中...</span>
+                </h4>
+
+                <!-- Phase Indicator -->
+                <div id="phase-indicator" class="mb-4">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-sm font-medium">現在のフェーズ:</span>
+                        <span id="current-phase-text" class="text-sm font-bold text-purple-700">-</span>
+                    </div>
+                    <div class="flex gap-2">
+                        <div id="phase-1" class="flex-1 p-2 rounded border text-center text-xs bg-gray-100 text-gray-500">
+                            Phase 1: 独立評価
+                        </div>
+                        <div id="phase-2" class="flex-1 p-2 rounded border text-center text-xs bg-gray-100 text-gray-500">
+                            Phase 2: ディスカッション
+                        </div>
+                        <div id="phase-3" class="flex-1 p-2 rounded border text-center text-xs bg-gray-100 text-gray-500">
+                            Phase 3: 最終判定
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Juror Evaluations (Phase 1) -->
+                <div id="juror-evaluations-container" class="mb-4 hidden">
+                    <h5 class="text-sm font-semibold mb-2">陪審員の評価:</h5>
+                    <div id="juror-evaluations" class="grid md:grid-cols-3 gap-2"></div>
+                </div>
+
+                <!-- Consensus Check -->
+                <div id="consensus-container" class="mb-4 hidden">
+                    <div class="bg-white p-3 rounded border">
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm font-semibold">合意状況:</span>
+                            <span id="consensus-status" class="text-sm font-bold"></span>
+                        </div>
+                        <div id="consensus-details" class="text-xs text-gray-600 mt-1"></div>
+                    </div>
+                </div>
+
+                <!-- Discussion Rounds (Phase 2) -->
+                <div id="discussion-container" class="mb-4 hidden">
+                    <h5 class="text-sm font-semibold mb-2">ディスカッション:</h5>
+                    <div id="current-round-info" class="text-xs text-gray-600 mb-2"></div>
+                    <div id="discussion-messages" class="space-y-2 max-h-96 overflow-y-auto"></div>
+                </div>
+
+                <!-- Final Judgment (Phase 3) -->
+                <div id="final-judgment-container" class="mb-4 hidden">
+                    <div class="bg-green-50 border border-green-200 rounded-lg p-3">
+                        <h5 class="text-sm font-semibold mb-2">最終判定結果:</h5>
+                        <div class="grid md:grid-cols-2 gap-3">
+                            <div>
+                                <div class="text-xs text-gray-600">判定:</div>
+                                <div id="final-verdict" class="text-lg font-bold"></div>
+                            </div>
+                            <div>
+                                <div class="text-xs text-gray-600">スコア:</div>
+                                <div id="final-score" class="text-lg font-bold"></div>
+                            </div>
+                            <div>
+                                <div class="text-xs text-gray-600">信頼度:</div>
+                                <div id="final-confidence" class="text-sm font-medium"></div>
+                            </div>
+                            <div>
+                                <div class="text-xs text-gray-600">判定方法:</div>
+                                <div id="final-method" class="text-sm font-medium"></div>
+                            </div>
+                        </div>
+                        <div id="final-rationale" class="mt-2 text-xs"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         {% if submission.score_breakdown.judge_summary %}
         <div class="ml-7 space-y-4 mt-2">
             <!-- AISI Inspect Criteria Scores -->
@@ -924,3 +1005,205 @@
     <p class="text-gray-500">Automated review is in progress or not yet started...</p>
     {% endif %}
 </div>
+
+<script src="/static/judge-websocket.js"></script>
+<script>
+// Initialize Jury Judge WebSocket for real-time updates
+(function() {
+    const submissionId = '{{ submission.id }}';
+    const judgeState = '{{ submission.state }}';
+
+    // Only connect WebSocket if judge panel is running
+    if (judgeState === 'judge_panel_running') {
+        const realtimeContainer = document.getElementById('jury-realtime-container');
+        if (realtimeContainer) {
+            realtimeContainer.classList.remove('hidden');
+
+            // Initialize WebSocket client
+            const juryWS = new JuryJudgeWebSocket(submissionId);
+
+            // Connection status handlers
+            juryWS.on('connected', () => {
+                const wsStatus = document.getElementById('ws-status');
+                if (wsStatus) {
+                    wsStatus.textContent = '接続済み';
+                    wsStatus.className = 'ml-auto text-xs px-2 py-1 rounded bg-green-100 text-green-800';
+                }
+            });
+
+            juryWS.on('disconnected', () => {
+                const wsStatus = document.getElementById('ws-status');
+                if (wsStatus) {
+                    wsStatus.textContent = '切断';
+                    wsStatus.className = 'ml-auto text-xs px-2 py-1 rounded bg-red-100 text-red-800';
+                }
+            });
+
+            // Phase change handler
+            juryWS.on('phase_change', (data) => {
+                const phaseText = document.getElementById('current-phase-text');
+                if (phaseText) {
+                    phaseText.textContent = data.description || `Phase ${data.phaseNumber}`;
+                }
+
+                // Update phase indicators
+                for (let i = 1; i <= 3; i++) {
+                    const phaseEl = document.getElementById(`phase-${i}`);
+                    if (phaseEl) {
+                        if (i === data.phaseNumber) {
+                            phaseEl.className = 'flex-1 p-2 rounded border text-center text-xs bg-purple-100 text-purple-800 font-bold';
+                        } else if (i < data.phaseNumber) {
+                            phaseEl.className = 'flex-1 p-2 rounded border text-center text-xs bg-green-100 text-green-800';
+                        } else {
+                            phaseEl.className = 'flex-1 p-2 rounded border text-center text-xs bg-gray-100 text-gray-500';
+                        }
+                    }
+                }
+            });
+
+            // Juror evaluation handler (Phase 1)
+            juryWS.on('juror_evaluation', (data) => {
+                const container = document.getElementById('juror-evaluations-container');
+                const evaluations = document.getElementById('juror-evaluations');
+
+                if (container && evaluations) {
+                    container.classList.remove('hidden');
+
+                    let jurorEl = document.getElementById(`juror-${data.juror}`);
+                    if (!jurorEl) {
+                        jurorEl = document.createElement('div');
+                        jurorEl.id = `juror-${data.juror}`;
+                        jurorEl.className = 'p-2 bg-white rounded border text-xs';
+                        evaluations.appendChild(jurorEl);
+                    }
+
+                    const verdictColor = data.verdict === 'safe_pass' ? 'green' : (data.verdict === 'unsafe_fail' ? 'red' : 'yellow');
+                    jurorEl.innerHTML = `
+                        <div class="font-semibold mb-1">${data.juror}</div>
+                        <div class="mb-1">
+                            <span class="px-2 py-1 rounded bg-${verdictColor}-100 text-${verdictColor}-800">${data.verdict}</span>
+                        </div>
+                        <div class="text-gray-600">Score: ${data.score.toFixed(1)}/100</div>
+                        <div class="text-gray-600">Confidence: ${(data.confidence * 100).toFixed(0)}%</div>
+                    `;
+                }
+            });
+
+            // Consensus check handler
+            juryWS.on('consensus_check', (data) => {
+                const container = document.getElementById('consensus-container');
+                const status = document.getElementById('consensus-status');
+                const details = document.getElementById('consensus-details');
+
+                if (container && status && details) {
+                    container.classList.remove('hidden');
+
+                    const statusColor = data.consensusReached ? 'text-green-600' : 'text-yellow-600';
+                    status.textContent = data.consensusStatus;
+                    status.className = `text-sm font-bold ${statusColor}`;
+
+                    if (data.consensusReached) {
+                        details.textContent = `合意成立: ${data.consensusVerdict} (Round ${data.round})`;
+                    } else {
+                        details.textContent = `合意なし - ディスカッション継続 (Round ${data.round})`;
+                    }
+                }
+            });
+
+            // Discussion start handler (Phase 2)
+            juryWS.on('discussion_start', (data) => {
+                const container = document.getElementById('discussion-container');
+                const roundInfo = document.getElementById('current-round-info');
+
+                if (container && roundInfo) {
+                    container.classList.remove('hidden');
+                    roundInfo.textContent = `Round ${data.round} - 発言順: ${data.speakerOrder.join(', ')}`;
+                }
+            });
+
+            // Juror statement handler
+            juryWS.on('juror_statement', (data) => {
+                const messages = document.getElementById('discussion-messages');
+                if (messages) {
+                    const messageEl = document.createElement('div');
+                    messageEl.className = 'p-3 bg-white rounded border';
+
+                    const positionBadge = data.positionChanged ?
+                        '<span class="ml-2 px-2 py-1 rounded text-xs bg-blue-100 text-blue-800">立場変更</span>' : '';
+
+                    messageEl.innerHTML = `
+                        <div class="text-xs text-gray-600 mb-1">
+                            <span class="font-semibold">${data.juror}</span> (Round ${data.round})
+                            ${positionBadge}
+                        </div>
+                        <div class="text-sm">${data.statement}</div>
+                        ${data.positionChanged ? `<div class="text-xs text-gray-600 mt-1">新しい判定: ${data.newVerdict} (${data.newScore.toFixed(1)})</div>` : ''}
+                    `;
+
+                    messages.appendChild(messageEl);
+                    messages.scrollTop = messages.scrollHeight;
+                }
+            });
+
+            // Round complete handler
+            juryWS.on('round_complete', (data) => {
+                const roundInfo = document.getElementById('current-round-info');
+                if (roundInfo) {
+                    const status = data.consensusReached ? '✓ 合意成立' : (data.stagnant ? '⚠ 停滞検出' : '進行中');
+                    roundInfo.textContent += ` - ${status}`;
+                }
+            });
+
+            // Final judgment handler (Phase 3)
+            juryWS.on('final_judgment', (data) => {
+                const container = document.getElementById('final-judgment-container');
+                const verdict = document.getElementById('final-verdict');
+                const score = document.getElementById('final-score');
+                const confidence = document.getElementById('final-confidence');
+                const method = document.getElementById('final-method');
+                const rationale = document.getElementById('final-rationale');
+
+                if (container && verdict && score && confidence && method && rationale) {
+                    container.classList.remove('hidden');
+
+                    const verdictColor = data.finalVerdict === 'safe_pass' ? 'text-green-600' :
+                                        (data.finalVerdict === 'unsafe_fail' ? 'text-red-600' : 'text-yellow-600');
+                    verdict.textContent = data.finalVerdict;
+                    verdict.className = `text-lg font-bold ${verdictColor}`;
+
+                    score.textContent = `${data.finalScore.toFixed(1)}/100`;
+                    confidence.textContent = `${(data.confidence * 100).toFixed(0)}%`;
+                    method.textContent = data.method;
+                    rationale.innerHTML = `<strong>理由:</strong> ${data.rationale || 'N/A'}`;
+                }
+            });
+
+            // Evaluation complete handler
+            juryWS.on('evaluation_complete', () => {
+                // Reload page to show final results
+                setTimeout(() => {
+                    window.location.reload();
+                }, 2000);
+            });
+
+            // Error handler
+            juryWS.on('error', (data) => {
+                console.error('Jury Judge WebSocket error:', data);
+                const wsStatus = document.getElementById('ws-status');
+                if (wsStatus) {
+                    wsStatus.textContent = 'エラー';
+                    wsStatus.className = 'ml-auto text-xs px-2 py-1 rounded bg-red-100 text-red-800';
+                }
+            });
+
+            // Connect to WebSocket
+            juryWS.connect();
+
+            // Cleanup on page unload
+            window.addEventListener('beforeunload', () => {
+                juryWS.disconnect();
+            });
+        }
+    }
+})();
+</script>
