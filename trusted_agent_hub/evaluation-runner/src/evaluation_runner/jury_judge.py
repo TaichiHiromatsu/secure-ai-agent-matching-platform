@@ -335,8 +335,8 @@ def _run_collaborative_jury_evaluation(
     # 環境変数から設定を読み込む
     use_collaborative = os.environ.get("JURY_USE_COLLABORATIVE", "true").lower() == "true"
     max_discussion_rounds = int(os.environ.get("JURY_MAX_DISCUSSION_ROUNDS", "3"))
-    consensus_threshold = float(os.environ.get("JURY_CONSENSUS_THRESHOLD", "1.0"))
-    final_judgment_method = os.environ.get("JURY_FINAL_JUDGMENT_METHOD", "majority_vote")
+    consensus_threshold = float(os.environ.get("JURY_CONSENSUS_THRESHOLD", "2.0"))
+    final_judgment_method = os.environ.get("JURY_FINAL_JUDGMENT_METHOD", "final_judge")
     final_judge_model = os.environ.get("JURY_FINAL_JUDGE_MODEL", "gemini-2.5-pro")
 
     # Collaborative Jury Judgeを初期化
@@ -415,6 +415,8 @@ def _run_collaborative_jury_evaluation(
             "phase1Evaluations": [
                 {
                     "jurorId": ev.juror_id,
+                    "roleName": ev.role_name,
+                    "roleFocus": ev.role_focus,
                     "verdict": ev.verdict,
                     "overallScore": ev.overall_score,
                     "confidence": ev.confidence,
@@ -472,9 +474,9 @@ def _run_collaborative_jury_evaluation(
 
     # スコアの平均を計算
     if all_evaluations:
-        avg_final_score = sum(ev.final_score for ev in all_evaluations) / len(all_evaluations)
+        avg_final_score = int(sum(ev.final_score for ev in all_evaluations) / len(all_evaluations))
     else:
-        avg_final_score = 0.0
+        avg_final_score = 0
 
     # Overall verdictを決定
     if reject_count > 0:
