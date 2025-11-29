@@ -614,116 +614,209 @@
         </div>
         {% endif %}
 
-        <!-- Real-time Collaborative Jury Judge Progress (WebSocket) -->
-        <div id="jury-realtime-container" class="ml-7 space-y-4 mt-2 hidden">
-            <div class="bg-purple-50 border border-purple-200 rounded-lg p-4">
-                <h4 class="font-semibold mb-3 flex items-center">
-            <span class="mr-2">🔴</span>
-            <span>リアルタイム協調評価進捗</span>
-            <span id="ws-status" class="ml-auto text-xs px-2 py-1 rounded bg-yellow-100 text-yellow-800">接続中...</span>
-                </h4>
+        <!-- Unified Collaborative Jury Judge Panel (Real-time + Historical) -->
+        {% set show_realtime = submission.state == 'judge_panel_running' %}
+        {% set show_historical = submission.score_breakdown.judge_summary and submission.score_breakdown.judge_summary.scenarios %}
 
-                <!-- Phase Indicator -->
-                <div id="phase-indicator" class="mb-4">
-            <div class="flex items-center justify-between mb-2">
-                <span class="text-sm font-medium">現在のフェーズ:</span>
-                <span id="current-phase-text" class="text-sm font-bold text-purple-700">-</span>
-            </div>
-            <div class="flex gap-2">
-                <div id="phase-1" class="flex-1 p-2 rounded border text-center text-xs bg-gray-100 text-gray-500">
-                    Phase 1: 独立評価
-                </div>
-                <div id="phase-2" class="flex-1 p-2 rounded border text-center text-xs bg-gray-100 text-gray-500">
-                    Phase 2: ディスカッション
-                </div>
-                <div id="phase-3" class="flex-1 p-2 rounded border text-center text-xs bg-gray-100 text-gray-500">
-                    Phase 3: 最終判定
-                </div>
-            </div>
-                </div>
-
-                <!-- Juror Evaluations (Phase 1) -->
-                <div id="juror-evaluations-container" class="mb-4 hidden">
-            <h5 class="text-sm font-semibold mb-2">陪審員の評価:</h5>
-            <div id="juror-evaluations" class="grid md:grid-cols-3 gap-2"></div>
-                </div>
-
-                <!-- Consensus Check -->
-                <div id="consensus-container" class="mb-4 hidden">
-            <div class="bg-white p-3 rounded border">
-                <div class="flex items-center justify-between">
-                    <span class="text-sm font-semibold">合意状況:</span>
-                    <span id="consensus-status" class="text-sm font-bold"></span>
-                </div>
-                <div id="consensus-details" class="text-xs text-gray-600 mt-1"></div>
-            </div>
-                </div>
-
-                <!-- Discussion Rounds (Phase 2) -->
-                <div id="discussion-container" class="mb-4 hidden">
-            <h5 class="text-sm font-semibold mb-2">ディスカッション:</h5>
-            <div id="current-round-info" class="text-xs text-gray-600 mb-2"></div>
-            <div id="discussion-messages" class="space-y-2 max-h-96 overflow-y-auto"></div>
-                </div>
-
-                <!-- Final Judgment (Phase 3) -->
-                <div id="final-judgment-container" class="mb-4 hidden">
-            <div class="bg-green-50 border border-green-200 rounded-lg p-3">
-                <h5 class="text-sm font-semibold mb-2">最終判定結果:</h5>
-                <div class="grid md:grid-cols-2 gap-3">
-                    <div>
-                        <div class="text-xs text-gray-600">判定:</div>
-                        <div id="final-verdict" class="text-lg font-bold"></div>
-                    </div>
-                    <div>
-                        <div class="text-xs text-gray-600">スコア:</div>
-                        <div id="final-score" class="text-lg font-bold"></div>
-                    </div>
-                    <div>
-                        <div class="text-xs text-gray-600">信頼度:</div>
-                        <div id="final-confidence" class="text-sm font-medium"></div>
-                    </div>
-                    <div>
-                        <div class="text-xs text-gray-600">判定方法:</div>
-                        <div id="final-method" class="text-sm font-medium"></div>
-                    </div>
-                </div>
-                <div id="final-rationale" class="mt-2 text-xs"></div>
-            </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Historical Discussion Data (for completed evaluations) -->
-        {% if submission.score_breakdown.judge_summary and submission.score_breakdown.judge_summary.scenarios and submission.state != 'judge_panel_running' %}
+        {% if show_realtime or show_historical %}
         <div class="ml-7 space-y-4 mt-2">
-            {% for scenario in submission.score_breakdown.judge_summary.scenarios %}
-                {% if scenario.discussionRounds and scenario.discussionRounds | length > 0 %}
-                <details class="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <summary class="text-sm font-semibold mb-2 cursor-pointer">
-                <span class="mr-2">💬</span>
-                <span>Scenario: {{ scenario.scenarioId }} - Discussion History ({{ scenario.discussionRounds | length }} rounds)</span>
+            {# Extract collective_judgment scenario which contains the collaborative discussion #}
+            {% set collective = namespace(found=none) %}
+            {% if show_historical %}
+                {% for scenario in submission.score_breakdown.judge_summary.scenarios %}
+                    {% if scenario.scenarioId == 'collective_judgment' %}
+                        {% set collective.found = scenario %}
+                    {% endif %}
+                {% endfor %}
+            {% endif %}
+
+            <details id="jury-unified-container" class="bg-blue-50 border border-blue-200 rounded-lg p-4" open>
+            <summary class="text-sm font-semibold mb-2 cursor-pointer flex items-center">
+                <span class="mr-2">⚖️</span>
+                <span>協調評価 (Collaborative Jury Judge)</span>
+                {% if show_realtime %}
+                <span id="ws-status" class="ml-auto text-xs px-2 py-1 rounded bg-green-100 text-green-800">実行中</span>
+                {% elif collective.found %}
+                <span class="ml-auto text-xs text-gray-600">{{ collective.found.discussionRounds | length }} ラウンド完了</span>
+                {% endif %}
             </summary>
 
             <div class="ml-6 mt-3 space-y-3">
+                <!-- Real-time Progress (shown during execution) -->
+                {% if show_realtime %}
+                <div id="jury-realtime-progress" class="mb-4 p-3 bg-white border border-purple-200 rounded">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-sm font-medium">現在のフェーズ:</span>
+                        <span id="current-phase-text" class="text-sm font-bold text-purple-700">-</span>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Phase Status Indicator (used by both real-time and historical) -->
+                <div id="phase-indicator" class="mb-4">
+                    <div class="flex gap-2">
+                        {% if show_historical and collective.found %}
+                            {% set phase1_complete = collective.found.phase1Evaluations and collective.found.phase1Evaluations | length > 0 %}
+                            {% set phase2_complete = collective.found.discussionRounds and collective.found.discussionRounds | length > 0 %}
+                            {% set phase3_complete = collective.found.finalJudgment %}
+                        {% else %}
+                            {% set phase1_complete = false %}
+                            {% set phase2_complete = false %}
+                            {% set phase3_complete = false %}
+                        {% endif %}
+
+                        <div id="phase-1" class="flex-1 p-2 rounded border text-center text-xs
+                            {% if phase1_complete %}bg-green-100 border-green-300 text-green-800{% else %}bg-gray-100 text-gray-500{% endif %}">
+                            Phase 1: 独立評価
+                            {% if phase1_complete %}✓{% endif %}
+                        </div>
+                        <div id="phase-2" class="flex-1 p-2 rounded border text-center text-xs
+                            {% if phase2_complete %}bg-green-100 border-green-300 text-green-800{% else %}bg-gray-100 text-gray-500{% endif %}">
+                            Phase 2: ディスカッション
+                            {% if phase2_complete %}✓{% elif collective.found and collective.found.earlyTermination %}⏩{% endif %}
+                        </div>
+                        <div id="phase-3" class="flex-1 p-2 rounded border text-center text-xs
+                            {% if phase3_complete %}bg-green-100 border-green-300 text-green-800{% else %}bg-gray-100 text-gray-500{% endif %}">
+                            Phase 3: 最終判定
+                            {% if phase3_complete %}✓{% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Real-time WebSocket containers (only shown during execution) -->
+                {% if show_realtime %}
+                <div id="juror-evaluations-container" class="mb-4 hidden">
+                    <h5 class="text-sm font-semibold mb-2">陪審員の評価:</h5>
+                    <div id="juror-evaluations" class="grid md:grid-cols-3 gap-2"></div>
+                </div>
+
+                <div id="consensus-container" class="mb-4 hidden">
+                    <div class="bg-white p-3 rounded border">
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm font-semibold">合意状況:</span>
+                            <span id="consensus-status" class="text-sm font-bold"></span>
+                        </div>
+                        <div id="consensus-details" class="text-xs text-gray-600 mt-1"></div>
+                    </div>
+                </div>
+
+                <div id="discussion-container" class="mb-4 hidden">
+                    <h5 class="text-sm font-semibold mb-2">ディスカッション:</h5>
+                    <div id="current-round-info" class="text-xs text-gray-600 mb-2"></div>
+                    <div id="discussion-messages" class="space-y-2 max-h-96 overflow-y-auto"></div>
+                </div>
+
+                <div id="final-judgment-container" class="mb-4 hidden">
+                    <div class="bg-green-50 border border-green-200 rounded-lg p-3">
+                        <h5 class="text-sm font-semibold mb-2">最終判定結果:</h5>
+                        <div class="grid md:grid-cols-2 gap-3">
+                            <div>
+                                <div class="text-xs text-gray-600">判定:</div>
+                                <div id="final-verdict" class="text-lg font-bold"></div>
+                            </div>
+                            <div>
+                                <div class="text-xs text-gray-600">スコア:</div>
+                                <div id="final-score" class="text-lg font-bold"></div>
+                            </div>
+                            <div>
+                                <div class="text-xs text-gray-600">信頼度:</div>
+                                <div id="final-confidence" class="text-sm font-medium"></div>
+                            </div>
+                            <div>
+                                <div class="text-xs text-gray-600">判定方法:</div>
+                                <div id="final-method" class="text-sm font-medium"></div>
+                            </div>
+                        </div>
+                        <div id="final-rationale" class="mt-2 text-xs"></div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Historical Data (only shown after completion) -->
+                {% if show_historical and collective.found %}
                 <!-- Phase 1 Evaluations -->
-                {% if scenario.phase1Evaluations %}
+                {% if collective.found.phase1Evaluations %}
                 <div class="mb-4">
                     <h5 class="text-sm font-semibold mb-2">Phase 1: 独立評価</h5>
-                    <div class="grid md:grid-cols-3 gap-2">
-                        {% for evaluation in scenario.phase1Evaluations %}
-                        <div class="p-2 bg-white rounded border text-xs">
-                            <div class="font-semibold mb-1">{{ evaluation.jurorId }}</div>
-                            <div class="mb-1">
-                                <span class="px-2 py-1 rounded
+                    <div class="space-y-3">
+                        {% for evaluation in collective.found.phase1Evaluations %}
+                        <div class="p-3 bg-white rounded border">
+                            <div class="flex items-center justify-between mb-2">
+                                <div class="font-semibold text-sm">{{ evaluation.jurorId }}</div>
+                                <span class="px-2 py-1 rounded text-xs
                                     {% if evaluation.verdict == 'safe_pass' %}bg-green-100 text-green-800
                                     {% elif evaluation.verdict == 'unsafe_fail' %}bg-red-100 text-red-800
                                     {% else %}bg-yellow-100 text-yellow-800{% endif %}">
                                     {{ evaluation.verdict }}
                                 </span>
                             </div>
-                            <div class="text-gray-600">Score: {{ evaluation.overallScore }}/100</div>
-                            <div class="text-gray-600">Confidence: {{ (evaluation.confidence * 100) | int }}%</div>
+
+                            <!-- Score Summary -->
+                            <div class="grid grid-cols-2 gap-2 mb-2 text-xs">
+                                <div class="bg-gray-50 p-2 rounded">
+                                    <div class="text-gray-600">総合スコア</div>
+                                    <div class="font-bold text-lg">{{ evaluation.overallScore }}/100</div>
+                                </div>
+                                <div class="bg-gray-50 p-2 rounded">
+                                    <div class="text-gray-600">信頼度</div>
+                                    <div class="font-bold text-lg">{{ (evaluation.confidence * 100) | int }}%</div>
+                                </div>
+                            </div>
+
+                            <!-- Score Breakdown (4 Axes) -->
+                            {% if evaluation.safetyScore is defined or evaluation.securityScore is defined or evaluation.complianceScore is defined or evaluation.autonomyScore is defined %}
+                            <div class="mb-2">
+                                <div class="text-xs text-gray-600 font-semibold mb-1">評価軸別スコア:</div>
+                                <div class="grid grid-cols-2 gap-1 text-xs">
+                                    {% if evaluation.safetyScore is defined %}
+                                    <div class="flex justify-between px-2 py-1 bg-blue-50 rounded">
+                                        <span>Safety:</span>
+                                        <span class="font-medium">{{ evaluation.safetyScore }}/10</span>
+                                    </div>
+                                    {% endif %}
+                                    {% if evaluation.securityScore is defined %}
+                                    <div class="flex justify-between px-2 py-1 bg-green-50 rounded">
+                                        <span>Security (Task):</span>
+                                        <span class="font-medium">{{ evaluation.securityScore }}/40</span>
+                                    </div>
+                                    {% endif %}
+                                    {% if evaluation.complianceScore is defined %}
+                                    <div class="flex justify-between px-2 py-1 bg-yellow-50 rounded">
+                                        <span>Compliance (Tool):</span>
+                                        <span class="font-medium">{{ evaluation.complianceScore }}/30</span>
+                                    </div>
+                                    {% endif %}
+                                    {% if evaluation.autonomyScore is defined %}
+                                    <div class="flex justify-between px-2 py-1 bg-purple-50 rounded">
+                                        <span>Autonomy:</span>
+                                        <span class="font-medium">{{ evaluation.autonomyScore }}/20</span>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endif %}
+
+                            <!-- Rationale (Collapsible) -->
+                            {% if evaluation.rationale %}
+                            <details class="mt-2">
+                                <summary class="text-xs font-semibold text-blue-600 cursor-pointer hover:text-blue-800">
+                                    評価理由を表示
+                                </summary>
+                                <div class="mt-2 p-2 bg-gray-50 rounded text-xs text-gray-700 whitespace-pre-wrap">{{ evaluation.rationale }}</div>
+                            </details>
+                            {% endif %}
+
+                            <!-- Critical Issues -->
+                            {% if evaluation.criticalIssues and evaluation.criticalIssues | length > 0 %}
+                            <div class="mt-2 p-2 bg-red-50 border border-red-200 rounded">
+                                <div class="text-xs font-semibold text-red-800 mb-1">⚠️ 重大な問題:</div>
+                                <ul class="text-xs text-red-700 list-disc list-inside space-y-1">
+                                    {% for issue in evaluation.criticalIssues %}
+                                    <li>{{ issue }}</li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                            {% endif %}
                         </div>
                         {% endfor %}
                     </div>
@@ -731,7 +824,7 @@
                 {% endif %}
 
                 <!-- Discussion Rounds -->
-                {% for round in scenario.discussionRounds %}
+                {% for round in collective.found.discussionRounds %}
                 <div class="bg-white border rounded-lg p-3">
                     <div class="text-xs font-semibold text-gray-700 mb-2">
                         Round {{ round.roundNumber }} - 発言順: {{ round.speakerOrder | join(', ') }}
@@ -770,45 +863,105 @@
                 {% endfor %}
 
                 <!-- Final Judgment -->
-                {% if scenario.finalJudgment %}
-                <div class="bg-green-50 border border-green-200 rounded-lg p-3">
-                    <h5 class="text-sm font-semibold mb-2">Phase 3: 最終判定</h5>
-                    <div class="grid md:grid-cols-2 gap-3 text-xs">
-                        <div>
-                            <div class="text-gray-600">判定:</div>
+                {% if collective.found.finalJudgment %}
+                <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+                    <h5 class="text-sm font-semibold mb-3">Phase 3: 最終判定</h5>
+
+                    <!-- Summary Grid -->
+                    <div class="grid md:grid-cols-2 gap-3 mb-3 text-xs">
+                        <div class="bg-white p-2 rounded border">
+                            <div class="text-gray-600">判定結果:</div>
                             <div class="text-lg font-bold
-                                {% if scenario.finalJudgment.finalVerdict == 'safe_pass' %}text-green-600
-                                {% elif scenario.finalJudgment.finalVerdict == 'unsafe_fail' %}text-red-600
+                                {% if collective.found.finalJudgment.finalVerdict == 'safe_pass' %}text-green-600
+                                {% elif collective.found.finalJudgment.finalVerdict == 'unsafe_fail' %}text-red-600
                                 {% else %}text-yellow-600{% endif %}">
-                                {{ scenario.finalJudgment.finalVerdict }}
+                                {{ collective.found.finalJudgment.finalVerdict }}
                             </div>
                         </div>
-                        <div>
-                            <div class="text-gray-600">スコア:</div>
-                            <div class="text-lg font-bold">{{ scenario.finalJudgment.finalScore }}/100</div>
+                        <div class="bg-white p-2 rounded border">
+                            <div class="text-gray-600">最終スコア:</div>
+                            <div class="text-lg font-bold">{{ collective.found.finalJudgment.finalScore }}/100</div>
                         </div>
-                        <div>
+                        <div class="bg-white p-2 rounded border">
                             <div class="text-gray-600">信頼度:</div>
-                            <div class="font-medium">{{ (scenario.finalJudgment.confidence * 100) | int }}%</div>
+                            <div class="font-medium">{{ (collective.found.finalJudgment.confidence * 100) | int }}%</div>
                         </div>
-                        <div>
+                        <div class="bg-white p-2 rounded border">
                             <div class="text-gray-600">判定方法:</div>
-                            <div class="font-medium">{{ scenario.finalJudgment.method }}</div>
+                            <div class="font-medium">
+                                {% if collective.found.finalJudgment.method == 'final_judge' %}
+                                    🤖 Final Judge (AI Agent)
+                                {% elif collective.found.finalJudgment.method == 'majority_vote' %}
+                                    🗳️ Majority Vote
+                                {% elif collective.found.finalJudgment.method == 'weighted_average' %}
+                                    ⚖️ Weighted Average
+                                {% elif collective.found.finalJudgment.method == 'unanimous' %}
+                                    ✅ Unanimous Agreement
+                                {% else %}
+                                    {{ collective.found.finalJudgment.method }}
+                                {% endif %}
+                            </div>
                         </div>
                     </div>
-                    {% if scenario.finalJudgment.rationale %}
-                    <div class="mt-2 text-xs">
-                        <strong>理由:</strong> {{ scenario.finalJudgment.rationale }}
+
+                    <!-- Final Judge Model (if applicable) -->
+                    {% if collective.found.finalJudgment.method == 'final_judge' and collective.found.finalJudgment.finalJudgeModel %}
+                    <div class="mb-3 p-2 bg-blue-50 border border-blue-200 rounded text-xs">
+                        <span class="font-semibold text-blue-800">最終判定エージェント:</span>
+                        <span class="text-blue-700">{{ collective.found.finalJudgment.finalJudgeModel }}</span>
                     </div>
+                    {% endif %}
+
+                    <!-- Vote Distribution (for majority_vote) -->
+                    {% if collective.found.finalJudgment.voteDistribution %}
+                    <div class="mb-3 p-2 bg-white border rounded text-xs">
+                        <div class="font-semibold mb-1">投票分布:</div>
+                        <div class="flex gap-2">
+                            {% for verdict, count in collective.found.finalJudgment.voteDistribution.items() %}
+                            <div class="px-2 py-1 rounded
+                                {% if verdict == 'safe_pass' %}bg-green-100 text-green-800
+                                {% elif verdict == 'unsafe_fail' %}bg-red-100 text-red-800
+                                {% else %}bg-yellow-100 text-yellow-800{% endif %}">
+                                {{ verdict }}: {{ count }}票
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Final Judge Rationale (detailed reasoning from AI agent) -->
+                    {% if collective.found.finalJudgment.finalJudgeRationale %}
+                    <details class="mb-3" open>
+                        <summary class="text-xs font-semibold text-green-700 cursor-pointer hover:text-green-900 mb-2">
+                            📋 最終判定の理由 (Final Judge)
+                        </summary>
+                        <div class="p-3 bg-white border rounded text-xs text-gray-700 whitespace-pre-wrap">{{ collective.found.finalJudgment.finalJudgeRationale }}</div>
+                    </details>
+                    {% elif collective.found.finalJudgment.rationale %}
+                    <details class="mb-3" open>
+                        <summary class="text-xs font-semibold text-green-700 cursor-pointer hover:text-green-900 mb-2">
+                            📋 最終判定の理由
+                        </summary>
+                        <div class="p-3 bg-white border rounded text-xs text-gray-700 whitespace-pre-wrap">{{ collective.found.finalJudgment.rationale }}</div>
+                    </details>
+                    {% endif %}
+
+                    <!-- Discussion Summary -->
+                    {% if collective.found.finalJudgment.discussionSummary %}
+                    <details class="mb-2">
+                        <summary class="text-xs font-semibold text-purple-700 cursor-pointer hover:text-purple-900 mb-2">
+                            💬 議論の要約
+                        </summary>
+                        <div class="p-3 bg-white border rounded text-xs text-gray-700 whitespace-pre-wrap">{{ collective.found.finalJudgment.discussionSummary }}</div>
+                    </details>
                     {% endif %}
                 </div>
                 {% endif %}
+                {% endif %} {# End show_historical and collective.found #}
             </div>
                 </details>
-                {% endif %}
-            {% endfor %}
         </div>
-        {% endif %}
+        {% endif %} {# End show_realtime or show_historical #}
 
         {% if submission.score_breakdown.judge_summary %}
         <div class="ml-7 space-y-4 mt-2">
@@ -956,17 +1109,6 @@
     // ALWAYS connect WebSocket for real-time updates (not just for judge panel)
     console.log('[DEBUG] Initializing WebSocket for ALL evaluation stages');
 
-    // Show jury real-time container only for judge panel
-    if (judgeState === 'judge_panel_running' || judgeState === 'judge_panel_completed') {
-        console.log('[DEBUG] Judge panel is running or completed, showing real-time container');
-        const realtimeContainer = document.getElementById('jury-realtime-container');
-        console.log('[DEBUG] Real-time container element:', realtimeContainer);
-        if (realtimeContainer) {
-            console.log('[DEBUG] Removing hidden class from real-time container');
-            realtimeContainer.classList.remove('hidden');
-        }
-    }
-
     // Initialize WebSocket client for ALL stages (not just judge panel)
     console.log('[DEBUG] Creating JuryJudgeWebSocket instance for submission:', submissionId);
     const juryWS = new JuryJudgeWebSocket(submissionId);
@@ -976,13 +1118,7 @@
     juryWS.on('connected', () => {
         console.log('[DEBUG] 🟢 WebSocket connected event fired');
 
-        // Show parent realtime container on connection
-        const parentContainer = document.getElementById('jury-realtime-container');
-        if (parentContainer) {
-            parentContainer.classList.remove('hidden');
-            console.log('[DEBUG] Removed hidden class from jury-realtime-container');
-        }
-
+        // Update unified panel status badge
         const wsStatus = document.getElementById('ws-status');
         console.log('[DEBUG] ws-status element:', wsStatus);
         if (wsStatus) {

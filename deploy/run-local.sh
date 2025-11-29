@@ -89,6 +89,17 @@ docker run -d \
     "${IMAGE_NAME}" > /dev/null
 
 echo -e "${GREEN}✓ Trusted Agent Hub started on port 8080${NC}"
+
+# ============================================
+# Load sample data if available
+# ============================================
+SAMPLE_DB="$PROJECT_ROOT/deploy/sample-data/agent_store.db"
+if [ -f "$SAMPLE_DB" ]; then
+    echo -e "${YELLOW}Loading sample data...${NC}"
+    sleep 2  # Wait for container to fully initialize
+    docker cp "$SAMPLE_DB" secure-platform:/app/trusted_agent_hub/data/agent_store.db
+    echo -e "${GREEN}✓ Sample data loaded${NC}"
+fi
 echo ""
 
 # ============================================
