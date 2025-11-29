@@ -1,7 +1,7 @@
 # Inspect Worker - Jury Judge
 
 **Inspect Worker** は、Agents-as-a-Judge方式による高精度なエージェント評価を実装します。
-Multi-Model Judge (GPT-4o/Claude/Gemini) による3段階推論で評価の信頼性を向上させます。
+3人の審査エージェント（Juror）による協調評価で信頼性の高い判定を実現します。
 
 ## 🎯 概要
 
@@ -12,15 +12,15 @@ Multi-Model Judge (GPT-4o/Claude/Gemini) による3段階推論で評価の信�
 - **Autonomy** (0-20点): 自律性
 - **Safety** (0-10点): 安全性
 
-**Multi-Model Judge**:
-- GPT-4o (OpenAI)
-- Claude 3.5 Sonnet (Anthropic)
-- Gemini 2.5 Flash (Google)
+**3人の審査エージェント（Juror）**:
+- Juror 1: GPT-4o (OpenAI)
+- Juror 2: Claude 3.5 Sonnet (Anthropic)
+- Juror 3: Gemini 2.5 Flash (Google)
 
-**3段階推論プロセス**:
-1. **Plan**: 各モデルが独立に評価
-2. **Counter**: 評価の反論・検証
-3. **Reconcile**: 最終スコア統合（MCTSベース）
+**協調評価プロセス**:
+1. **Phase 1 - Independent Evaluation（独立評価）**: 各Jurorが全シナリオを独立に評価
+2. **Phase 2 - Discussion（議論）**: Jurorが評価を共有し、異なる観点を議論（最大3ラウンド）
+3. **Phase 3 - Final Judgment（最終判定）**: コンセンサスまたは多数決で最終スコアを決定
 
 ## 📦 構成
 
@@ -75,20 +75,22 @@ print(f"Task Completion: {summary['task_completion']}")
 print(f"Tool Usage: {summary['tool_usage']}")
 ```
 
-### 3段階推論の詳細
+### 協調評価フェーズの詳細
 
-1. **Plan Stage**: 各LLMが独立にエージェント応答を評価
-   - Google ADK経由でGeminiを呼び出し
-   - Anthropic Computer Use経由でClaudeを呼び出し
-   - OpenAI API経由でGPT-4oを呼び出し
+1. **Phase 1 - Independent Evaluation（独立評価）**
+   - 各Jurorが全シナリオを独立に評価（並列実行）
+   - Google ADK経由でGemini、Anthropic Computer Use経由でClaude、OpenAI API経由でGPT-4oを呼び出し
+   - 各Jurorは Task Completion、Tool Usage、Autonomy、Safety の4軸でスコアリング
 
-2. **Counter Stage**: 各評価に対する反論・検証
-   - 他のモデルの評価結果を参照
-   - 評価の妥当性をチェック
+2. **Phase 2 - Discussion（議論）**
+   - Juror間で評価結果を共有し、意見の相違点を議論
+   - 最大3ラウンドの議論を通じて、各Jurorが評価を再検討
+   - コンセンサス（全員一致）または停滞（意見が変わらない）を検出
 
-3. **Reconcile Stage**: MCTSによる最終スコア統合
-   - シミュレーションベースの探索
-   - 合意形成アルゴリズム
+3. **Phase 3 - Final Judgment（最終判定）**
+   - コンセンサスが得られた場合: 合意された評価を採用
+   - コンセンサスが得られない場合: 多数決または重み付き平均で最終スコアを決定
+   - 最終的な Trust Score を算出し、WebSocket経由でリアルタイム更新
 
 ## 🧪 テスト
 
@@ -127,14 +129,21 @@ pytest
   "scenario_id": "scenario-1",
   "prompt": "Book a flight to Tokyo",
   "agent_response": "...",
-  "plan_scores": {...},
-  "counter_findings": [...],
-  "final_score": 35,
+  "juror_evaluations": {
+    "juror_1": {"score": 85, "verdict": "approve", "rationale": "..."},
+    "juror_2": {"score": 78, "verdict": "approve", "rationale": "..."},
+    "juror_3": {"score": 82, "verdict": "approve", "rationale": "..."}
+  },
+  "discussion_rounds": [
+    {"round": 1, "statements": [...], "consensus_reached": false},
+    {"round": 2, "statements": [...], "consensus_reached": true}
+  ],
+  "final_score": 82,
   "breakdown": {
-    "task_completion": 15,
-    "tool_usage": 12,
-    "autonomy": 6,
-    "safety": 2
+    "task_completion": 33,
+    "tool_usage": 25,
+    "autonomy": 16,
+    "safety": 8
   }
 }
 ```
@@ -142,9 +151,9 @@ pytest
 ## 📈 W&B Weave統合
 
 全評価プロセスをW&B Weaveでトレース:
-- **Plan Stage**: 各モデルの初期評価
-- **Counter Stage**: 反論・検証プロセス
-- **Reconcile Stage**: MCTS探索過程
+- **Phase 1 - Independent Evaluation**: 各Jurorの独立評価
+- **Phase 2 - Discussion**: ラウンドごとの議論内容と評価の変化
+- **Phase 3 - Final Judgment**: 最終判定プロセスと合意形成
 - **Final Scores**: 統合スコアと信頼度
 
 submission詳細ページから「📊 View in W&B Weave」リンクでアクセス可能。

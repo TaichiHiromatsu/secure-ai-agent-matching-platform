@@ -832,56 +832,6 @@
                 </div>
             </div>
 
-            <!-- Verdict and Counts -->
-            <div class="border-t pt-4">
-                <h4 class="font-semibold mb-2">Overall Verdict</h4>
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div class="bg-white p-3 rounded border">
-                <div class="text-xs text-gray-500">Verdict</div>
-                <div class="text-xl font-bold
-                    {% if submission.score_breakdown.judge_summary.verdict == 'approve' %}text-green-600
-                    {% elif submission.score_breakdown.judge_summary.verdict == 'reject' %}text-red-600
-                    {% else %}text-yellow-600{% endif %}">
-                    {{ submission.score_breakdown.judge_summary.verdict.upper() }}
-                </div>
-            </div>
-            <div class="bg-green-50 p-3 rounded border border-green-200">
-                <div class="text-xs text-gray-500">Approve Count</div>
-                <div class="text-2xl font-bold text-green-600">{{ submission.score_breakdown.judge_summary.approve or 0 }}</div>
-            </div>
-            <div class="bg-yellow-50 p-3 rounded border border-yellow-200">
-                <div class="text-xs text-gray-500">Manual Review</div>
-                <div class="text-2xl font-bold text-yellow-600">{{ submission.score_breakdown.judge_summary.manual or 0 }}</div>
-            </div>
-            <div class="bg-red-50 p-3 rounded border border-red-200">
-                <div class="text-xs text-gray-500">Reject Count</div>
-                <div class="text-2xl font-bold text-red-600">{{ submission.score_breakdown.judge_summary.reject or 0 }}</div>
-            </div>
-                </div>
-            </div>
-
-            <!-- Scenario Breakdown -->
-            <div class="border-t pt-4">
-                <h4 class="font-semibold mb-2">Scenario Breakdown</h4>
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div class="bg-white p-3 rounded border">
-                <div class="text-xs text-gray-500">Total Evaluated</div>
-                <div class="text-2xl font-bold">{{ submission.score_breakdown.judge_summary.totalScenarios or 0 }}</div>
-            </div>
-            <div class="bg-green-50 p-3 rounded border border-green-200">
-                <div class="text-xs text-gray-500">Passed</div>
-                <div class="text-2xl font-bold text-green-600">{{ submission.score_breakdown.judge_summary.passCount or 0 }}</div>
-            </div>
-            <div class="bg-yellow-50 p-3 rounded border border-yellow-200">
-                <div class="text-xs text-gray-500">Needs Review</div>
-                <div class="text-2xl font-bold text-yellow-600">{{ submission.score_breakdown.judge_summary.needsReviewCount or 0 }}</div>
-            </div>
-            <div class="bg-red-50 p-3 rounded border border-red-200">
-                <div class="text-xs text-gray-500">Failed</div>
-                <div class="text-2xl font-bold text-red-600">{{ submission.score_breakdown.judge_summary.failCount or 0 }}</div>
-            </div>
-                </div>
-            </div>
             <!-- LLM Configuration -->
             {% if submission.score_breakdown.judge_summary.llmJudge %}
             <div class="border-t pt-4">
@@ -921,135 +871,23 @@
                 </div>
             </div>
             {% endif %}
-            {% if submission.score_breakdown.judge_summary.counterFindings %}
-            <div class="border-t pt-4">
-                <h4 class="font-semibold mb-2">⚠️ Counter Findings (Top)</h4>
-                <ul class="list-disc ml-5 text-xs space-y-1">
-            {% for finding in submission.score_breakdown.judge_summary.counterFindings %}
-            <li>{{ finding }}</li>
-            {% endfor %}
-                </ul>
-            </div>
-            {% endif %}
-            <!-- Judge Panel Scenarios Details -->
-{% if submission.score_breakdown.judge_summary.counterFindings %}
-<div class="border-t pt-4">
-    <h4 class="font-semibold mb-2">⚠️ Counter Findings (Top)</h4>
-    <ul class="list-disc ml-5 text-xs space-y-1">
-        {% for finding in submission.score_breakdown.judge_summary.counterFindings %}
-        <li>{{ finding }}</li>
-        {% endfor %}
-    </ul>
-</div>
-{% endif %}
-
-{% if submission.score_breakdown.judge_summary.scenarios %}
-{% set grouped = {} %}
-{% for s in submission.score_breakdown.judge_summary.scenarios %}
-    {% set _ = grouped.setdefault(s.get('scenarioId') or 'unknown', []).append(s) %}
-{% endfor %}
-<div class="border-t pt-4">
-    <h4 class="font-semibold mb-2">🔍 Jury Judge評価詳細（シナリオ別・ステージ別）</h4>
-    <div class="space-y-4">
-        {% for scenario_id, stage_items in grouped.items() %}
-        <div class="border border-gray-300 rounded-lg bg-white shadow-sm p-3">
-                <div class="flex items-center justify-between text-sm font-semibold mb-2">
-                    {% set sample = stage_items[0] if stage_items else {} %}
-                    <span>シナリオ: {{ sample.get('use_case') or scenario_id }}</span>
-                    {% set rec = stage_items | selectattr('stage', 'equalto', 'reconcile') | list %}
-                    {% if rec and rec[0].get('judgeVerdict') %}
-                    <span class="px-2 py-1 rounded text-xs
-                        {% if rec[0].get('judgeVerdict') == 'approve' %}bg-green-100 text-green-800
-                        {% elif rec[0].get('judgeVerdict') == 'reject' %}bg-red-100 text-red-800
-            {% else %}bg-yellow-100 text-yellow-800{% endif %}">
-            最終: {{ rec[0].get('judgeVerdict') }}
-                </span>
-                {% endif %}
-            </div>
-
-            <div class="grid md:grid-cols-3 gap-3">
-                {% for stage_item in stage_items %}
-                {% set stage = (stage_item.get('stage') or 'stage') | lower %}
-                {% set stage_bg = 'bg-blue-50' if stage == 'plan' else ('bg-yellow-50' if stage == 'counter' else ('bg-green-50' if stage == 'reconcile' else 'bg-gray-50')) %}
-                {% set stage_badge = 'bg-blue-100 text-blue-800' if stage == 'plan' else ('bg-yellow-100 text-yellow-800' if stage == 'counter' else ('bg-green-100 text-green-800' if stage == 'reconcile' else 'bg-gray-100 text-gray-800')) %}
-                <div class="border rounded p-2 {{ stage_bg }} text-xs space-y-2">
-            <div class="flex items-center justify-between">
-                <span class="font-semibold uppercase px-2 py-1 rounded {{ stage_badge }}">{{ stage_item.get('stage') or 'stage' }}</span>
-                <span class="px-2 py-1 rounded text-xs
-                    {% if stage_item.get('judgeVerdict') == 'approve' %}bg-green-100 text-green-800
-                    {% elif stage_item.get('judgeVerdict') == 'reject' %}bg-red-100 text-red-800
-                    {% elif stage_item.get('judgeVerdict') == 'manual' %}bg-yellow-100 text-yellow-800
-                    {% else %}bg-gray-100 text-gray-800{% endif %}">
-                    {{ stage_item.get('judgeVerdict', 'N/A') }}
-                </span>
-            </div>
-            <div class="flex items-center justify-between">
-                <span>Judge Score:</span>
-                <span class="font-medium">{% if stage_item.get('judgeScore') is not none %}{{ "%.2f"|format(stage_item.get('judgeScore')) }}{% else %}N/A{% endif %}</span>
-            </div>
-            <div class="flex items-center justify-between">
-                <span>Minority Veto:</span>
-                <span class="font-medium">{{ stage_item.get('minorityVetoTriggered', False) }}</span>
-            </div>
-            <div>
-                <span class="font-semibold">Prompt (表示用):</span>
-                <pre class="mt-1 whitespace-pre-wrap bg-white p-2 rounded">{{ stage_item.get('promptDisplay') or stage_item.get('prompt') or 'N/A' }}</pre>
-            </div>
-                        {% if stage_item.get('llmVerdicts') %}
-                        <div class="border-t pt-2">
-                            <div class="font-semibold mb-1">各LLMの判定:</div>
-                            <div class="space-y-1">
-                                {% for llm in stage_item.get('llmVerdicts', []) %}
-                                <div class="bg-white rounded p-2">
-                                    <div class="flex items-center justify-between">
-                                        <span>{{ llm.get('model', 'Unknown') }}</span>
-                                        <span class="ml-2 px-2 py-0.5 rounded text-xs
-                                            {% if llm.get('verdict') == 'approve' %}bg-green-100 text-green-800
-                                            {% elif llm.get('verdict') == 'reject' %}bg-red-100 text-red-800
-                                            {% else %}bg-yellow-100 text-yellow-800{% endif %}">
-                                            {{ llm.get('verdict', 'N/A') }}
-                                        </span>
-                                        <span class="ml-1 text-gray-600 text-xs">Score: {% if llm.get('score') is not none %}{{ "%.2f"|format(llm.get('score')) }}{% else %}N/A{% endif %}</span>
-                                    </div>
-                                    {% if llm.get('rationale') %}
-                                    <div class="text-gray-700 text-xs mt-1">
-                                        <strong>Rationale:</strong>
-                                        <pre class="whitespace-pre-wrap bg-gray-50 p-2 rounded">{{ llm.get('rationale') }}</pre>
-                                    </div>
-                                    {% endif %}
-                                </div>
-                                {% endfor %}
-                            </div>
-                        </div>
-                        {% endif %}
-                        {# Aggregated Rationale と Issues は冗長なので表示を省略 #}
-                </div>
-                {% endfor %}
-            </div>
-        </div>
-        {% endfor %}
-    </div>
-</div>
-{% endif %}
 <!-- Confirmation Points -->
             <div class="border-t pt-4">
                 <h4 class="font-semibold mb-2">📋 確認ポイント (登録者向け)</h4>
                 <ul class="text-sm space-y-1 list-disc ml-5">
-            <li>Plan/Counter/Reconcileの3ステージ評価結果を確認し、各段階での判定の変化を把握</li>
-            <li>Counter Findingsセクションで指摘された問題点を確認し、Reconcileでどう対処されたかを理解</li>
-            <li>各LLMモデル(GPT-4o, Claude Haiku, Gemini 2.5 Flash)の判定とMinority-Veto発動状況を確認</li>
+            <li>3人の陪審員による協調評価プロセス(Phase 1: 独立評価 → Phase 2: ディスカッション → Phase 3: 最終判定)の結果を確認</li>
+            <li>各陪審員の独立評価と合意形成プロセスを確認し、判定の根拠を理解</li>
             <li>AISI Inspect基準スコア(Task Completion/Tool Usage/Autonomy/Safety)の内訳を確認し、弱点を特定</li>
-            <li>reject/manualの場合は、各LLMのRationaleを確認し、改善点や反論材料を整理</li>
+            <li>最終判定の信頼度(confidence)と判定方法(consensus/majority/fallback)を確認</li>
                 </ul>
             </div>
 
             <div class="border-t pt-4">
                 <h4 class="font-semibold mb-2">🔧 確認ポイント (管理者向け)</h4>
                 <ul class="text-sm space-y-1 list-disc ml-5">
-            <li>judge_report.jsonl を確認し、各ステージの詳細評価とLLMモデル別のスコア分布をレビュー</li>
-            <li>Minority-Veto閾値(デフォルト30%)が適切か評価し、必要に応じて環境変数で調整</li>
-            <li>Plan/Counter/Reconcileの3ステージプロセスが正常に機能しているか確認</li>
-            <li>Manual reviewが必要なシナリオについて、各LLMの判定理由を精査し、人間の目で最終判断を下す</li>
+            <li>judge_report.jsonl を確認し、各フェーズの詳細評価と陪審員間のディスカッション内容をレビュー</li>
+            <li>協調評価プロセス(Phase 1-3)が正常に機能し、適切な合意形成が行われているか確認</li>
+            <li>ディスカッションラウンド数と停滞検出の動作を確認し、必要に応じて設定を調整</li>
             <li>W&B Weave Tracesで詳細な実行ログとLLM呼び出しのトレースを確認</li>
                 </ul>
             </div>
@@ -1137,6 +975,14 @@
     // Connection status handlers
     juryWS.on('connected', () => {
         console.log('[DEBUG] 🟢 WebSocket connected event fired');
+
+        // Show parent realtime container on connection
+        const parentContainer = document.getElementById('jury-realtime-container');
+        if (parentContainer) {
+            parentContainer.classList.remove('hidden');
+            console.log('[DEBUG] Removed hidden class from jury-realtime-container');
+        }
+
         const wsStatus = document.getElementById('ws-status');
         console.log('[DEBUG] ws-status element:', wsStatus);
         if (wsStatus) {
@@ -1157,6 +1003,14 @@
             // Phase change handler
     juryWS.on('phase_change', (data) => {
         console.log('[DEBUG] 🔄 phase_change event handler called with data:', data);
+
+        // Show parent realtime container
+        const parentContainer = document.getElementById('jury-realtime-container');
+        if (parentContainer) {
+            parentContainer.classList.remove('hidden');
+            console.log('[DEBUG] Removed hidden class from jury-realtime-container (phase_change)');
+        }
+
         const phaseText = document.getElementById('current-phase-text');
         console.log('[DEBUG] current-phase-text element:', phaseText);
         if (phaseText) {
@@ -1182,6 +1036,14 @@
             // Juror evaluation handler (Phase 1)
     juryWS.on('juror_evaluation', (data) => {
         console.log('[DEBUG] 👨‍⚖️ juror_evaluation event handler called with data:', data);
+
+        // Show parent realtime container
+        const parentContainer = document.getElementById('jury-realtime-container');
+        if (parentContainer) {
+            parentContainer.classList.remove('hidden');
+            console.log('[DEBUG] Removed hidden class from jury-realtime-container (juror_evaluation)');
+        }
+
         const container = document.getElementById('juror-evaluations-container');
         const evaluations = document.getElementById('juror-evaluations');
         console.log('[DEBUG] juror-evaluations-container:', container);
@@ -1213,6 +1075,13 @@
 
             // Consensus check handler
     juryWS.on('consensus_check', (data) => {
+        // Show parent realtime container
+        const parentContainer = document.getElementById('jury-realtime-container');
+        if (parentContainer) {
+            parentContainer.classList.remove('hidden');
+            console.log('[DEBUG] Removed hidden class from jury-realtime-container (consensus_check)');
+        }
+
         const container = document.getElementById('consensus-container');
         const status = document.getElementById('consensus-status');
         const details = document.getElementById('consensus-details');
@@ -1235,6 +1104,14 @@
             // Discussion start handler (Phase 2)
     juryWS.on('discussion_start', (data) => {
         console.log('[DEBUG] 💬 discussion_start event handler called with data:', data);
+
+        // Show parent realtime container
+        const parentContainer = document.getElementById('jury-realtime-container');
+        if (parentContainer) {
+            parentContainer.classList.remove('hidden');
+            console.log('[DEBUG] Removed hidden class from jury-realtime-container (discussion_start)');
+        }
+
         const container = document.getElementById('discussion-container');
         const roundInfo = document.getElementById('current-round-info');
         console.log('[DEBUG] discussion-container:', container);
@@ -1250,6 +1127,14 @@
             // Juror statement handler
     juryWS.on('juror_statement', (data) => {
         console.log('[DEBUG] 🗣️ juror_statement event handler called with data:', data);
+
+        // Show parent realtime container
+        const parentContainer = document.getElementById('jury-realtime-container');
+        if (parentContainer) {
+            parentContainer.classList.remove('hidden');
+            console.log('[DEBUG] Removed hidden class from jury-realtime-container (juror_statement)');
+        }
+
         const messages = document.getElementById('discussion-messages');
         console.log('[DEBUG] discussion-messages element:', messages);
         if (messages) {
@@ -1285,6 +1170,13 @@
 
             // Final judgment handler (Phase 3)
     juryWS.on('final_judgment', (data) => {
+        // Show parent realtime container
+        const parentContainer = document.getElementById('jury-realtime-container');
+        if (parentContainer) {
+            parentContainer.classList.remove('hidden');
+            console.log('[DEBUG] Removed hidden class from jury-realtime-container (final_judgment)');
+        }
+
         const container = document.getElementById('final-judgment-container');
         const verdict = document.getElementById('final-verdict');
         const score = document.getElementById('final-score');

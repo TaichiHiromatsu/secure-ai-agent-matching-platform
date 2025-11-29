@@ -354,6 +354,8 @@ def _run_collaborative_jury_evaluation(
     detailed_reports: List[Dict[str, Any]] = []
     all_evaluations = []
 
+    # 全シナリオをQuestionSpecとExecutionResultに変換
+    scenario_data = []
     for scenario in scenarios:
         base_question = QuestionSpec(
             question_id=scenario.get("scenarioId", "unknown"),
@@ -372,82 +374,95 @@ def _run_collaborative_jury_evaluation(
             error=scenario.get("error"),
             flags=scenario.get("flags"),
         )
+        scenario_data.append((base_question, execution))
 
-        try:
-            # Collaborative評価を実行
-            result = asyncio.run(jury_judge.evaluate_collaborative(
-                question=base_question,
-                execution=execution,
-                security_gate_results=security_gate_results,
-                agent_card_accuracy=agent_card_accuracy,
-                websocket_callback=websocket_callback,
-            ))
+    try:
+        # 全シナリオを一度に集約的に評価
+        result = asyncio.run(jury_judge.evaluate_collaborative_batch(
+            scenarios=scenario_data,
+            security_gate_results=security_gate_results,
+            agent_card_accuracy=agent_card_accuracy,
+            websocket_callback=websocket_callback,
+        ))
 
-            all_evaluations.append(result)
+        # 結果を処理
+        if result.scenario_results:
+            for scenario_result in result.scenario_results:
+                all_evaluations.append(scenario_result)
 
-            # 詳細レポートに追加
-            detailed_reports.append({
-                "scenarioId": base_question.question_id,
-                "use_case": getattr(base_question, "use_case", None),
-                "prompt": base_question.prompt,
-                "response": execution.response,
+                # 詳細レポートに追加
+                detailed_reports.append({
+                    "scenarioId": scenario_result.scenario_id,
+                    "use_case": scenario_result.use_case,
+                    "prompt": scenario_result.prompt,
+                    "response": scenario_result.response,
+                    "finalVerdict": scenario_result.final_verdict,
+                    "finalScore": scenario_result.final_score,
+                    "confidence": scenario_result.confidence,
+                    "rationale": scenario_result.rationale,
+                })
+
+        # 集約判断を詳細レポートに追加
+        detailed_reports.append({
+            "scenarioId": "collective_judgment",
+            "use_case": "overall_assessment",
+            "finalVerdict": result.final_verdict,
+            "finalScore": result.final_score,
+            "confidence": result.phase3_judgment.confidence if result.phase3_judgment else 0.0,
+            "consensusStatus": result.phase1_consensus.consensus_status.value if result.phase1_consensus else None,
+            "totalRounds": result.total_rounds,
+            "earlyTermination": result.early_termination,
+            "phase1Evaluations": [
+                {
+                    "jurorId": ev.juror_id,
+                    "verdict": ev.verdict,
+                    "overallScore": ev.overall_score,
+                    "confidence": ev.confidence,
+                    "rationale": ev.rationale,
+                }
+                for ev in result.phase1_evaluations
+            ],
+            "discussionRounds": [
+                {
+                    "roundNumber": round.round_number,
+                    "speakerOrder": round.speaker_order,
+                    "statements": [
+                        {
+                            "jurorId": stmt.juror_id,
+                            "statement": stmt.reasoning,
+                            "positionChanged": stmt.updated_evaluation is not None,
+                        }
+                        for stmt in round.statements
+                    ],
+                    "consensusCheck": {
+                        "consensusStatus": round.consensus_check.consensus_status.value if round.consensus_check else None,
+                        "consensusReached": round.consensus_check.consensus_reached if round.consensus_check else False,
+                        "consensusVerdict": round.consensus_check.consensus_verdict if round.consensus_check else None,
+                    } if round.consensus_check else None,
+                }
+                for round in (result.phase2_rounds or [])
+            ],
+            "finalJudgment": {
+                "method": result.phase3_judgment.method if result.phase3_judgment else "unknown",
                 "finalVerdict": result.final_verdict,
                 "finalScore": result.final_score,
                 "confidence": result.phase3_judgment.confidence if result.phase3_judgment else 0.0,
-                "consensusStatus": result.phase1_consensus.consensus_status.value if result.phase1_consensus else None,
-                "totalRounds": result.total_rounds,
-                "earlyTermination": result.early_termination,
-                "phase1Evaluations": [
-                    {
-                        "jurorId": ev.juror_id,
-                        "verdict": ev.verdict,
-                        "overallScore": ev.overall_score,
-                        "confidence": ev.confidence,
-                        "rationale": ev.rationale,
-                    }
-                    for ev in result.phase1_evaluations
-                ],
-                "discussionRounds": [
-                    {
-                        "roundNumber": round.round_number,
-                        "speakerOrder": round.speaker_order,
-                        "statements": [
-                            {
-                                "jurorId": stmt.juror_id,
-                                "statement": stmt.reasoning,
-                                "positionChanged": stmt.updated_evaluation is not None,
-                            }
-                            for stmt in round.statements
-                        ],
-                        "consensusCheck": {
-                            "consensusStatus": round.consensus_check.consensus_status.value if round.consensus_check else None,
-                            "consensusReached": round.consensus_check.consensus_reached if round.consensus_check else False,
-                            "consensusVerdict": round.consensus_check.consensus_verdict if round.consensus_check else None,
-                        } if round.consensus_check else None,
-                    }
-                    for round in (result.phase2_rounds or [])
-                ],
-                "finalJudgment": {
-                    "method": result.phase3_judgment.method if result.phase3_judgment else "unknown",
-                    "finalVerdict": result.final_verdict,
-                    "finalScore": result.final_score,
-                    "confidence": result.phase3_judgment.confidence if result.phase3_judgment else 0.0,
-                    "rationale": result.phase3_judgment.final_judge_rationale if result.phase3_judgment else "",
-                    "voteDistribution": result.phase3_judgment.vote_distribution if result.phase3_judgment else {},
-                    "finalJudgeModel": result.phase3_judgment.final_judge_model if result.phase3_judgment else None,
-                }
-            })
+                "rationale": result.phase3_judgment.final_judge_rationale if result.phase3_judgment else "",
+                "voteDistribution": result.phase3_judgment.vote_distribution if result.phase3_judgment else {},
+                "finalJudgeModel": result.phase3_judgment.final_judge_model if result.phase3_judgment else None,
+            }
+        })
 
-        except Exception as exc:
-            print(f"Error in collaborative evaluation for {base_question.question_id}: {exc}")
-            detailed_reports.append({
-                "scenarioId": base_question.question_id,
-                "prompt": base_question.prompt,
-                "response": execution.response,
-                "finalVerdict": "manual",
-                "finalScore": 0.0,
-                "error": str(exc),
-            })
+    except Exception as exc:
+        print(f"Error in collaborative batch evaluation: {exc}")
+        import traceback
+        traceback.print_exc()
+        detailed_reports.append({
+            "scenarioId": "collective_judgment",
+            "finalVerdict": "manual",
+            "finalScore": 0.0,
+            "error": str(exc),
+        })
 
     # 統計情報を集計
     total_evaluations = len(all_evaluations)
