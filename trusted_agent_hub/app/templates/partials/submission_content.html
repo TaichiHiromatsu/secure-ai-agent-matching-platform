@@ -636,8 +636,6 @@
                 <span>協調評価 (Collaborative Jury Judge)</span>
                 {% if show_realtime %}
                 <span id="ws-status" class="ml-auto text-xs px-2 py-1 rounded bg-green-100 text-green-800">実行中</span>
-                {% elif collective.found %}
-                <span class="ml-auto text-xs text-gray-600">{{ collective.found.discussionRounds | length }} ラウンド完了</span>
                 {% endif %}
             </summary>
 
@@ -1150,7 +1148,20 @@
         const phaseText = document.getElementById('current-phase-text');
         console.log('[DEBUG] current-phase-text element:', phaseText);
         if (phaseText) {
-            phaseText.textContent = data.description || `Phase ${data.phaseNumber}`;
+            // Multi-level fallback for robust phase display
+            let displayText = data.description;
+            if (!displayText && data.phaseNumber) {
+                displayText = `Phase ${data.phaseNumber}`;
+            }
+            if (!displayText && data.phase) {
+                const phaseMap = {
+                    'initial_evaluation': 'Phase 1: 独立評価',
+                    'discussion': 'Phase 2: ディスカッション',
+                    'final_judgment': 'Phase 3: 最終判定'
+                };
+                displayText = phaseMap[data.phase] || data.phase;
+            }
+            phaseText.textContent = displayText || '不明なフェーズ';
             console.log('[DEBUG] Updated phase text to:', phaseText.textContent);
                 }
 
@@ -1460,6 +1471,18 @@
                     stageEl.classList.add('bg-gray-100', 'border-gray-300');
                     console.log(`[DEBUG] ⏸️ Stage ${data.stage} marked as pending`);
                 }
+            }
+
+            // Update status badge text immediately
+            const statusBadge = document.querySelector(`[data-stage-status="${data.stage}"]`);
+            if (statusBadge) {
+                const statusText = {
+                    'completed': '✅ 完了',
+                    'failed': '❌ 失敗',
+                    'running': '⏳ 実行中'
+                };
+                statusBadge.textContent = statusText[data.status] || '⏸️ 待機中';
+                console.log(`[DEBUG] 📝 Updated status badge for ${data.stage} to: ${statusBadge.textContent}`);
             }
 
             // Fetch and update full content to refresh "Automated Review Steps"

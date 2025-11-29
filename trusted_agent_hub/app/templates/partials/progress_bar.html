@@ -47,12 +47,15 @@
                         </div>
                         <div class="text-xs mt-2 font-medium text-center">{{ stage.label }}</div>
                         {% if stage_meta and stage_meta.status %}
-                        <div class="text-xs text-gray-500 mt-1">
+                        <div class="text-xs text-gray-500 mt-1" data-stage-status="{{ stage.key }}">
                             {% if stage_meta.status == 'completed' %}✅ 完了
                             {% elif stage_meta.status == 'failed' %}❌ 失敗
                             {% elif stage_meta.status == 'running' %}⏳ 実行中
                             {% else %}⏸️ 待機中{% endif %}
                         </div>
+                        {% elif is_running %}
+                        {# Fallback logic: Show running status before WebSocket event arrives #}
+                        <div class="text-xs text-gray-500 mt-1" data-stage-status="{{ stage.key }}">⏳ 実行中</div>
                         {% endif %}
                     </div>
 

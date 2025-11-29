@@ -900,6 +900,9 @@ def process_submission(submission_id: str):
             submission.updated_at = datetime.utcnow()
             db.commit()
 
+            # Notify UI that Judge stage is running
+            asyncio.run(notify_stage_update(submission_id, "judge", "running"))
+
             # Prepare security_gate_results and agent_card_accuracy for collaborative jury judge
             # Use mock data if stages were skipped but judge is enabled
             if security_summary:
@@ -1049,6 +1052,10 @@ def process_submission(submission_id: str):
             submission.state = "judge_panel_completed"
             submission.updated_at = datetime.utcnow()
             db.commit()
+
+            # Notify UI that Judge stage is completed
+            asyncio.run(notify_stage_update(submission_id, "judge", "completed"))
+
             print(f"Judge Panel completed for submission {submission_id}, score: {judge_score}, total trust: {submission.trust_score}")
 
             if judge_summary.get("verdict") == "reject":
