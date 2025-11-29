@@ -28,20 +28,20 @@
             </div>
             <div class="space-y-2 text-sm">
                 <div class="flex justify-between">
-                    <span>Security</span>
-                    <span><span data-score="security">{{ submission.security_score }}</span> / 30</span>
+            <span>Security</span>
+            <span><span data-score="security">{{ submission.security_score }}</span> / 30</span>
                 </div>
                 <div class="flex justify-between">
-                    <span>Agent Card</span>
-                    <span><span data-score="functional">{{ submission.functional_score }}</span> / 40</span>
+            <span>Agent Card</span>
+            <span><span data-score="functional">{{ submission.functional_score }}</span> / 40</span>
                 </div>
                 <div class="flex justify-between">
-                    <span>Judge</span>
-                    <span><span data-score="judge">{{ submission.judge_score }}</span> / 30</span>
+            <span>Judge</span>
+            <span><span data-score="judge">{{ submission.judge_score }}</span> / 30</span>
                 </div>
                 <div class="flex justify-between">
-                    <span>Implementation</span>
-                    <span><span data-score="implementation">{{ submission.implementation_score }}</span> / 10</span>
+            <span>Implementation</span>
+            <span><span data-score="implementation">{{ submission.implementation_score }}</span> / 10</span>
                 </div>
             </div>
         </div>
@@ -67,8 +67,8 @@
             <div class="flex items-center gap-2 mb-3">
                 <span class="text-2xl">📊</span>
                 <div>
-                    <p class="text-sm font-medium text-gray-900">W&B Core Dashboard</p>
-                    <p class="text-xs text-gray-500">Experiment Tracking & Metrics</p>
+            <p class="text-sm font-medium text-gray-900">W&B Core Dashboard</p>
+            <p class="text-xs text-gray-500">Experiment Tracking & Metrics</p>
                 </div>
             </div>
             <div class="mb-3 text-xs text-gray-500">
@@ -80,7 +80,7 @@
             <a href="{{ submission.score_breakdown.wandb.url }}" target="_blank" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded inline-flex items-center justify-center transition duration-150 ease-in-out shadow-sm w-full">
                 <span>Open Core Dashboard</span>
                 <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
                 </svg>
             </a>
             {% else %}
@@ -93,8 +93,8 @@
             <div class="flex items-center gap-2 mb-3">
                 <span class="text-2xl">🔮</span>
                 <div>
-                    <p class="text-sm font-medium text-gray-900">W&B Weave Traces</p>
-                    <p class="text-xs text-gray-500">LLM Call Observability</p>
+            <p class="text-sm font-medium text-gray-900">W&B Weave Traces</p>
+            <p class="text-xs text-gray-500">LLM Call Observability</p>
                 </div>
             </div>
             <div class="mb-3 text-xs text-gray-500">
@@ -105,7 +105,7 @@
             <a href="https://wandb.ai/{{ submission.score_breakdown.wandb.entity }}/{{ submission.score_breakdown.wandb.project }}/weave" target="_blank" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded inline-flex items-center justify-center transition duration-150 ease-in-out shadow-sm w-full">
                 <span>Open Weave Traces</span>
                 <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
                 </svg>
             </a>
         </div>
@@ -126,7 +126,7 @@
             <p class="text-sm text-gray-700">
                 <span class="font-semibold">Status:</span>
                 <span class="{% if submission.score_breakdown.precheck_summary.passed %}text-green-600{% else %}text-red-600{% endif %}">
-                    {{ "Passed" if submission.score_breakdown.precheck_summary.passed else "Failed" }}
+            {{ "Passed" if submission.score_breakdown.precheck_summary.passed else "Failed" }}
                 </span>
             </p>
             <p class="text-sm text-gray-700">
@@ -167,20 +167,20 @@
             <!-- Basic Counts -->
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div class="bg-white p-3 rounded border">
-                    <div class="text-xs text-gray-500">Total Tests</div>
-                    <div class="text-2xl font-bold">{{ submission.score_breakdown.security_summary.total or 0 }}</div>
+            <div class="text-xs text-gray-500">Total Tests</div>
+            <div class="text-2xl font-bold">{{ submission.score_breakdown.security_summary.total or 0 }}</div>
                 </div>
                 <div class="bg-green-50 p-3 rounded border border-green-200">
-                    <div class="text-xs text-gray-500">Blocked (Safe)</div>
-                    <div class="text-2xl font-bold text-green-600">{{ submission.score_breakdown.security_summary.blocked or 0 }}</div>
+            <div class="text-xs text-gray-500">Blocked (Safe)</div>
+            <div class="text-2xl font-bold text-green-600">{{ submission.score_breakdown.security_summary.blocked or 0 }}</div>
                 </div>
                 <div class="bg-yellow-50 p-3 rounded border border-yellow-200">
-                    <div class="text-xs text-gray-500">Needs Review</div>
-                    <div class="text-2xl font-bold text-yellow-600">{{ submission.score_breakdown.security_summary.needsReview or 0 }}</div>
+            <div class="text-xs text-gray-500">Needs Review</div>
+            <div class="text-2xl font-bold text-yellow-600">{{ submission.score_breakdown.security_summary.needsReview or 0 }}</div>
                 </div>
                 <div class="bg-red-50 p-3 rounded border border-red-200">
-                    <div class="text-xs text-gray-500">Errors</div>
-                    <div class="text-2xl font-bold text-red-600">{{ submission.score_breakdown.security_summary.errors or 0 }}</div>
+            <div class="text-xs text-gray-500">Errors</div>
+            <div class="text-2xl font-bold text-red-600">{{ submission.score_breakdown.security_summary.errors or 0 }}</div>
                 </div>
             </div>
 
@@ -189,11 +189,11 @@
             <div class="border-t pt-4">
                 <h4 class="font-semibold mb-2">Attack Category Breakdown</h4>
                 <div class="grid grid-cols-2 gap-2">
-                    {% for category, count in submission.score_breakdown.security_summary.categories.items() %}
-                    <div class="text-xs bg-white p-2 rounded border">
-                        <span class="font-medium">{{ category }}:</span> {{ count }}
-                    </div>
-                    {% endfor %}
+            {% for category, count in submission.score_breakdown.security_summary.categories.items() %}
+            <div class="text-xs bg-white p-2 rounded border">
+                <span class="font-medium">{{ category }}:</span> {{ count }}
+            </div>
+            {% endfor %}
                 </div>
             </div>
             {% endif %}
@@ -203,9 +203,9 @@
             <div class="border-t pt-4">
                 <h4 class="font-semibold mb-2">Context Terms Used</h4>
                 <div class="flex flex-wrap gap-2">
-                    {% for term in submission.score_breakdown.security_summary.contextTerms %}
-                    <span class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">{{ term }}</span>
-                    {% endfor %}
+            {% for term in submission.score_breakdown.security_summary.contextTerms %}
+            <span class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">{{ term }}</span>
+            {% endfor %}
                 </div>
             </div>
             {% endif %}
@@ -216,41 +216,41 @@
                 {% set needs_review_scenarios = submission.score_breakdown.security_summary.scenarios | selectattr('verdict', 'defined') | selectattr('verdict', 'in', ['needs_review', 'error']) | list %}
                 {% if needs_review_scenarios | length > 0 %}
                 <div class="space-y-3">
-                    {% for scenario in needs_review_scenarios[:10] %}
-                    <div class="border border-yellow-300 rounded-lg p-3 bg-yellow-50">
-                        <div class="font-semibold text-sm mb-1">
-                            {{ scenario.promptId or '匿名' }}
-                            <span class="ml-2 text-xs px-2 py-1 rounded
-                                {% if scenario.verdict == 'needs_review' %}bg-yellow-100 text-yellow-800
-                                {% elif scenario.verdict == 'error' %}bg-red-100 text-red-800
-                                {% elif scenario.verdict == 'blocked' %}bg-green-100 text-green-800
-                                {% else %}bg-gray-100 text-gray-800{% endif %}">
-                                {{ scenario.verdict }}
-                            </span>
-                        </div>
-                        <div class="text-xs text-gray-600 mb-2">
-                            Category: {{ scenario.category or 'N/A' }}
-                            {% if scenario.perspective %}
-                            | Perspective: {{ scenario.perspective }}
-                            {% endif %}
-                        </div>
-                        <div class="text-xs mb-2">
-                            <strong>Prompt:</strong>
-                            <pre class="mt-1 whitespace-pre-wrap bg-white p-2 rounded">{{ scenario.prompt or scenario.basePrompt or 'N/A' }}</pre>
-                        </div>
-                        {% if scenario.response %}
-                        <div class="text-xs mb-2">
-                            <strong>Response:</strong>
-                            <pre class="mt-1 whitespace-pre-wrap bg-white p-2 rounded">{{ scenario.response }}</pre>
-                        </div>
-                        {% endif %}
-                        {% if scenario.reason %}
-                        <div class="text-xs text-gray-700">
-                            <strong>Reason:</strong> {{ scenario.reason }}
-                        </div>
-                        {% endif %}
-                    </div>
-                    {% endfor %}
+            {% for scenario in needs_review_scenarios[:10] %}
+            <div class="border border-yellow-300 rounded-lg p-3 bg-yellow-50">
+                <div class="font-semibold text-sm mb-1">
+                    {{ scenario.promptId or '匿名' }}
+                    <span class="ml-2 text-xs px-2 py-1 rounded
+                        {% if scenario.verdict == 'needs_review' %}bg-yellow-100 text-yellow-800
+                        {% elif scenario.verdict == 'error' %}bg-red-100 text-red-800
+                        {% elif scenario.verdict == 'blocked' %}bg-green-100 text-green-800
+                        {% else %}bg-gray-100 text-gray-800{% endif %}">
+                        {{ scenario.verdict }}
+                    </span>
+                </div>
+                <div class="text-xs text-gray-600 mb-2">
+                    Category: {{ scenario.category or 'N/A' }}
+                    {% if scenario.perspective %}
+                    | Perspective: {{ scenario.perspective }}
+                    {% endif %}
+                </div>
+                <div class="text-xs mb-2">
+                    <strong>Prompt:</strong>
+                    <pre class="mt-1 whitespace-pre-wrap bg-white p-2 rounded">{{ scenario.prompt or scenario.basePrompt or 'N/A' }}</pre>
+                </div>
+                {% if scenario.response %}
+                <div class="text-xs mb-2">
+                    <strong>Response:</strong>
+                    <pre class="mt-1 whitespace-pre-wrap bg-white p-2 rounded">{{ scenario.response }}</pre>
+                </div>
+                {% endif %}
+                {% if scenario.reason %}
+                <div class="text-xs text-gray-700">
+                    <strong>Reason:</strong> {{ scenario.reason }}
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
                 </div>
                 {% else %}
                 <div class="text-sm text-gray-600">要確認項目はありません。</div>
@@ -260,54 +260,54 @@
             <div class="border-t pt-4">
                 <h4 class="font-semibold mb-2">📝 全セキュリティテスト一覧</h4>
                 <div class="mb-3">
-                    <label class="text-xs">
-                        フィルタ:
-                        <select id="securityVerdictFilter" class="ml-2 text-xs border rounded px-2 py-1" onchange="filterSecurityScenarios()">
-                            <option value="all">全件</option>
-                            <option value="blocked">Blocked</option>
-                            <option value="needs_review">Needs Review</option>
-                            <option value="error">Error</option>
-                            <option value="not_executed">Not Executed</option>
-                        </select>
-                    </label>
+            <label class="text-xs">
+                フィルタ:
+                <select id="securityVerdictFilter" class="ml-2 text-xs border rounded px-2 py-1" onchange="filterSecurityScenarios()">
+                    <option value="all">全件</option>
+                    <option value="blocked">Blocked</option>
+                    <option value="needs_review">Needs Review</option>
+                    <option value="error">Error</option>
+                    <option value="not_executed">Not Executed</option>
+                </select>
+            </label>
                 </div>
                 <div class="max-h-80 overflow-auto border rounded">
-                    <table class="w-full text-xs border-collapse">
-                        <thead class="bg-gray-100 sticky top-0">
-                            <tr>
-                                <th class="text-left p-2 border-b">Prompt ID</th>
-                                <th class="text-left p-2 border-b">Prompt</th>
-                                <th class="text-left p-2 border-b">Response</th>
-                                <th class="text-left p-2 border-b">Verdict</th>
-                            </tr>
-                        </thead>
-                        <tbody id="securityScenariosTableBody">
-                            {% for scenario in submission.score_breakdown.security_summary.scenarios %}
-                            {% if scenario.verdict %}
-                            <tr class="border-b security-scenario-row" data-verdict="{{ scenario.verdict }}">
-                                <td class="p-2">
-                                    {{ scenario.promptId or 'IDなし' }}
-                                </td>
-                                <td class="p-2">
-                                    <pre class="whitespace-pre-wrap text-xs">{{ (scenario.prompt or scenario.basePrompt or '(未設定)')[:100] }}...</pre>
-                                </td>
-                                <td class="p-2">
-                                    <pre class="whitespace-pre-wrap text-xs">{{ (scenario.response or '(応答なし)')[:100] }}...</pre>
-                                </td>
-                                <td class="p-2">
-                                    <span class="px-2 py-1 rounded text-xs
-                                        {% if scenario.verdict == 'blocked' %}bg-green-100 text-green-800
-                                        {% elif scenario.verdict == 'needs_review' %}bg-yellow-100 text-yellow-800
-                                        {% elif scenario.verdict == 'error' %}bg-red-100 text-red-800
-                                        {% else %}bg-gray-100 text-gray-800{% endif %}">
-                                        {{ scenario.verdict }}
-                                    </span>
-                                </td>
-                            </tr>
-                            {% endif %}
-                            {% endfor %}
-                        </tbody>
-                    </table>
+            <table class="w-full text-xs border-collapse">
+                <thead class="bg-gray-100 sticky top-0">
+                    <tr>
+                        <th class="text-left p-2 border-b">Prompt ID</th>
+                        <th class="text-left p-2 border-b">Prompt</th>
+                        <th class="text-left p-2 border-b">Response</th>
+                        <th class="text-left p-2 border-b">Verdict</th>
+                    </tr>
+                </thead>
+                <tbody id="securityScenariosTableBody">
+                    {% for scenario in submission.score_breakdown.security_summary.scenarios %}
+                    {% if scenario.verdict %}
+                    <tr class="border-b security-scenario-row" data-verdict="{{ scenario.verdict }}">
+                        <td class="p-2">
+                            {{ scenario.promptId or 'IDなし' }}
+                        </td>
+                        <td class="p-2">
+                            <pre class="whitespace-pre-wrap text-xs">{{ (scenario.prompt or scenario.basePrompt or '(未設定)')[:100] }}...</pre>
+                        </td>
+                        <td class="p-2">
+                            <pre class="whitespace-pre-wrap text-xs">{{ (scenario.response or '(応答なし)')[:100] }}...</pre>
+                        </td>
+                        <td class="p-2">
+                            <span class="px-2 py-1 rounded text-xs
+                                {% if scenario.verdict == 'blocked' %}bg-green-100 text-green-800
+                                {% elif scenario.verdict == 'needs_review' %}bg-yellow-100 text-yellow-800
+                                {% elif scenario.verdict == 'error' %}bg-red-100 text-red-800
+                                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                                {{ scenario.verdict }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% endif %}
+                    {% endfor %}
+                </tbody>
+            </table>
                 </div>
             </div>
             {% endif %}
@@ -315,20 +315,20 @@
             <div class="border-t pt-4">
                 <h4 class="font-semibold mb-2">📋 確認ポイント (登録者向け)</h4>
                 <ul class="text-sm space-y-1 list-disc ml-5">
-                    <li>多データセット攻撃プロンプト評価の結果を確認 (AISI Security/Toxic/Robustness/Fairness + AdvBench)</li>
-                    <li>優先度別・カテゴリ別の結果を確認し、想定した攻撃観点が網羅されているかを検証</li>
-                    <li>「要確認シナリオ」セクションでneeds_review項目の詳細を確認し、適切な拒否応答かを判断</li>
-                    <li>blocked/total の比率を確認し、セキュリティスコアの妥当性を評価</li>
+            <li>多データセット攻撃プロンプト評価の結果を確認 (AISI Security/Toxic/Robustness/Fairness + AdvBench)</li>
+            <li>優先度別・カテゴリ別の結果を確認し、想定した攻撃観点が網羅されているかを検証</li>
+            <li>「要確認シナリオ」セクションでneeds_review項目の詳細を確認し、適切な拒否応答かを判断</li>
+            <li>blocked/total の比率を確認し、セキュリティスコアの妥当性を評価</li>
                 </ul>
             </div>
 
             <div class="border-t pt-4">
                 <h4 class="font-semibold mb-2">🔧 確認ポイント (管理者向け)</h4>
                 <ul class="text-sm space-y-1 list-disc ml-5">
-                    <li>security_report.jsonl を確認し、各プロンプトの詳細ログとLLM評価結果をレビュー</li>
-                    <li>信頼度(confidence)が0.5未満のエントリを特定し、再評価が必要か判断</li>
-                    <li>エンドポイント失敗(endpointFailures)やタイムアウト(timeoutFailures)の原因を調査</li>
-                    <li>エージェントコンテキスト適用により、専門分野外の要求が適切に識別されているか確認</li>
+            <li>security_report.jsonl を確認し、各プロンプトの詳細ログとLLM評価結果をレビュー</li>
+            <li>信頼度(confidence)が0.5未満のエントリを特定し、再評価が必要か判断</li>
+            <li>エンドポイント失敗(endpointFailures)やタイムアウト(timeoutFailures)の原因を調査</li>
+            <li>エージェントコンテキスト適用により、専門分野外の要求が適切に識別されているか確認</li>
                 </ul>
             </div>
 
@@ -337,18 +337,18 @@
             <div class="border-t pt-4">
                 <h4 class="font-semibold mb-2">📁 Artifacts</h4>
                 <div class="space-y-2">
-                    {% if submission.score_breakdown.security_summary.artifacts.prompts %}
-                    <div class="text-sm">
-                        <span class="font-medium">Prompts:</span>
-                        <code class="text-xs bg-gray-100 px-2 py-1 rounded">{{ submission.score_breakdown.security_summary.artifacts.prompts }}</code>
-                    </div>
-                    {% endif %}
-                    {% if submission.score_breakdown.security_summary.artifacts.report %}
-                    <div class="text-sm">
-                        <span class="font-medium">Report:</span>
-                        <code class="text-xs bg-gray-100 px-2 py-1 rounded">{{ submission.score_breakdown.security_summary.artifacts.report }}</code>
-                    </div>
-                    {% endif %}
+            {% if submission.score_breakdown.security_summary.artifacts.prompts %}
+            <div class="text-sm">
+                <span class="font-medium">Prompts:</span>
+                <code class="text-xs bg-gray-100 px-2 py-1 rounded">{{ submission.score_breakdown.security_summary.artifacts.prompts }}</code>
+            </div>
+            {% endif %}
+            {% if submission.score_breakdown.security_summary.artifacts.report %}
+            <div class="text-sm">
+                <span class="font-medium">Report:</span>
+                <code class="text-xs bg-gray-100 px-2 py-1 rounded">{{ submission.score_breakdown.security_summary.artifacts.report }}</code>
+            </div>
+            {% endif %}
                 </div>
             </div>
             {% endif %}
@@ -367,20 +367,20 @@
             <!-- Basic Counts -->
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div class="bg-white p-3 rounded border">
-                    <div class="text-xs text-gray-500">Total Scenarios</div>
-                    <div class="text-2xl font-bold">{{ submission.score_breakdown.functional_summary.total_scenarios or 0 }}</div>
+            <div class="text-xs text-gray-500">Total Scenarios</div>
+            <div class="text-2xl font-bold">{{ submission.score_breakdown.functional_summary.total_scenarios or 0 }}</div>
                 </div>
                 <div class="bg-green-50 p-3 rounded border border-green-200">
-                    <div class="text-xs text-gray-500">Passed</div>
-                    <div class="text-2xl font-bold text-green-600">{{ submission.score_breakdown.functional_summary.passed_scenarios or 0 }}</div>
+            <div class="text-xs text-gray-500">Passed</div>
+            <div class="text-2xl font-bold text-green-600">{{ submission.score_breakdown.functional_summary.passed_scenarios or 0 }}</div>
                 </div>
                 <div class="bg-yellow-50 p-3 rounded border border-yellow-200">
-                    <div class="text-xs text-gray-500">Needs Review</div>
-                    <div class="text-2xl font-bold text-yellow-600">{{ submission.score_breakdown.functional_summary.needsReview or 0 }}</div>
+            <div class="text-xs text-gray-500">Needs Review</div>
+            <div class="text-2xl font-bold text-yellow-600">{{ submission.score_breakdown.functional_summary.needsReview or 0 }}</div>
                 </div>
                 <div class="bg-red-50 p-3 rounded border border-red-200">
-                    <div class="text-xs text-gray-500">Errors</div>
-                    <div class="text-2xl font-bold text-red-600">{{ submission.score_breakdown.functional_summary.responsesWithError or 0 }}</div>
+            <div class="text-xs text-gray-500">Errors</div>
+            <div class="text-2xl font-bold text-red-600">{{ submission.score_breakdown.functional_summary.responsesWithError or 0 }}</div>
                 </div>
             </div>
 
@@ -392,103 +392,103 @@
                 {% set failed_scenarios = submission.score_breakdown.functional_summary.scenarios | selectattr('evaluation.verdict', 'defined') | selectattr('evaluation.verdict', 'ne', 'pass') | list %}
                 {% if failed_scenarios | length > 0 %}
                 <div class="space-y-3">
-                    {% for scenario in (failed_scenarios | sort(attribute='evaluation.distance', reverse=true))[:3] %}
-                    <div class="border border-gray-300 rounded-lg p-3 bg-white">
-                        <div class="font-semibold text-sm mb-1">
-                            {{ scenario.scenarioId or '匿名' }}
-                            <span class="ml-2 text-xs px-2 py-1 rounded
-                                {% if scenario.evaluation.verdict == 'fail' %}bg-red-100 text-red-800
-                                {% elif scenario.evaluation.verdict == 'needs_review' %}bg-yellow-100 text-yellow-800
-                                {% else %}bg-gray-100 text-gray-800{% endif %}">
-                                {{ scenario.evaluation.verdict }}
-                            </span>
-                        </div>
-                        <div class="text-xs text-gray-600 mb-2">
-                            Distance: {{ "%.4f"|format(scenario.evaluation.distance) if scenario.evaluation.distance is not none else '-' }}
-                            {% if scenario.evaluation.get('topic_relevance') is not none %}
-                            | Topic Relevance: {{ '✓' if scenario.evaluation.topic_relevance else '✗' }}
-                            {% endif %}
-                            {% if scenario.evaluation.get('dialogue_progress') is not none %}
-                            | Dialogue Progress: {{ '✓' if scenario.evaluation.dialogue_progress else '✗' }}
-                            {% endif %}
-                            {% if scenario.evaluation.get('total_turns') %}
-                            | Turns: {{ scenario.evaluation.total_turns }}
-                            {% endif %}
-                        </div>
+            {% for scenario in (failed_scenarios | sort(attribute='evaluation.distance', reverse=true))[:3] %}
+            <div class="border border-gray-300 rounded-lg p-3 bg-white">
+                <div class="font-semibold text-sm mb-1">
+                    {{ scenario.scenarioId or '匿名' }}
+                    <span class="ml-2 text-xs px-2 py-1 rounded
+                        {% if scenario.evaluation.verdict == 'fail' %}bg-red-100 text-red-800
+                        {% elif scenario.evaluation.verdict == 'needs_review' %}bg-yellow-100 text-yellow-800
+                        {% else %}bg-gray-100 text-gray-800{% endif %}">
+                        {{ scenario.evaluation.verdict }}
+                    </span>
+                </div>
+                <div class="text-xs text-gray-600 mb-2">
+                    Distance: {{ "%.4f"|format(scenario.evaluation.distance) if scenario.evaluation.distance is not none else '-' }}
+                    {% if scenario.evaluation.get('topic_relevance') is not none %}
+                    | Topic Relevance: {{ '✓' if scenario.evaluation.topic_relevance else '✗' }}
+                    {% endif %}
+                    {% if scenario.evaluation.get('dialogue_progress') is not none %}
+                    | Dialogue Progress: {{ '✓' if scenario.evaluation.dialogue_progress else '✗' }}
+                    {% endif %}
+                    {% if scenario.evaluation.get('total_turns') %}
+                    | Turns: {{ scenario.evaluation.total_turns }}
+                    {% endif %}
+                </div>
 
-                        <!-- Multi-turn Dialogue History -->
-                        {% if scenario.evaluation.dialogue_history %}
-                        <div class="text-xs mb-2 border-l-4 border-purple-400 pl-3">
-                            <strong class="text-purple-700">💬 対話履歴 ({{ scenario.evaluation.total_turns }} turns):</strong>
-                            <div class="space-y-2 mt-2">
-                                {% for turn in scenario.evaluation.dialogue_history %}
-                                <div class="bg-white p-2 rounded border">
-                                    <div class="font-semibold text-purple-600 mb-1">Turn {{ turn.turn }}</div>
-                                    <div class="mb-1">
-                                        <span class="font-medium text-gray-700">User:</span>
-                                        <pre class="mt-0.5 whitespace-pre-wrap bg-blue-50 p-1.5 rounded text-xs">{{ turn.user }}</pre>
-                                    </div>
-                                    <div>
-                                        <span class="font-medium text-gray-700">Agent:</span>
-                                        <pre class="mt-0.5 whitespace-pre-wrap bg-green-50 p-1.5 rounded text-xs">{{ turn.agent }}</pre>
-                                    </div>
-                                </div>
-                                {% endfor %}
+                <!-- Multi-turn Dialogue History -->
+                {% if scenario.evaluation.dialogue_history %}
+                <div class="text-xs mb-2 border-l-4 border-purple-400 pl-3">
+                    <strong class="text-purple-700">💬 対話履歴 ({{ scenario.evaluation.total_turns }} turns):</strong>
+                    <div class="space-y-2 mt-2">
+                        {% for turn in scenario.evaluation.dialogue_history %}
+                        <div class="bg-white p-2 rounded border">
+                            <div class="font-semibold text-purple-600 mb-1">Turn {{ turn.turn }}</div>
+                            <div class="mb-1">
+                                <span class="font-medium text-gray-700">User:</span>
+                                <pre class="mt-0.5 whitespace-pre-wrap bg-blue-50 p-1.5 rounded text-xs">{{ turn.user }}</pre>
+                            </div>
+                            <div>
+                                <span class="font-medium text-gray-700">Agent:</span>
+                                <pre class="mt-0.5 whitespace-pre-wrap bg-green-50 p-1.5 rounded text-xs">{{ turn.agent }}</pre>
                             </div>
                         </div>
-                        {% else %}
-                        <!-- Single-turn display -->
-                        <div class="text-xs mb-2">
-                            <strong>Prompt:</strong>
-                            <pre class="mt-1 whitespace-pre-wrap bg-gray-50 p-2 rounded">{{ scenario.prompt or scenario.output or 'N/A' }}</pre>
-                        </div>
-                        <div class="text-xs mb-2">
-                            <strong>Response:</strong>
-                            <pre class="mt-1 whitespace-pre-wrap bg-gray-50 p-2 rounded">{{ scenario.response or 'N/A' }}</pre>
-                        </div>
-                        {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+                {% else %}
+                <!-- Single-turn display -->
+                <div class="text-xs mb-2">
+                    <strong>Prompt:</strong>
+                    <pre class="mt-1 whitespace-pre-wrap bg-gray-50 p-2 rounded">{{ scenario.prompt or scenario.output or 'N/A' }}</pre>
+                </div>
+                <div class="text-xs mb-2">
+                    <strong>Response:</strong>
+                    <pre class="mt-1 whitespace-pre-wrap bg-gray-50 p-2 rounded">{{ scenario.response or 'N/A' }}</pre>
+                </div>
+                {% endif %}
 
-                        <div class="text-xs mb-2">
-                            <strong>Expected:</strong>
-                            <pre class="mt-1 whitespace-pre-wrap bg-gray-50 p-2 rounded">{{ scenario.expected or 'N/A' }}</pre>
-                        </div>
+                <div class="text-xs mb-2">
+                    <strong>Expected:</strong>
+                    <pre class="mt-1 whitespace-pre-wrap bg-gray-50 p-2 rounded">{{ scenario.expected or 'N/A' }}</pre>
+                </div>
 
-                        <!-- Multi-turn Quality Metrics -->
-                        {% if scenario.evaluation.task_completion is not none %}
-                        <div class="text-xs mb-2 bg-purple-50 p-2 rounded border border-purple-200">
-                            <strong class="text-purple-700">マルチターン品質指標:</strong>
-                            <div class="grid grid-cols-3 gap-2 mt-1">
-                                <div>
-                                    <span class="text-gray-600">Task Completion:</span>
-                                    <span class="font-medium">{{ "%.2f"|format(scenario.evaluation.task_completion) }}</span>
-                                </div>
-                                {% if scenario.evaluation.dialogue_naturalness is not none %}
-                                <div>
-                                    <span class="text-gray-600">Naturalness:</span>
-                                    <span class="font-medium">{{ "%.2f"|format(scenario.evaluation.dialogue_naturalness) }}</span>
-                                </div>
-                                {% endif %}
-                                {% if scenario.evaluation.information_gathering is not none %}
-                                <div>
-                                    <span class="text-gray-600">Info Gathering:</span>
-                                    <span class="font-medium">{{ "%.2f"|format(scenario.evaluation.information_gathering) }}</span>
-                                </div>
-                                {% endif %}
-                            </div>
+                <!-- Multi-turn Quality Metrics -->
+                {% if scenario.evaluation.task_completion is not none %}
+                <div class="text-xs mb-2 bg-purple-50 p-2 rounded border border-purple-200">
+                    <strong class="text-purple-700">マルチターン品質指標:</strong>
+                    <div class="grid grid-cols-3 gap-2 mt-1">
+                        <div>
+                            <span class="text-gray-600">Task Completion:</span>
+                            <span class="font-medium">{{ "%.2f"|format(scenario.evaluation.task_completion) }}</span>
+                        </div>
+                        {% if scenario.evaluation.dialogue_naturalness is not none %}
+                        <div>
+                            <span class="text-gray-600">Naturalness:</span>
+                            <span class="font-medium">{{ "%.2f"|format(scenario.evaluation.dialogue_naturalness) }}</span>
                         </div>
                         {% endif %}
-                        {% if scenario.evaluation.errors and scenario.evaluation.errors | length > 0 %}
-                        <div class="text-xs mb-2 text-red-600">
-                            <strong>Errors:</strong> {{ scenario.evaluation.errors | join(', ') }}
-                        </div>
-                        {% endif %}
-                        {% if scenario.evaluation.rationale %}
-                        <div class="text-xs text-gray-700">
-                            <strong>Rationale:</strong> {{ scenario.evaluation.rationale }}
+                        {% if scenario.evaluation.information_gathering is not none %}
+                        <div>
+                            <span class="text-gray-600">Info Gathering:</span>
+                            <span class="font-medium">{{ "%.2f"|format(scenario.evaluation.information_gathering) }}</span>
                         </div>
                         {% endif %}
                     </div>
-                    {% endfor %}
+                </div>
+                {% endif %}
+                {% if scenario.evaluation.errors and scenario.evaluation.errors | length > 0 %}
+                <div class="text-xs mb-2 text-red-600">
+                    <strong>Errors:</strong> {{ scenario.evaluation.errors | join(', ') }}
+                </div>
+                {% endif %}
+                {% if scenario.evaluation.rationale %}
+                <div class="text-xs text-gray-700">
+                    <strong>Rationale:</strong> {{ scenario.evaluation.rationale }}
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
                 </div>
                 {% else %}
                 <div class="text-sm text-gray-600">今のところ失敗判定はありません。</div>
@@ -498,56 +498,56 @@
             <div class="border-t pt-4">
                 <h4 class="font-semibold mb-2">📝 プロンプト/応答一覧</h4>
                 <div class="mb-3">
-                    <label class="text-xs">
-                        フィルタ:
-                        <select id="verdictFilter" class="ml-2 text-xs border rounded px-2 py-1" onchange="filterScenarios()">
-                            <option value="all">全件</option>
-                            <option value="pass">Pass</option>
-                            <option value="needs_review">Needs Review</option>
-                            <option value="fail">Fail</option>
-                        </select>
-                    </label>
+            <label class="text-xs">
+                フィルタ:
+                <select id="verdictFilter" class="ml-2 text-xs border rounded px-2 py-1" onchange="filterScenarios()">
+                    <option value="all">全件</option>
+                    <option value="pass">Pass</option>
+                    <option value="needs_review">Needs Review</option>
+                    <option value="fail">Fail</option>
+                </select>
+            </label>
                 </div>
                 <div class="max-h-80 overflow-auto border rounded">
-                    <table class="w-full text-xs border-collapse">
-                        <thead class="bg-gray-100 sticky top-0">
-                            <tr>
-                                <th class="text-left p-2 border-b">シナリオ</th>
-                                <th class="text-left p-2 border-b">プロンプト</th>
-                                <th class="text-left p-2 border-b">応答</th>
-                                <th class="text-left p-2 border-b">判定</th>
-                            </tr>
-                        </thead>
-                        <tbody id="scenariosTableBody">
-                            {% for scenario in submission.score_breakdown.functional_summary.scenarios[:10] %}
-                            {% if scenario.evaluation and scenario.evaluation.verdict %}
-                            <tr class="border-b scenario-row" data-verdict="{{ scenario.evaluation.verdict }}">
-                                <td class="p-2">
-                                    {{ scenario.scenarioId or 'IDなし' }}
-                                    {% if scenario.scenarioId and 'advbench' in scenario.scenarioId.lower() %}
-                                    <span class="text-xs text-gray-500 ml-1">[AdvBench]</span>
-                                    {% endif %}
-                                </td>
-                                <td class="p-2">
-                                    <pre class="whitespace-pre-wrap text-xs">{{ scenario.prompt or '(未設定)' }}</pre>
-                                </td>
-                                <td class="p-2">
-                                    <pre class="whitespace-pre-wrap text-xs">{{ scenario.response or '(応答なし)' }}</pre>
-                                </td>
-                                <td class="p-2">
-                                    <span class="px-2 py-1 rounded text-xs
-                                        {% if scenario.evaluation.verdict == 'pass' %}bg-green-100 text-green-800
-                                        {% elif scenario.evaluation.verdict == 'needs_review' %}bg-yellow-100 text-yellow-800
-                                        {% elif scenario.evaluation.verdict == 'fail' %}bg-red-100 text-red-800
-                                        {% else %}bg-gray-100 text-gray-800{% endif %}">
-                                        {{ scenario.evaluation.verdict }}
-                                    </span>
-                                </td>
-                            </tr>
+            <table class="w-full text-xs border-collapse">
+                <thead class="bg-gray-100 sticky top-0">
+                    <tr>
+                        <th class="text-left p-2 border-b">シナリオ</th>
+                        <th class="text-left p-2 border-b">プロンプト</th>
+                        <th class="text-left p-2 border-b">応答</th>
+                        <th class="text-left p-2 border-b">判定</th>
+                    </tr>
+                </thead>
+                <tbody id="scenariosTableBody">
+                    {% for scenario in submission.score_breakdown.functional_summary.scenarios[:10] %}
+                    {% if scenario.evaluation and scenario.evaluation.verdict %}
+                    <tr class="border-b scenario-row" data-verdict="{{ scenario.evaluation.verdict }}">
+                        <td class="p-2">
+                            {{ scenario.scenarioId or 'IDなし' }}
+                            {% if scenario.scenarioId and 'advbench' in scenario.scenarioId.lower() %}
+                            <span class="text-xs text-gray-500 ml-1">[AdvBench]</span>
                             {% endif %}
-                            {% endfor %}
-                        </tbody>
-                    </table>
+                        </td>
+                        <td class="p-2">
+                            <pre class="whitespace-pre-wrap text-xs">{{ scenario.prompt or '(未設定)' }}</pre>
+                        </td>
+                        <td class="p-2">
+                            <pre class="whitespace-pre-wrap text-xs">{{ scenario.response or '(応答なし)' }}</pre>
+                        </td>
+                        <td class="p-2">
+                            <span class="px-2 py-1 rounded text-xs
+                                {% if scenario.evaluation.verdict == 'pass' %}bg-green-100 text-green-800
+                                {% elif scenario.evaluation.verdict == 'needs_review' %}bg-yellow-100 text-yellow-800
+                                {% elif scenario.evaluation.verdict == 'fail' %}bg-red-100 text-red-800
+                                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                                {{ scenario.evaluation.verdict }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% endif %}
+                    {% endfor %}
+                </tbody>
+            </table>
                 </div>
             </div>
             {% endif %}
@@ -555,21 +555,21 @@
             <div class="border-t pt-4">
                 <h4 class="font-semibold mb-2">📋 確認ポイント (登録者向け)</h4>
                 <ul class="text-sm space-y-1 list-disc ml-5">
-                    <li>Agent Card skillsから自動生成されたシナリオの内容を確認し、期待する能力が適切にテストされているかを検証</li>
-                    <li>pass/needs_review/fail の判定理由を確認し、失敗シナリオの改善ポイントを特定</li>
-                    <li>Topic Relevance(話題関連性)とDialogue Progress(対話進展)の評価結果を確認</li>
-                    <li>距離メトリクス(averageDistance, similarity)を確認し、応答品質の定量評価を把握</li>
+            <li>Agent Card skillsから自動生成されたシナリオの内容を確認し、期待する能力が適切にテストされているかを検証</li>
+            <li>pass/needs_review/fail の判定理由を確認し、失敗シナリオの改善ポイントを特定</li>
+            <li>Topic Relevance(話題関連性)とDialogue Progress(対話進展)の評価結果を確認</li>
+            <li>距離メトリクス(averageDistance, similarity)を確認し、応答品質の定量評価を把握</li>
                 </ul>
             </div>
 
             <div class="border-t pt-4">
                 <h4 class="font-semibold mb-2">🔧 確認ポイント (管理者向け)</h4>
                 <ul class="text-sm space-y-1 list-disc ml-5">
-                    <li>functional_report.jsonl を確認し、5段階LLM評価(Intent/Topic/Dialogue/Error/Verdict)の詳細をレビュー</li>
-                    <li>質問形式の応答が「pass」と判定されているか確認(適切な対話継続として評価されるべき)</li>
-                    <li>RAGTruthデータセットとのマッチング結果を確認(期待答の設定に使用)</li>
-                    <li>エラー応答(responsesWithError)の内容を確認し、タイムアウトやエンドポイント問題を調査</li>
-                    <li>マルチターン対話評価モードが有効な場合、対話履歴の自然さと進展を確認</li>
+            <li>functional_report.jsonl を確認し、5段階LLM評価(Intent/Topic/Dialogue/Error/Verdict)の詳細をレビュー</li>
+            <li>質問形式の応答が「pass」と判定されているか確認(適切な対話継続として評価されるべき)</li>
+            <li>RAGTruthデータセットとのマッチング結果を確認(期待答の設定に使用)</li>
+            <li>エラー応答(responsesWithError)の内容を確認し、タイムアウトやエンドポイント問題を調査</li>
+            <li>マルチターン対話評価モードが有効な場合、対話履歴の自然さと進展を確認</li>
                 </ul>
             </div>
 
@@ -578,18 +578,18 @@
             <div class="border-t pt-4">
                 <h4 class="font-semibold mb-2">📁 Artifacts</h4>
                 <div class="space-y-2">
-                    {% if submission.score_breakdown.functional_summary.artifacts.report %}
-                    <div class="text-sm">
-                        <span class="font-medium">Report (JSONL):</span>
-                        <code class="text-xs bg-gray-100 px-2 py-1 rounded">{{ submission.score_breakdown.functional_summary.artifacts.report }}</code>
-                    </div>
-                    {% endif %}
-                    {% if submission.score_breakdown.functional_summary.artifacts.prompts %}
-                    <div class="text-sm">
-                        <span class="font-medium">Prompts:</span>
-                        <code class="text-xs bg-gray-100 px-2 py-1 rounded">{{ submission.score_breakdown.functional_summary.artifacts.prompts }}</code>
-                    </div>
-                    {% endif %}
+            {% if submission.score_breakdown.functional_summary.artifacts.report %}
+            <div class="text-sm">
+                <span class="font-medium">Report (JSONL):</span>
+                <code class="text-xs bg-gray-100 px-2 py-1 rounded">{{ submission.score_breakdown.functional_summary.artifacts.report }}</code>
+            </div>
+            {% endif %}
+            {% if submission.score_breakdown.functional_summary.artifacts.prompts %}
+            <div class="text-sm">
+                <span class="font-medium">Prompts:</span>
+                <code class="text-xs bg-gray-100 px-2 py-1 rounded">{{ submission.score_breakdown.functional_summary.artifacts.prompts }}</code>
+            </div>
+            {% endif %}
                 </div>
             </div>
             {% endif %}
@@ -618,78 +618,78 @@
         <div id="jury-realtime-container" class="ml-7 space-y-4 mt-2 hidden">
             <div class="bg-purple-50 border border-purple-200 rounded-lg p-4">
                 <h4 class="font-semibold mb-3 flex items-center">
-                    <span class="mr-2">🔴</span>
-                    <span>リアルタイム協調評価進捗</span>
-                    <span id="ws-status" class="ml-auto text-xs px-2 py-1 rounded bg-yellow-100 text-yellow-800">接続中...</span>
+            <span class="mr-2">🔴</span>
+            <span>リアルタイム協調評価進捗</span>
+            <span id="ws-status" class="ml-auto text-xs px-2 py-1 rounded bg-yellow-100 text-yellow-800">接続中...</span>
                 </h4>
 
                 <!-- Phase Indicator -->
                 <div id="phase-indicator" class="mb-4">
-                    <div class="flex items-center justify-between mb-2">
-                        <span class="text-sm font-medium">現在のフェーズ:</span>
-                        <span id="current-phase-text" class="text-sm font-bold text-purple-700">-</span>
-                    </div>
-                    <div class="flex gap-2">
-                        <div id="phase-1" class="flex-1 p-2 rounded border text-center text-xs bg-gray-100 text-gray-500">
-                            Phase 1: 独立評価
-                        </div>
-                        <div id="phase-2" class="flex-1 p-2 rounded border text-center text-xs bg-gray-100 text-gray-500">
-                            Phase 2: ディスカッション
-                        </div>
-                        <div id="phase-3" class="flex-1 p-2 rounded border text-center text-xs bg-gray-100 text-gray-500">
-                            Phase 3: 最終判定
-                        </div>
-                    </div>
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-sm font-medium">現在のフェーズ:</span>
+                <span id="current-phase-text" class="text-sm font-bold text-purple-700">-</span>
+            </div>
+            <div class="flex gap-2">
+                <div id="phase-1" class="flex-1 p-2 rounded border text-center text-xs bg-gray-100 text-gray-500">
+                    Phase 1: 独立評価
+                </div>
+                <div id="phase-2" class="flex-1 p-2 rounded border text-center text-xs bg-gray-100 text-gray-500">
+                    Phase 2: ディスカッション
+                </div>
+                <div id="phase-3" class="flex-1 p-2 rounded border text-center text-xs bg-gray-100 text-gray-500">
+                    Phase 3: 最終判定
+                </div>
+            </div>
                 </div>
 
                 <!-- Juror Evaluations (Phase 1) -->
                 <div id="juror-evaluations-container" class="mb-4 hidden">
-                    <h5 class="text-sm font-semibold mb-2">陪審員の評価:</h5>
-                    <div id="juror-evaluations" class="grid md:grid-cols-3 gap-2"></div>
+            <h5 class="text-sm font-semibold mb-2">陪審員の評価:</h5>
+            <div id="juror-evaluations" class="grid md:grid-cols-3 gap-2"></div>
                 </div>
 
                 <!-- Consensus Check -->
                 <div id="consensus-container" class="mb-4 hidden">
-                    <div class="bg-white p-3 rounded border">
-                        <div class="flex items-center justify-between">
-                            <span class="text-sm font-semibold">合意状況:</span>
-                            <span id="consensus-status" class="text-sm font-bold"></span>
-                        </div>
-                        <div id="consensus-details" class="text-xs text-gray-600 mt-1"></div>
-                    </div>
+            <div class="bg-white p-3 rounded border">
+                <div class="flex items-center justify-between">
+                    <span class="text-sm font-semibold">合意状況:</span>
+                    <span id="consensus-status" class="text-sm font-bold"></span>
+                </div>
+                <div id="consensus-details" class="text-xs text-gray-600 mt-1"></div>
+            </div>
                 </div>
 
                 <!-- Discussion Rounds (Phase 2) -->
                 <div id="discussion-container" class="mb-4 hidden">
-                    <h5 class="text-sm font-semibold mb-2">ディスカッション:</h5>
-                    <div id="current-round-info" class="text-xs text-gray-600 mb-2"></div>
-                    <div id="discussion-messages" class="space-y-2 max-h-96 overflow-y-auto"></div>
+            <h5 class="text-sm font-semibold mb-2">ディスカッション:</h5>
+            <div id="current-round-info" class="text-xs text-gray-600 mb-2"></div>
+            <div id="discussion-messages" class="space-y-2 max-h-96 overflow-y-auto"></div>
                 </div>
 
                 <!-- Final Judgment (Phase 3) -->
                 <div id="final-judgment-container" class="mb-4 hidden">
-                    <div class="bg-green-50 border border-green-200 rounded-lg p-3">
-                        <h5 class="text-sm font-semibold mb-2">最終判定結果:</h5>
-                        <div class="grid md:grid-cols-2 gap-3">
-                            <div>
-                                <div class="text-xs text-gray-600">判定:</div>
-                                <div id="final-verdict" class="text-lg font-bold"></div>
-                            </div>
-                            <div>
-                                <div class="text-xs text-gray-600">スコア:</div>
-                                <div id="final-score" class="text-lg font-bold"></div>
-                            </div>
-                            <div>
-                                <div class="text-xs text-gray-600">信頼度:</div>
-                                <div id="final-confidence" class="text-sm font-medium"></div>
-                            </div>
-                            <div>
-                                <div class="text-xs text-gray-600">判定方法:</div>
-                                <div id="final-method" class="text-sm font-medium"></div>
-                            </div>
-                        </div>
-                        <div id="final-rationale" class="mt-2 text-xs"></div>
+            <div class="bg-green-50 border border-green-200 rounded-lg p-3">
+                <h5 class="text-sm font-semibold mb-2">最終判定結果:</h5>
+                <div class="grid md:grid-cols-2 gap-3">
+                    <div>
+                        <div class="text-xs text-gray-600">判定:</div>
+                        <div id="final-verdict" class="text-lg font-bold"></div>
                     </div>
+                    <div>
+                        <div class="text-xs text-gray-600">スコア:</div>
+                        <div id="final-score" class="text-lg font-bold"></div>
+                    </div>
+                    <div>
+                        <div class="text-xs text-gray-600">信頼度:</div>
+                        <div id="final-confidence" class="text-sm font-medium"></div>
+                    </div>
+                    <div>
+                        <div class="text-xs text-gray-600">判定方法:</div>
+                        <div id="final-method" class="text-sm font-medium"></div>
+                    </div>
+                </div>
+                <div id="final-rationale" class="mt-2 text-xs"></div>
+            </div>
                 </div>
             </div>
         </div>
@@ -700,110 +700,110 @@
             {% for scenario in submission.score_breakdown.judge_summary.scenarios %}
                 {% if scenario.discussionRounds and scenario.discussionRounds | length > 0 %}
                 <details class="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <summary class="text-sm font-semibold mb-2 cursor-pointer">
-                        <span class="mr-2">💬</span>
-                        <span>Scenario: {{ scenario.scenarioId }} - Discussion History ({{ scenario.discussionRounds | length }} rounds)</span>
-                    </summary>
+            <summary class="text-sm font-semibold mb-2 cursor-pointer">
+                <span class="mr-2">💬</span>
+                <span>Scenario: {{ scenario.scenarioId }} - Discussion History ({{ scenario.discussionRounds | length }} rounds)</span>
+            </summary>
 
-                    <div class="ml-6 mt-3 space-y-3">
-                        <!-- Phase 1 Evaluations -->
-                        {% if scenario.phase1Evaluations %}
-                        <div class="mb-4">
-                            <h5 class="text-sm font-semibold mb-2">Phase 1: 独立評価</h5>
-                            <div class="grid md:grid-cols-3 gap-2">
-                                {% for evaluation in scenario.phase1Evaluations %}
-                                <div class="p-2 bg-white rounded border text-xs">
-                                    <div class="font-semibold mb-1">{{ evaluation.jurorId }}</div>
-                                    <div class="mb-1">
-                                        <span class="px-2 py-1 rounded
-                                            {% if evaluation.verdict == 'safe_pass' %}bg-green-100 text-green-800
-                                            {% elif evaluation.verdict == 'unsafe_fail' %}bg-red-100 text-red-800
-                                            {% else %}bg-yellow-100 text-yellow-800{% endif %}">
-                                            {{ evaluation.verdict }}
-                                        </span>
-                                    </div>
-                                    <div class="text-gray-600">Score: {{ evaluation.overallScore }}/100</div>
-                                    <div class="text-gray-600">Confidence: {{ (evaluation.confidence * 100) | int }}%</div>
-                                </div>
-                                {% endfor %}
-                            </div>
-                        </div>
-                        {% endif %}
-
-                        <!-- Discussion Rounds -->
-                        {% for round in scenario.discussionRounds %}
-                        <div class="bg-white border rounded-lg p-3">
-                            <div class="text-xs font-semibold text-gray-700 mb-2">
-                                Round {{ round.roundNumber }} - 発言順: {{ round.speakerOrder | join(', ') }}
-                            </div>
-
-                            <!-- Statements in this round -->
-                            <div class="space-y-2">
-                                {% for statement in round.statements %}
-                                <div class="p-2 bg-gray-50 rounded border border-gray-200">
-                                    <div class="text-xs text-gray-600 mb-1">
-                                        <span class="font-semibold">{{ statement.jurorId }}</span>
-                                        {% if statement.positionChanged %}
-                                        <span class="ml-2 px-2 py-1 rounded text-xs bg-blue-100 text-blue-800">立場変更</span>
-                                        {% endif %}
-                                    </div>
-                                    <div class="text-sm">{{ statement.statement }}</div>
-                                </div>
-                                {% endfor %}
-                            </div>
-
-                            <!-- Consensus Check Result -->
-                            {% if round.consensusCheck %}
-                            <div class="mt-2 p-2 bg-gray-100 rounded border text-xs">
-                                <span class="font-semibold">合意状況:</span>
-                                <span class="{% if round.consensusCheck.consensusReached %}text-green-600{% else %}text-yellow-600{% endif %}">
-                                    {{ round.consensusCheck.consensusStatus }}
+            <div class="ml-6 mt-3 space-y-3">
+                <!-- Phase 1 Evaluations -->
+                {% if scenario.phase1Evaluations %}
+                <div class="mb-4">
+                    <h5 class="text-sm font-semibold mb-2">Phase 1: 独立評価</h5>
+                    <div class="grid md:grid-cols-3 gap-2">
+                        {% for evaluation in scenario.phase1Evaluations %}
+                        <div class="p-2 bg-white rounded border text-xs">
+                            <div class="font-semibold mb-1">{{ evaluation.jurorId }}</div>
+                            <div class="mb-1">
+                                <span class="px-2 py-1 rounded
+                                    {% if evaluation.verdict == 'safe_pass' %}bg-green-100 text-green-800
+                                    {% elif evaluation.verdict == 'unsafe_fail' %}bg-red-100 text-red-800
+                                    {% else %}bg-yellow-100 text-yellow-800{% endif %}">
+                                    {{ evaluation.verdict }}
                                 </span>
-                                {% if round.consensusCheck.consensusReached %}
-                                <span class="ml-2">✓ 合意成立: {{ round.consensusCheck.consensusVerdict }}</span>
-                                {% else %}
-                                <span class="ml-2">合意なし - ディスカッション継続</span>
-                                {% endif %}
                             </div>
-                            {% endif %}
+                            <div class="text-gray-600">Score: {{ evaluation.overallScore }}/100</div>
+                            <div class="text-gray-600">Confidence: {{ (evaluation.confidence * 100) | int }}%</div>
                         </div>
                         {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
 
-                        <!-- Final Judgment -->
-                        {% if scenario.finalJudgment %}
-                        <div class="bg-green-50 border border-green-200 rounded-lg p-3">
-                            <h5 class="text-sm font-semibold mb-2">Phase 3: 最終判定</h5>
-                            <div class="grid md:grid-cols-2 gap-3 text-xs">
-                                <div>
-                                    <div class="text-gray-600">判定:</div>
-                                    <div class="text-lg font-bold
-                                        {% if scenario.finalJudgment.finalVerdict == 'safe_pass' %}text-green-600
-                                        {% elif scenario.finalJudgment.finalVerdict == 'unsafe_fail' %}text-red-600
-                                        {% else %}text-yellow-600{% endif %}">
-                                        {{ scenario.finalJudgment.finalVerdict }}
-                                    </div>
-                                </div>
-                                <div>
-                                    <div class="text-gray-600">スコア:</div>
-                                    <div class="text-lg font-bold">{{ scenario.finalJudgment.finalScore }}/100</div>
-                                </div>
-                                <div>
-                                    <div class="text-gray-600">信頼度:</div>
-                                    <div class="font-medium">{{ (scenario.finalJudgment.confidence * 100) | int }}%</div>
-                                </div>
-                                <div>
-                                    <div class="text-gray-600">判定方法:</div>
-                                    <div class="font-medium">{{ scenario.finalJudgment.method }}</div>
-                                </div>
+                <!-- Discussion Rounds -->
+                {% for round in scenario.discussionRounds %}
+                <div class="bg-white border rounded-lg p-3">
+                    <div class="text-xs font-semibold text-gray-700 mb-2">
+                        Round {{ round.roundNumber }} - 発言順: {{ round.speakerOrder | join(', ') }}
+                    </div>
+
+                    <!-- Statements in this round -->
+                    <div class="space-y-2">
+                        {% for statement in round.statements %}
+                        <div class="p-2 bg-gray-50 rounded border border-gray-200">
+                            <div class="text-xs text-gray-600 mb-1">
+                                <span class="font-semibold">{{ statement.jurorId }}</span>
+                                {% if statement.positionChanged %}
+                                <span class="ml-2 px-2 py-1 rounded text-xs bg-blue-100 text-blue-800">立場変更</span>
+                                {% endif %}
                             </div>
-                            {% if scenario.finalJudgment.rationale %}
-                            <div class="mt-2 text-xs">
-                                <strong>理由:</strong> {{ scenario.finalJudgment.rationale }}
-                            </div>
-                            {% endif %}
+                            <div class="text-sm">{{ statement.statement }}</div>
                         </div>
+                        {% endfor %}
+                    </div>
+
+                    <!-- Consensus Check Result -->
+                    {% if round.consensusCheck %}
+                    <div class="mt-2 p-2 bg-gray-100 rounded border text-xs">
+                        <span class="font-semibold">合意状況:</span>
+                        <span class="{% if round.consensusCheck.consensusReached %}text-green-600{% else %}text-yellow-600{% endif %}">
+                            {{ round.consensusCheck.consensusStatus }}
+                        </span>
+                        {% if round.consensusCheck.consensusReached %}
+                        <span class="ml-2">✓ 合意成立: {{ round.consensusCheck.consensusVerdict }}</span>
+                        {% else %}
+                        <span class="ml-2">合意なし - ディスカッション継続</span>
                         {% endif %}
                     </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+
+                <!-- Final Judgment -->
+                {% if scenario.finalJudgment %}
+                <div class="bg-green-50 border border-green-200 rounded-lg p-3">
+                    <h5 class="text-sm font-semibold mb-2">Phase 3: 最終判定</h5>
+                    <div class="grid md:grid-cols-2 gap-3 text-xs">
+                        <div>
+                            <div class="text-gray-600">判定:</div>
+                            <div class="text-lg font-bold
+                                {% if scenario.finalJudgment.finalVerdict == 'safe_pass' %}text-green-600
+                                {% elif scenario.finalJudgment.finalVerdict == 'unsafe_fail' %}text-red-600
+                                {% else %}text-yellow-600{% endif %}">
+                                {{ scenario.finalJudgment.finalVerdict }}
+                            </div>
+                        </div>
+                        <div>
+                            <div class="text-gray-600">スコア:</div>
+                            <div class="text-lg font-bold">{{ scenario.finalJudgment.finalScore }}/100</div>
+                        </div>
+                        <div>
+                            <div class="text-gray-600">信頼度:</div>
+                            <div class="font-medium">{{ (scenario.finalJudgment.confidence * 100) | int }}%</div>
+                        </div>
+                        <div>
+                            <div class="text-gray-600">判定方法:</div>
+                            <div class="font-medium">{{ scenario.finalJudgment.method }}</div>
+                        </div>
+                    </div>
+                    {% if scenario.finalJudgment.rationale %}
+                    <div class="mt-2 text-xs">
+                        <strong>理由:</strong> {{ scenario.finalJudgment.rationale }}
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
                 </details>
                 {% endif %}
             {% endfor %}
@@ -815,20 +815,20 @@
             <!-- AISI Inspect Criteria Scores -->
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div class="bg-white p-3 rounded border">
-                    <div class="text-xs text-gray-500">Task Completion</div>
-                    <div class="text-2xl font-bold">{{ submission.score_breakdown.judge_summary.taskCompletion or 0 }}/40</div>
+            <div class="text-xs text-gray-500">Task Completion</div>
+            <div class="text-2xl font-bold">{{ submission.score_breakdown.judge_summary.taskCompletion or 0 }}/40</div>
                 </div>
                 <div class="bg-white p-3 rounded border">
-                    <div class="text-xs text-gray-500">Tool Usage</div>
-                    <div class="text-2xl font-bold">{{ submission.score_breakdown.judge_summary.tool or 0 }}/30</div>
+            <div class="text-xs text-gray-500">Tool Usage</div>
+            <div class="text-2xl font-bold">{{ submission.score_breakdown.judge_summary.tool or 0 }}/30</div>
                 </div>
                 <div class="bg-white p-3 rounded border">
-                    <div class="text-xs text-gray-500">Autonomy</div>
-                    <div class="text-2xl font-bold">{{ submission.score_breakdown.judge_summary.autonomy or 0 }}/20</div>
+            <div class="text-xs text-gray-500">Autonomy</div>
+            <div class="text-2xl font-bold">{{ submission.score_breakdown.judge_summary.autonomy or 0 }}/20</div>
                 </div>
                 <div class="bg-white p-3 rounded border">
-                    <div class="text-xs text-gray-500">Safety & Security</div>
-                    <div class="text-2xl font-bold">{{ submission.score_breakdown.judge_summary.safety or 0 }}/10</div>
+            <div class="text-xs text-gray-500">Safety & Security</div>
+            <div class="text-2xl font-bold">{{ submission.score_breakdown.judge_summary.safety or 0 }}/10</div>
                 </div>
             </div>
 
@@ -836,27 +836,27 @@
             <div class="border-t pt-4">
                 <h4 class="font-semibold mb-2">Overall Verdict</h4>
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div class="bg-white p-3 rounded border">
-                        <div class="text-xs text-gray-500">Verdict</div>
-                        <div class="text-xl font-bold
-                            {% if submission.score_breakdown.judge_summary.verdict == 'approve' %}text-green-600
-                            {% elif submission.score_breakdown.judge_summary.verdict == 'reject' %}text-red-600
-                            {% else %}text-yellow-600{% endif %}">
-                            {{ submission.score_breakdown.judge_summary.verdict.upper() }}
-                        </div>
-                    </div>
-                    <div class="bg-green-50 p-3 rounded border border-green-200">
-                        <div class="text-xs text-gray-500">Approve Count</div>
-                        <div class="text-2xl font-bold text-green-600">{{ submission.score_breakdown.judge_summary.approve or 0 }}</div>
-                    </div>
-                    <div class="bg-yellow-50 p-3 rounded border border-yellow-200">
-                        <div class="text-xs text-gray-500">Manual Review</div>
-                        <div class="text-2xl font-bold text-yellow-600">{{ submission.score_breakdown.judge_summary.manual or 0 }}</div>
-                    </div>
-                    <div class="bg-red-50 p-3 rounded border border-red-200">
-                        <div class="text-xs text-gray-500">Reject Count</div>
-                        <div class="text-2xl font-bold text-red-600">{{ submission.score_breakdown.judge_summary.reject or 0 }}</div>
-                    </div>
+            <div class="bg-white p-3 rounded border">
+                <div class="text-xs text-gray-500">Verdict</div>
+                <div class="text-xl font-bold
+                    {% if submission.score_breakdown.judge_summary.verdict == 'approve' %}text-green-600
+                    {% elif submission.score_breakdown.judge_summary.verdict == 'reject' %}text-red-600
+                    {% else %}text-yellow-600{% endif %}">
+                    {{ submission.score_breakdown.judge_summary.verdict.upper() }}
+                </div>
+            </div>
+            <div class="bg-green-50 p-3 rounded border border-green-200">
+                <div class="text-xs text-gray-500">Approve Count</div>
+                <div class="text-2xl font-bold text-green-600">{{ submission.score_breakdown.judge_summary.approve or 0 }}</div>
+            </div>
+            <div class="bg-yellow-50 p-3 rounded border border-yellow-200">
+                <div class="text-xs text-gray-500">Manual Review</div>
+                <div class="text-2xl font-bold text-yellow-600">{{ submission.score_breakdown.judge_summary.manual or 0 }}</div>
+            </div>
+            <div class="bg-red-50 p-3 rounded border border-red-200">
+                <div class="text-xs text-gray-500">Reject Count</div>
+                <div class="text-2xl font-bold text-red-600">{{ submission.score_breakdown.judge_summary.reject or 0 }}</div>
+            </div>
                 </div>
             </div>
 
@@ -864,22 +864,22 @@
             <div class="border-t pt-4">
                 <h4 class="font-semibold mb-2">Scenario Breakdown</h4>
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div class="bg-white p-3 rounded border">
-                        <div class="text-xs text-gray-500">Total Evaluated</div>
-                        <div class="text-2xl font-bold">{{ submission.score_breakdown.judge_summary.totalScenarios or 0 }}</div>
-                    </div>
-                    <div class="bg-green-50 p-3 rounded border border-green-200">
-                        <div class="text-xs text-gray-500">Passed</div>
-                        <div class="text-2xl font-bold text-green-600">{{ submission.score_breakdown.judge_summary.passCount or 0 }}</div>
-                    </div>
-                    <div class="bg-yellow-50 p-3 rounded border border-yellow-200">
-                        <div class="text-xs text-gray-500">Needs Review</div>
-                        <div class="text-2xl font-bold text-yellow-600">{{ submission.score_breakdown.judge_summary.needsReviewCount or 0 }}</div>
-                    </div>
-                    <div class="bg-red-50 p-3 rounded border border-red-200">
-                        <div class="text-xs text-gray-500">Failed</div>
-                        <div class="text-2xl font-bold text-red-600">{{ submission.score_breakdown.judge_summary.failCount or 0 }}</div>
-                    </div>
+            <div class="bg-white p-3 rounded border">
+                <div class="text-xs text-gray-500">Total Evaluated</div>
+                <div class="text-2xl font-bold">{{ submission.score_breakdown.judge_summary.totalScenarios or 0 }}</div>
+            </div>
+            <div class="bg-green-50 p-3 rounded border border-green-200">
+                <div class="text-xs text-gray-500">Passed</div>
+                <div class="text-2xl font-bold text-green-600">{{ submission.score_breakdown.judge_summary.passCount or 0 }}</div>
+            </div>
+            <div class="bg-yellow-50 p-3 rounded border border-yellow-200">
+                <div class="text-xs text-gray-500">Needs Review</div>
+                <div class="text-2xl font-bold text-yellow-600">{{ submission.score_breakdown.judge_summary.needsReviewCount or 0 }}</div>
+            </div>
+            <div class="bg-red-50 p-3 rounded border border-red-200">
+                <div class="text-xs text-gray-500">Failed</div>
+                <div class="text-2xl font-bold text-red-600">{{ submission.score_breakdown.judge_summary.failCount or 0 }}</div>
+            </div>
                 </div>
             </div>
             <!-- LLM Configuration -->
@@ -887,37 +887,37 @@
             <div class="border-t pt-4">
                 <h4 class="font-semibold mb-2">LLM Judge Configuration</h4>
                 <div class="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm">
-                    <div class="bg-white p-2 rounded border">
-                        <span class="text-xs text-gray-500">Provider:</span>
-                        <span class="font-medium ml-2">{{ submission.score_breakdown.judge_summary.llmJudge.provider }}</span>
-                    </div>
-                    {% if submission.score_breakdown.judge_summary.llmJudge.models %}
-                    <div class="bg-white p-2 rounded border col-span-2">
-                        <span class="text-xs text-gray-500">Models:</span>
-                        <span class="font-medium ml-2">{{ submission.score_breakdown.judge_summary.llmJudge.models | join(', ') }}</span>
-                    </div>
-                    {% elif submission.score_breakdown.judge_summary.llmJudge.model %}
-                    <div class="bg-white p-2 rounded border">
-                        <span class="text-xs text-gray-500">Model:</span>
-                        <span class="font-medium ml-2">{{ submission.score_breakdown.judge_summary.llmJudge.model }}</span>
-                    </div>
-                    {% endif %}
-                    <div class="bg-white p-2 rounded border">
-                        <span class="text-xs text-gray-500">Temperature:</span>
-                        <span class="font-medium ml-2">{{ submission.score_breakdown.judge_summary.llmJudge.temperature }}</span>
-                    </div>
-                    {% if submission.score_breakdown.judge_summary.llmJudge.vetoThreshold is defined %}
-                    <div class="bg-white p-2 rounded border">
-                        <span class="text-xs text-gray-500">Veto Threshold:</span>
-                        <span class="font-medium ml-2">{{ (submission.score_breakdown.judge_summary.llmJudge.vetoThreshold * 100) | int }}%</span>
-                    </div>
-                    {% endif %}
-                    {% if submission.score_breakdown.judge_summary.llmJudge.dryRun is defined %}
-                    <div class="bg-white p-2 rounded border">
-                        <span class="text-xs text-gray-500">Dry Run:</span>
-                        <span class="font-medium ml-2">{{ submission.score_breakdown.judge_summary.llmJudge.dryRun }}</span>
-                    </div>
-                    {% endif %}
+            <div class="bg-white p-2 rounded border">
+                <span class="text-xs text-gray-500">Provider:</span>
+                <span class="font-medium ml-2">{{ submission.score_breakdown.judge_summary.llmJudge.provider }}</span>
+            </div>
+            {% if submission.score_breakdown.judge_summary.llmJudge.models %}
+            <div class="bg-white p-2 rounded border col-span-2">
+                <span class="text-xs text-gray-500">Models:</span>
+                <span class="font-medium ml-2">{{ submission.score_breakdown.judge_summary.llmJudge.models | join(', ') }}</span>
+            </div>
+            {% elif submission.score_breakdown.judge_summary.llmJudge.model %}
+            <div class="bg-white p-2 rounded border">
+                <span class="text-xs text-gray-500">Model:</span>
+                <span class="font-medium ml-2">{{ submission.score_breakdown.judge_summary.llmJudge.model }}</span>
+            </div>
+            {% endif %}
+            <div class="bg-white p-2 rounded border">
+                <span class="text-xs text-gray-500">Temperature:</span>
+                <span class="font-medium ml-2">{{ submission.score_breakdown.judge_summary.llmJudge.temperature }}</span>
+            </div>
+            {% if submission.score_breakdown.judge_summary.llmJudge.vetoThreshold is defined %}
+            <div class="bg-white p-2 rounded border">
+                <span class="text-xs text-gray-500">Veto Threshold:</span>
+                <span class="font-medium ml-2">{{ (submission.score_breakdown.judge_summary.llmJudge.vetoThreshold * 100) | int }}%</span>
+            </div>
+            {% endif %}
+            {% if submission.score_breakdown.judge_summary.llmJudge.dryRun is defined %}
+            <div class="bg-white p-2 rounded border">
+                <span class="text-xs text-gray-500">Dry Run:</span>
+                <span class="font-medium ml-2">{{ submission.score_breakdown.judge_summary.llmJudge.dryRun }}</span>
+            </div>
+            {% endif %}
                 </div>
             </div>
             {% endif %}
@@ -925,9 +925,9 @@
             <div class="border-t pt-4">
                 <h4 class="font-semibold mb-2">⚠️ Counter Findings (Top)</h4>
                 <ul class="list-disc ml-5 text-xs space-y-1">
-                    {% for finding in submission.score_breakdown.judge_summary.counterFindings %}
-                    <li>{{ finding }}</li>
-                    {% endfor %}
+            {% for finding in submission.score_breakdown.judge_summary.counterFindings %}
+            <li>{{ finding }}</li>
+            {% endfor %}
                 </ul>
             </div>
             {% endif %}
@@ -953,16 +953,16 @@
     <div class="space-y-4">
         {% for scenario_id, stage_items in grouped.items() %}
         <div class="border border-gray-300 rounded-lg bg-white shadow-sm p-3">
-                        <div class="flex items-center justify-between text-sm font-semibold mb-2">
-                            {% set sample = stage_items[0] if stage_items else {} %}
-                            <span>シナリオ: {{ sample.get('use_case') or scenario_id }}</span>
-                            {% set rec = stage_items | selectattr('stage', 'equalto', 'reconcile') | list %}
-                            {% if rec and rec[0].get('judgeVerdict') %}
-                            <span class="px-2 py-1 rounded text-xs
-                                {% if rec[0].get('judgeVerdict') == 'approve' %}bg-green-100 text-green-800
-                                {% elif rec[0].get('judgeVerdict') == 'reject' %}bg-red-100 text-red-800
-                    {% else %}bg-yellow-100 text-yellow-800{% endif %}">
-                    最終: {{ rec[0].get('judgeVerdict') }}
+                <div class="flex items-center justify-between text-sm font-semibold mb-2">
+                    {% set sample = stage_items[0] if stage_items else {} %}
+                    <span>シナリオ: {{ sample.get('use_case') or scenario_id }}</span>
+                    {% set rec = stage_items | selectattr('stage', 'equalto', 'reconcile') | list %}
+                    {% if rec and rec[0].get('judgeVerdict') %}
+                    <span class="px-2 py-1 rounded text-xs
+                        {% if rec[0].get('judgeVerdict') == 'approve' %}bg-green-100 text-green-800
+                        {% elif rec[0].get('judgeVerdict') == 'reject' %}bg-red-100 text-red-800
+            {% else %}bg-yellow-100 text-yellow-800{% endif %}">
+            最終: {{ rec[0].get('judgeVerdict') }}
                 </span>
                 {% endif %}
             </div>
@@ -973,56 +973,56 @@
                 {% set stage_bg = 'bg-blue-50' if stage == 'plan' else ('bg-yellow-50' if stage == 'counter' else ('bg-green-50' if stage == 'reconcile' else 'bg-gray-50')) %}
                 {% set stage_badge = 'bg-blue-100 text-blue-800' if stage == 'plan' else ('bg-yellow-100 text-yellow-800' if stage == 'counter' else ('bg-green-100 text-green-800' if stage == 'reconcile' else 'bg-gray-100 text-gray-800')) %}
                 <div class="border rounded p-2 {{ stage_bg }} text-xs space-y-2">
-                    <div class="flex items-center justify-between">
-                        <span class="font-semibold uppercase px-2 py-1 rounded {{ stage_badge }}">{{ stage_item.get('stage') or 'stage' }}</span>
-                        <span class="px-2 py-1 rounded text-xs
-                            {% if stage_item.get('judgeVerdict') == 'approve' %}bg-green-100 text-green-800
-                            {% elif stage_item.get('judgeVerdict') == 'reject' %}bg-red-100 text-red-800
-                            {% elif stage_item.get('judgeVerdict') == 'manual' %}bg-yellow-100 text-yellow-800
-                            {% else %}bg-gray-100 text-gray-800{% endif %}">
-                            {{ stage_item.get('judgeVerdict', 'N/A') }}
-                        </span>
-                    </div>
-                    <div class="flex items-center justify-between">
-                        <span>Judge Score:</span>
-                        <span class="font-medium">{% if stage_item.get('judgeScore') is not none %}{{ "%.2f"|format(stage_item.get('judgeScore')) }}{% else %}N/A{% endif %}</span>
-                    </div>
-                    <div class="flex items-center justify-between">
-                        <span>Minority Veto:</span>
-                        <span class="font-medium">{{ stage_item.get('minorityVetoTriggered', False) }}</span>
-                    </div>
-                    <div>
-                        <span class="font-semibold">Prompt (表示用):</span>
-                        <pre class="mt-1 whitespace-pre-wrap bg-white p-2 rounded">{{ stage_item.get('promptDisplay') or stage_item.get('prompt') or 'N/A' }}</pre>
-                    </div>
-                                {% if stage_item.get('llmVerdicts') %}
-                                <div class="border-t pt-2">
-                                    <div class="font-semibold mb-1">各LLMの判定:</div>
-                                    <div class="space-y-1">
-                                        {% for llm in stage_item.get('llmVerdicts', []) %}
-                                        <div class="bg-white rounded p-2">
-                                            <div class="flex items-center justify-between">
-                                                <span>{{ llm.get('model', 'Unknown') }}</span>
-                                                <span class="ml-2 px-2 py-0.5 rounded text-xs
-                                                    {% if llm.get('verdict') == 'approve' %}bg-green-100 text-green-800
-                                                    {% elif llm.get('verdict') == 'reject' %}bg-red-100 text-red-800
-                                                    {% else %}bg-yellow-100 text-yellow-800{% endif %}">
-                                                    {{ llm.get('verdict', 'N/A') }}
-                                                </span>
-                                                <span class="ml-1 text-gray-600 text-xs">Score: {% if llm.get('score') is not none %}{{ "%.2f"|format(llm.get('score')) }}{% else %}N/A{% endif %}</span>
-                                            </div>
-                                            {% if llm.get('rationale') %}
-                                            <div class="text-gray-700 text-xs mt-1">
-                                                <strong>Rationale:</strong>
-                                                <pre class="whitespace-pre-wrap bg-gray-50 p-2 rounded">{{ llm.get('rationale') }}</pre>
-                                            </div>
-                                            {% endif %}
-                                        </div>
-                                        {% endfor %}
+            <div class="flex items-center justify-between">
+                <span class="font-semibold uppercase px-2 py-1 rounded {{ stage_badge }}">{{ stage_item.get('stage') or 'stage' }}</span>
+                <span class="px-2 py-1 rounded text-xs
+                    {% if stage_item.get('judgeVerdict') == 'approve' %}bg-green-100 text-green-800
+                    {% elif stage_item.get('judgeVerdict') == 'reject' %}bg-red-100 text-red-800
+                    {% elif stage_item.get('judgeVerdict') == 'manual' %}bg-yellow-100 text-yellow-800
+                    {% else %}bg-gray-100 text-gray-800{% endif %}">
+                    {{ stage_item.get('judgeVerdict', 'N/A') }}
+                </span>
+            </div>
+            <div class="flex items-center justify-between">
+                <span>Judge Score:</span>
+                <span class="font-medium">{% if stage_item.get('judgeScore') is not none %}{{ "%.2f"|format(stage_item.get('judgeScore')) }}{% else %}N/A{% endif %}</span>
+            </div>
+            <div class="flex items-center justify-between">
+                <span>Minority Veto:</span>
+                <span class="font-medium">{{ stage_item.get('minorityVetoTriggered', False) }}</span>
+            </div>
+            <div>
+                <span class="font-semibold">Prompt (表示用):</span>
+                <pre class="mt-1 whitespace-pre-wrap bg-white p-2 rounded">{{ stage_item.get('promptDisplay') or stage_item.get('prompt') or 'N/A' }}</pre>
+            </div>
+                        {% if stage_item.get('llmVerdicts') %}
+                        <div class="border-t pt-2">
+                            <div class="font-semibold mb-1">各LLMの判定:</div>
+                            <div class="space-y-1">
+                                {% for llm in stage_item.get('llmVerdicts', []) %}
+                                <div class="bg-white rounded p-2">
+                                    <div class="flex items-center justify-between">
+                                        <span>{{ llm.get('model', 'Unknown') }}</span>
+                                        <span class="ml-2 px-2 py-0.5 rounded text-xs
+                                            {% if llm.get('verdict') == 'approve' %}bg-green-100 text-green-800
+                                            {% elif llm.get('verdict') == 'reject' %}bg-red-100 text-red-800
+                                            {% else %}bg-yellow-100 text-yellow-800{% endif %}">
+                                            {{ llm.get('verdict', 'N/A') }}
+                                        </span>
+                                        <span class="ml-1 text-gray-600 text-xs">Score: {% if llm.get('score') is not none %}{{ "%.2f"|format(llm.get('score')) }}{% else %}N/A{% endif %}</span>
                                     </div>
+                                    {% if llm.get('rationale') %}
+                                    <div class="text-gray-700 text-xs mt-1">
+                                        <strong>Rationale:</strong>
+                                        <pre class="whitespace-pre-wrap bg-gray-50 p-2 rounded">{{ llm.get('rationale') }}</pre>
+                                    </div>
+                                    {% endif %}
                                 </div>
-                                {% endif %}
-                                {# Aggregated Rationale と Issues は冗長なので表示を省略 #}
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+                        {# Aggregated Rationale と Issues は冗長なので表示を省略 #}
                 </div>
                 {% endfor %}
             </div>
@@ -1035,22 +1035,22 @@
             <div class="border-t pt-4">
                 <h4 class="font-semibold mb-2">📋 確認ポイント (登録者向け)</h4>
                 <ul class="text-sm space-y-1 list-disc ml-5">
-                    <li>Plan/Counter/Reconcileの3ステージ評価結果を確認し、各段階での判定の変化を把握</li>
-                    <li>Counter Findingsセクションで指摘された問題点を確認し、Reconcileでどう対処されたかを理解</li>
-                    <li>各LLMモデル(GPT-4o, Claude Haiku, Gemini 2.5 Flash)の判定とMinority-Veto発動状況を確認</li>
-                    <li>AISI Inspect基準スコア(Task Completion/Tool Usage/Autonomy/Safety)の内訳を確認し、弱点を特定</li>
-                    <li>reject/manualの場合は、各LLMのRationaleを確認し、改善点や反論材料を整理</li>
+            <li>Plan/Counter/Reconcileの3ステージ評価結果を確認し、各段階での判定の変化を把握</li>
+            <li>Counter Findingsセクションで指摘された問題点を確認し、Reconcileでどう対処されたかを理解</li>
+            <li>各LLMモデル(GPT-4o, Claude Haiku, Gemini 2.5 Flash)の判定とMinority-Veto発動状況を確認</li>
+            <li>AISI Inspect基準スコア(Task Completion/Tool Usage/Autonomy/Safety)の内訳を確認し、弱点を特定</li>
+            <li>reject/manualの場合は、各LLMのRationaleを確認し、改善点や反論材料を整理</li>
                 </ul>
             </div>
 
             <div class="border-t pt-4">
                 <h4 class="font-semibold mb-2">🔧 確認ポイント (管理者向け)</h4>
                 <ul class="text-sm space-y-1 list-disc ml-5">
-                    <li>judge_report.jsonl を確認し、各ステージの詳細評価とLLMモデル別のスコア分布をレビュー</li>
-                    <li>Minority-Veto閾値(デフォルト30%)が適切か評価し、必要に応じて環境変数で調整</li>
-                    <li>Plan/Counter/Reconcileの3ステージプロセスが正常に機能しているか確認</li>
-                    <li>Manual reviewが必要なシナリオについて、各LLMの判定理由を精査し、人間の目で最終判断を下す</li>
-                    <li>W&B Weave Tracesで詳細な実行ログとLLM呼び出しのトレースを確認</li>
+            <li>judge_report.jsonl を確認し、各ステージの詳細評価とLLMモデル別のスコア分布をレビュー</li>
+            <li>Minority-Veto閾値(デフォルト30%)が適切か評価し、必要に応じて環境変数で調整</li>
+            <li>Plan/Counter/Reconcileの3ステージプロセスが正常に機能しているか確認</li>
+            <li>Manual reviewが必要なシナリオについて、各LLMの判定理由を精査し、人間の目で最終判断を下す</li>
+            <li>W&B Weave Tracesで詳細な実行ログとLLM呼び出しのトレースを確認</li>
                 </ul>
             </div>
 
@@ -1059,12 +1059,12 @@
             <div class="border-t pt-4">
                 <h4 class="font-semibold mb-2">📁 Artifacts</h4>
                 <div class="space-y-2">
-                    {% if submission.score_breakdown.judge_summary.artifacts.report %}
-                    <div class="text-sm">
-                        <span class="font-medium">Report (JSONL):</span>
-                        <code class="text-xs bg-gray-100 px-2 py-1 rounded">{{ submission.score_breakdown.judge_summary.artifacts.report }}</code>
-                    </div>
-                    {% endif %}
+            {% if submission.score_breakdown.judge_summary.artifacts.report %}
+            <div class="text-sm">
+                <span class="font-medium">Report (JSONL):</span>
+                <code class="text-xs bg-gray-100 px-2 py-1 rounded">{{ submission.score_breakdown.judge_summary.artifacts.report }}</code>
+            </div>
+            {% endif %}
                 </div>
             </div>
             {% endif %}
@@ -1083,7 +1083,7 @@
             <p class="text-sm text-gray-700">
                 <span class="font-semibold">Status:</span>
                 <span class="{% if submission.score_breakdown.publish_summary.status == 'published' %}text-green-600{% else %}text-yellow-600{% endif %}">
-                    {{ submission.score_breakdown.publish_summary.status }}
+            {{ submission.score_breakdown.publish_summary.status }}
                 </span>
             </p>
             {% if submission.score_breakdown.publish_summary.publishedAt %}
@@ -1115,219 +1115,265 @@
     console.log('[DEBUG] Submission ID:', submissionId);
     console.log('[DEBUG] Judge State:', judgeState);
 
-    // Only connect WebSocket if judge panel is running
-    if (judgeState === 'judge_panel_running') {
-        console.log('[DEBUG] Judge panel is running, showing real-time container');
+    // ALWAYS connect WebSocket for real-time updates (not just for judge panel)
+    console.log('[DEBUG] Initializing WebSocket for ALL evaluation stages');
+
+    // Show jury real-time container only for judge panel
+    if (judgeState === 'judge_panel_running' || judgeState === 'judge_panel_completed') {
+        console.log('[DEBUG] Judge panel is running or completed, showing real-time container');
         const realtimeContainer = document.getElementById('jury-realtime-container');
         console.log('[DEBUG] Real-time container element:', realtimeContainer);
         if (realtimeContainer) {
             console.log('[DEBUG] Removing hidden class from real-time container');
             realtimeContainer.classList.remove('hidden');
+        }
+    }
 
-            // Initialize WebSocket client
-            console.log('[DEBUG] Creating JuryJudgeWebSocket instance');
-            const juryWS = new JuryJudgeWebSocket(submissionId);
-            console.log('[DEBUG] JuryJudgeWebSocket instance created:', juryWS);
+    // Initialize WebSocket client for ALL stages (not just judge panel)
+    console.log('[DEBUG] Creating JuryJudgeWebSocket instance for submission:', submissionId);
+    const juryWS = new JuryJudgeWebSocket(submissionId);
+    console.log('[DEBUG] JuryJudgeWebSocket instance created:', juryWS);
 
-            // Connection status handlers
-            juryWS.on('connected', () => {
-                console.log('[DEBUG] 🟢 WebSocket connected event fired');
-                const wsStatus = document.getElementById('ws-status');
-                console.log('[DEBUG] ws-status element:', wsStatus);
-                if (wsStatus) {
-                    wsStatus.textContent = '接続済み';
-                    wsStatus.className = 'ml-auto text-xs px-2 py-1 rounded bg-green-100 text-green-800';
-                    console.log('[DEBUG] Updated ws-status to "接続済み"');
-                }
-            });
+    // Connection status handlers
+    juryWS.on('connected', () => {
+        console.log('[DEBUG] 🟢 WebSocket connected event fired');
+        const wsStatus = document.getElementById('ws-status');
+        console.log('[DEBUG] ws-status element:', wsStatus);
+        if (wsStatus) {
+            wsStatus.textContent = '接続済み';
+            wsStatus.className = 'ml-auto text-xs px-2 py-1 rounded bg-green-100 text-green-800';
+            console.log('[DEBUG] Updated ws-status to "接続済み"');
+        }
+    });
 
-            juryWS.on('disconnected', () => {
-                const wsStatus = document.getElementById('ws-status');
-                if (wsStatus) {
-                    wsStatus.textContent = '切断';
-                    wsStatus.className = 'ml-auto text-xs px-2 py-1 rounded bg-red-100 text-red-800';
-                }
-            });
+    juryWS.on('disconnected', () => {
+        const wsStatus = document.getElementById('ws-status');
+        if (wsStatus) {
+            wsStatus.textContent = '切断';
+            wsStatus.className = 'ml-auto text-xs px-2 py-1 rounded bg-red-100 text-red-800';
+        }
+    });
 
             // Phase change handler
-            juryWS.on('phase_change', (data) => {
-                console.log('[DEBUG] 🔄 phase_change event handler called with data:', data);
-                const phaseText = document.getElementById('current-phase-text');
-                console.log('[DEBUG] current-phase-text element:', phaseText);
-                if (phaseText) {
-                    phaseText.textContent = data.description || `Phase ${data.phaseNumber}`;
-                    console.log('[DEBUG] Updated phase text to:', phaseText.textContent);
+    juryWS.on('phase_change', (data) => {
+        console.log('[DEBUG] 🔄 phase_change event handler called with data:', data);
+        const phaseText = document.getElementById('current-phase-text');
+        console.log('[DEBUG] current-phase-text element:', phaseText);
+        if (phaseText) {
+            phaseText.textContent = data.description || `Phase ${data.phaseNumber}`;
+            console.log('[DEBUG] Updated phase text to:', phaseText.textContent);
                 }
 
                 // Update phase indicators
                 for (let i = 1; i <= 3; i++) {
-                    const phaseEl = document.getElementById(`phase-${i}`);
-                    if (phaseEl) {
-                        if (i === data.phaseNumber) {
-                            phaseEl.className = 'flex-1 p-2 rounded border text-center text-xs bg-purple-100 text-purple-800 font-bold';
-                        } else if (i < data.phaseNumber) {
-                            phaseEl.className = 'flex-1 p-2 rounded border text-center text-xs bg-green-100 text-green-800';
-                        } else {
-                            phaseEl.className = 'flex-1 p-2 rounded border text-center text-xs bg-gray-100 text-gray-500';
-                        }
-                    }
+            const phaseEl = document.getElementById(`phase-${i}`);
+            if (phaseEl) {
+                if (i === data.phaseNumber) {
+                    phaseEl.className = 'flex-1 p-2 rounded border text-center text-xs bg-purple-100 text-purple-800 font-bold';
+                } else if (i < data.phaseNumber) {
+                    phaseEl.className = 'flex-1 p-2 rounded border text-center text-xs bg-green-100 text-green-800';
+                } else {
+                    phaseEl.className = 'flex-1 p-2 rounded border text-center text-xs bg-gray-100 text-gray-500';
+                }
+            }
                 }
             });
 
             // Juror evaluation handler (Phase 1)
-            juryWS.on('juror_evaluation', (data) => {
-                console.log('[DEBUG] 👨‍⚖️ juror_evaluation event handler called with data:', data);
-                const container = document.getElementById('juror-evaluations-container');
-                const evaluations = document.getElementById('juror-evaluations');
-                console.log('[DEBUG] juror-evaluations-container:', container);
-                console.log('[DEBUG] juror-evaluations:', evaluations);
+    juryWS.on('juror_evaluation', (data) => {
+        console.log('[DEBUG] 👨‍⚖️ juror_evaluation event handler called with data:', data);
+        const container = document.getElementById('juror-evaluations-container');
+        const evaluations = document.getElementById('juror-evaluations');
+        console.log('[DEBUG] juror-evaluations-container:', container);
+        console.log('[DEBUG] juror-evaluations:', evaluations);
 
-                if (container && evaluations) {
-                    container.classList.remove('hidden');
-                    console.log('[DEBUG] Removed hidden class from juror-evaluations-container');
+        if (container && evaluations) {
+            container.classList.remove('hidden');
+            console.log('[DEBUG] Removed hidden class from juror-evaluations-container');
 
-                    let jurorEl = document.getElementById(`juror-${data.juror}`);
-                    if (!jurorEl) {
-                        jurorEl = document.createElement('div');
-                        jurorEl.id = `juror-${data.juror}`;
-                        jurorEl.className = 'p-2 bg-white rounded border text-xs';
-                        evaluations.appendChild(jurorEl);
-                    }
+            let jurorEl = document.getElementById(`juror-${data.juror}`);
+            if (!jurorEl) {
+                jurorEl = document.createElement('div');
+                jurorEl.id = `juror-${data.juror}`;
+                jurorEl.className = 'p-2 bg-white rounded border text-xs';
+                evaluations.appendChild(jurorEl);
+            }
 
-                    const verdictColor = data.verdict === 'safe_pass' ? 'green' : (data.verdict === 'unsafe_fail' ? 'red' : 'yellow');
-                    jurorEl.innerHTML = `
-                        <div class="font-semibold mb-1">${data.juror}</div>
-                        <div class="mb-1">
-                            <span class="px-2 py-1 rounded bg-${verdictColor}-100 text-${verdictColor}-800">${data.verdict}</span>
-                        </div>
-                        <div class="text-gray-600">Score: ${data.score.toFixed(1)}/100</div>
-                        <div class="text-gray-600">Confidence: ${(data.confidence * 100).toFixed(0)}%</div>
-                    `;
+            const verdictColor = data.verdict === 'safe_pass' ? 'green' : (data.verdict === 'unsafe_fail' ? 'red' : 'yellow');
+            jurorEl.innerHTML = `
+                <div class="font-semibold mb-1">${data.juror}</div>
+                <div class="mb-1">
+                    <span class="px-2 py-1 rounded bg-${verdictColor}-100 text-${verdictColor}-800">${data.verdict}</span>
+                </div>
+                <div class="text-gray-600">Score: ${data.score.toFixed(1)}/100</div>
+                <div class="text-gray-600">Confidence: ${(data.confidence * 100).toFixed(0)}%</div>
+            `;
                 }
             });
 
             // Consensus check handler
-            juryWS.on('consensus_check', (data) => {
-                const container = document.getElementById('consensus-container');
-                const status = document.getElementById('consensus-status');
-                const details = document.getElementById('consensus-details');
+    juryWS.on('consensus_check', (data) => {
+        const container = document.getElementById('consensus-container');
+        const status = document.getElementById('consensus-status');
+        const details = document.getElementById('consensus-details');
 
-                if (container && status && details) {
-                    container.classList.remove('hidden');
+        if (container && status && details) {
+            container.classList.remove('hidden');
 
-                    const statusColor = data.consensusReached ? 'text-green-600' : 'text-yellow-600';
-                    status.textContent = data.consensusStatus;
-                    status.className = `text-sm font-bold ${statusColor}`;
+            const statusColor = data.consensusReached ? 'text-green-600' : 'text-yellow-600';
+            status.textContent = data.consensusStatus;
+            status.className = `text-sm font-bold ${statusColor}`;
 
-                    if (data.consensusReached) {
-                        details.textContent = `合意成立: ${data.consensusVerdict} (Round ${data.round})`;
-                    } else {
-                        details.textContent = `合意なし - ディスカッション継続 (Round ${data.round})`;
-                    }
+            if (data.consensusReached) {
+                details.textContent = `合意成立: ${data.consensusVerdict} (Round ${data.round})`;
+            } else {
+                details.textContent = `合意なし - ディスカッション継続 (Round ${data.round})`;
+            }
                 }
             });
 
             // Discussion start handler (Phase 2)
-            juryWS.on('discussion_start', (data) => {
-                console.log('[DEBUG] 💬 discussion_start event handler called with data:', data);
-                const container = document.getElementById('discussion-container');
-                const roundInfo = document.getElementById('current-round-info');
-                console.log('[DEBUG] discussion-container:', container);
-                console.log('[DEBUG] current-round-info:', roundInfo);
+    juryWS.on('discussion_start', (data) => {
+        console.log('[DEBUG] 💬 discussion_start event handler called with data:', data);
+        const container = document.getElementById('discussion-container');
+        const roundInfo = document.getElementById('current-round-info');
+        console.log('[DEBUG] discussion-container:', container);
+        console.log('[DEBUG] current-round-info:', roundInfo);
 
-                if (container && roundInfo) {
-                    container.classList.remove('hidden');
-                    roundInfo.textContent = `Round ${data.round} - 発言順: ${data.speakerOrder.join(', ')}`;
-                    console.log('[DEBUG] Updated round info to:', roundInfo.textContent);
+        if (container && roundInfo) {
+            container.classList.remove('hidden');
+            roundInfo.textContent = `Round ${data.round} - 発言順: ${data.speakerOrder.join(', ')}`;
+            console.log('[DEBUG] Updated round info to:', roundInfo.textContent);
                 }
             });
 
             // Juror statement handler
-            juryWS.on('juror_statement', (data) => {
-                console.log('[DEBUG] 🗣️ juror_statement event handler called with data:', data);
-                const messages = document.getElementById('discussion-messages');
-                console.log('[DEBUG] discussion-messages element:', messages);
-                if (messages) {
-                    const messageEl = document.createElement('div');
-                    messageEl.className = 'p-3 bg-white rounded border';
-                    console.log('[DEBUG] Created message element for juror:', data.juror);
+    juryWS.on('juror_statement', (data) => {
+        console.log('[DEBUG] 🗣️ juror_statement event handler called with data:', data);
+        const messages = document.getElementById('discussion-messages');
+        console.log('[DEBUG] discussion-messages element:', messages);
+        if (messages) {
+            const messageEl = document.createElement('div');
+            messageEl.className = 'p-3 bg-white rounded border';
+            console.log('[DEBUG] Created message element for juror:', data.juror);
 
-                    const positionBadge = data.positionChanged ?
-                        '<span class="ml-2 px-2 py-1 rounded text-xs bg-blue-100 text-blue-800">立場変更</span>' : '';
+            const positionBadge = data.positionChanged ?
+                '<span class="ml-2 px-2 py-1 rounded text-xs bg-blue-100 text-blue-800">立場変更</span>' : '';
 
-                    messageEl.innerHTML = `
-                        <div class="text-xs text-gray-600 mb-1">
-                            <span class="font-semibold">${data.juror}</span> (Round ${data.round})
-                            ${positionBadge}
-                        </div>
-                        <div class="text-sm">${data.statement}</div>
-                        ${data.positionChanged ? `<div class="text-xs text-gray-600 mt-1">新しい判定: ${data.newVerdict} (${data.newScore.toFixed(1)})</div>` : ''}
-                    `;
+            messageEl.innerHTML = `
+                <div class="text-xs text-gray-600 mb-1">
+                    <span class="font-semibold">${data.juror}</span> (Round ${data.round})
+                    ${positionBadge}
+                </div>
+                <div class="text-sm">${data.statement}</div>
+                ${data.positionChanged ? `<div class="text-xs text-gray-600 mt-1">新しい判定: ${data.newVerdict} (${data.newScore.toFixed(1)})</div>` : ''}
+            `;
 
-                    messages.appendChild(messageEl);
-                    messages.scrollTop = messages.scrollHeight;
+            messages.appendChild(messageEl);
+            messages.scrollTop = messages.scrollHeight;
                 }
             });
 
             // Round complete handler
-            juryWS.on('round_complete', (data) => {
-                const roundInfo = document.getElementById('current-round-info');
-                if (roundInfo) {
-                    const status = data.consensusReached ? '✓ 合意成立' : (data.stagnant ? '⚠ 停滞検出' : '進行中');
-                    roundInfo.textContent += ` - ${status}`;
+    juryWS.on('round_complete', (data) => {
+        const roundInfo = document.getElementById('current-round-info');
+        if (roundInfo) {
+            const status = data.consensusReached ? '✓ 合意成立' : (data.stagnant ? '⚠ 停滞検出' : '進行中');
+            roundInfo.textContent += ` - ${status}`;
                 }
             });
 
             // Final judgment handler (Phase 3)
-            juryWS.on('final_judgment', (data) => {
-                const container = document.getElementById('final-judgment-container');
-                const verdict = document.getElementById('final-verdict');
-                const score = document.getElementById('final-score');
-                const confidence = document.getElementById('final-confidence');
-                const method = document.getElementById('final-method');
-                const rationale = document.getElementById('final-rationale');
+    juryWS.on('final_judgment', (data) => {
+        const container = document.getElementById('final-judgment-container');
+        const verdict = document.getElementById('final-verdict');
+        const score = document.getElementById('final-score');
+        const confidence = document.getElementById('final-confidence');
+        const method = document.getElementById('final-method');
+        const rationale = document.getElementById('final-rationale');
 
-                if (container && verdict && score && confidence && method && rationale) {
-                    container.classList.remove('hidden');
+        if (container && verdict && score && confidence && method && rationale) {
+            container.classList.remove('hidden');
 
-                    const verdictColor = data.finalVerdict === 'safe_pass' ? 'text-green-600' :
-                                        (data.finalVerdict === 'unsafe_fail' ? 'text-red-600' : 'text-yellow-600');
-                    verdict.textContent = data.finalVerdict;
-                    verdict.className = `text-lg font-bold ${verdictColor}`;
+            const verdictColor = data.finalVerdict === 'safe_pass' ? 'text-green-600' :
+                                (data.finalVerdict === 'unsafe_fail' ? 'text-red-600' : 'text-yellow-600');
+            verdict.textContent = data.finalVerdict;
+            verdict.className = `text-lg font-bold ${verdictColor}`;
 
-                    score.textContent = `${data.finalScore.toFixed(1)}/100`;
-                    confidence.textContent = `${(data.confidence * 100).toFixed(0)}%`;
-                    method.textContent = data.method;
-                    rationale.innerHTML = `<strong>理由:</strong> ${data.rationale || 'N/A'}`;
+            score.textContent = `${data.finalScore.toFixed(1)}/100`;
+            confidence.textContent = `${(data.confidence * 100).toFixed(0)}%`;
+            method.textContent = data.method;
+            rationale.innerHTML = `<strong>理由:</strong> ${data.rationale || 'N/A'}`;
                 }
             });
 
             // Evaluation complete handler
-            juryWS.on('evaluation_complete', () => {
-                // Reload page to show final results
-                setTimeout(() => {
-                    window.location.reload();
-                }, 2000);
+    juryWS.on('evaluation_complete', (data) => {
+        console.log('[DEBUG] 🎉 Evaluation complete - keeping real-time display visible');
+        console.log('[DEBUG] Evaluation complete data:', data);
+
+                // Keep real-time display visible instead of reloading
+                // User can manually reload or navigate to see static results
+
+                // Update status to show evaluation is complete
+        const wsStatus = document.getElementById('ws-status');
+        if (wsStatus) {
+            wsStatus.textContent = '評価完了';
+            wsStatus.className = 'ml-auto text-xs px-2 py-1 rounded bg-blue-100 text-blue-800';
+                }
+
+                // WebSocket-only architecture - no AJAX polling needed
+                // All updates come via WebSocket in real-time
+        console.log('[DEBUG] Evaluation complete - WebSocket-only mode (no polling)');
             });
 
             // Error handler
-            juryWS.on('error', (data) => {
+    juryWS.on('error', (data) => {
                 console.error('Jury Judge WebSocket error:', data);
-                const wsStatus = document.getElementById('ws-status');
-                if (wsStatus) {
-                    wsStatus.textContent = 'エラー';
-                    wsStatus.className = 'ml-auto text-xs px-2 py-1 rounded bg-red-100 text-red-800';
+        const wsStatus = document.getElementById('ws-status');
+        if (wsStatus) {
+            wsStatus.textContent = 'エラー';
+            wsStatus.className = 'ml-auto text-xs px-2 py-1 rounded bg-red-100 text-red-800';
                 }
             });
 
-            // Connect to WebSocket
-            juryWS.connect();
+    // Submission state change handler
+    juryWS.on('submission_state_change', (data) => {
+        console.log('[DEBUG] 🔄 submission_state_change event:', data);
+        // Reload the page to show updated state
+        window.location.reload();
+    });
 
-            // Cleanup on page unload
-            window.addEventListener('beforeunload', () => {
-                juryWS.disconnect();
-            });
+    // Score update handler
+    juryWS.on('score_update', (data) => {
+        console.log('[DEBUG] 📊 score_update event:', data);
+        // Update scores in real-time if elements exist
+        if (data.security_score !== undefined) {
+            const securityScoreEl = document.getElementById('security-score');
+            if (securityScoreEl) {
+                securityScoreEl.textContent = data.security_score;
+            }
         }
-    }
+        if (data.functional_score !== undefined) {
+            const functionalScoreEl = document.getElementById('functional-score');
+            if (functionalScoreEl) {
+                functionalScoreEl.textContent = data.functional_score;
+            }
+        }
+        if (data.trust_score !== undefined) {
+            const trustScoreEl = document.getElementById('trust-score');
+            if (trustScoreEl) {
+                trustScoreEl.textContent = data.trust_score;
+            }
+        }
+    });
+
+    // Connect to WebSocket
+    juryWS.connect();
+
+    // Cleanup on page unload
+    window.addEventListener('beforeunload', () => {
+        juryWS.disconnect();
+    });
 })();
 </script>

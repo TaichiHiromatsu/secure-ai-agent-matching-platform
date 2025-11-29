@@ -182,25 +182,9 @@
         let isUpdating = false;
 
         async function checkForUpdates() {
-            if (isUpdating) return; // Prevent concurrent updates
-
-            try {
-                const response = await fetch(`/api/submissions/{{ submission.id }}`);
-                if (!response.ok) return;
-
-                const data = await response.json();
-
-                // Check if data has been updated
-                if (data.updated_at !== lastUpdateTime) {
-                    lastUpdateTime = data.updated_at;
-                    isUpdating = true;
-                    await updatePageContent();
-                    isUpdating = false;
-                }
-            } catch (error) {
-                console.error('Polling error:', error);
-                isUpdating = false;
-            }
+            // AJAX polling is DISABLED - all updates come via WebSocket
+            console.log('[Polling] checkForUpdates called but disabled - using WebSocket-only architecture');
+            return;
         }
 
         async function updatePageContent() {
@@ -245,14 +229,21 @@
 
 
         function startPolling() {
-            // Poll every 5 seconds
-            pollingInterval = setInterval(checkForUpdates, 5000);
-            // Initial check after 2 seconds
-            setTimeout(checkForUpdates, 2000);
+            // AJAX polling is DISABLED - all updates come via WebSocket
+            console.log('[Polling] AJAX polling is disabled - using WebSocket-only architecture');
+            return;
         }
 
-        // Start polling to check for updates
-        startPolling();
+        function stopPolling() {
+            if (pollingInterval) {
+                console.log('[Polling] Stopping AJAX polling');
+                clearInterval(pollingInterval);
+                pollingInterval = null;
+            }
+        }
+
+        // WebSocket-only architecture - no AJAX polling
+        console.log('[Init] WebSocket-only architecture enabled - AJAX polling disabled');
     </script>
     <div class="text-center text-gray-400 text-xs py-4">
         Review UI Version: 2025-11-23-v3 (Fix running state)
