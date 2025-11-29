@@ -22,6 +22,89 @@ import json
 from datetime import datetime
 from ..scoring_calculator import create_calculator
 
+def create_mock_security_gate_results() -> dict:
+    """
+    Create mock Security Gate results for testing when Security Gate is skipped
+    """
+    return {
+        "status": "completed",
+        "attempted": 50,
+        "blocked": 2,
+        "needsReview": 5,
+        "passed": 43,
+        "datasets": {
+            "advbench": {
+                "attempted": 10,
+                "blocked": 1,
+                "needsReview": 2,
+                "passed": 7,
+                "riskLevel": "medium"
+            },
+            "injection": {
+                "attempted": 40,
+                "blocked": 1,
+                "needsReview": 3,
+                "passed": 36,
+                "riskLevel": "low"
+            }
+        },
+        "overallRisk": "low",
+        "criticalIssues": [
+            "Potential jailbreak vulnerability detected in 1/10 adversarial prompts",
+            "SQL injection attempt partially successful in 1/40 tests"
+        ],
+        "recommendations": [
+            "Review blocked prompts for pattern analysis",
+            "Consider additional input validation for SQL-like queries"
+        ]
+    }
+
+def create_mock_agent_card_accuracy_results() -> dict:
+    """
+    Create mock Agent Card Accuracy results for testing when functional accuracy is skipped
+    """
+    return {
+        "status": "completed",
+        "totalScenarios": 3,
+        "passedScenarios": 2,
+        "failedScenarios": 1,
+        "overallAccuracy": 0.67,
+        "scenarios": [
+            {
+                "scenarioId": "scenario_1",
+                "description": "Multi-turn hotel booking conversation",
+                "status": "passed",
+                "accuracy": 0.85,
+                "turns": 5,
+                "issues": []
+            },
+            {
+                "scenarioId": "scenario_2",
+                "description": "Flight search with complex constraints",
+                "status": "passed",
+                "accuracy": 0.90,
+                "turns": 4,
+                "issues": []
+            },
+            {
+                "scenarioId": "scenario_3",
+                "description": "Car rental with special requirements",
+                "status": "failed",
+                "accuracy": 0.45,
+                "turns": 3,
+                "issues": [
+                    "Failed to handle special equipment request",
+                    "Incorrect pricing calculation"
+                ]
+            }
+        ],
+        "capabilities": {
+            "multiTurnDialogue": "good",
+            "contextRetention": "excellent",
+            "taskCompletion": "moderate"
+        }
+    }
+
 def run_precheck(submission: models.Submission) -> dict:
     """
     PreCheck: Agent Card検証とagentId抽出
@@ -721,16 +804,52 @@ def process_submission(submission_id: str):
             db.commit()
 
             # Prepare security_gate_results and agent_card_accuracy for collaborative jury judge
-            security_gate_results = enhanced_security_summary if security_summary else None
-            agent_card_accuracy = enhanced_functional_summary if functional_summary else None
+            # Use mock data if stages were skipped but judge is enabled
+            if security_summary:
+                security_gate_results = enhanced_security_summary
+            elif not stages_cfg["security"]:
+                # Use mock data if Security Gate was intentionally skipped
+                print(f"Using mock Security Gate results for Jury Judge testing")
+                security_gate_results = create_mock_security_gate_results()
+            else:
+                security_gate_results = None
+
+            if functional_summary:
+                agent_card_accuracy = enhanced_functional_summary
+            elif not stages_cfg["functional"]:
+                # Use mock data if Agent Card Accuracy was intentionally skipped
+                print(f"Using mock Agent Card Accuracy results for Jury Judge testing")
+                agent_card_accuracy = create_mock_agent_card_accuracy_results()
+            else:
+                agent_card_accuracy = None
 
             # Create WebSocket callback for real-time updates
             from app.routers.websockets import get_connection_manager
+            import asyncio
             ws_manager = get_connection_manager()
 
-            async def websocket_callback(data: dict):
-                """Send real-time updates to WebSocket clients"""
-                await ws_manager.send_progress(submission_id, data)
+            def websocket_callback(data: dict):
+                """Send real-time updates to WebSocket clients
+
+                This is a synchronous wrapper that works within asyncio.run() context.
+                The CollaborativeJuryJudge._notify_websocket handles both sync and async callbacks.
+                """
+                print(f"[DEBUG websocket_callback] Called with data type: {data.get('type', 'unknown')}")
+                try:
+                    # Get the current event loop (should exist within asyncio.run() context)
+                    loop = asyncio.get_event_loop()
+                    print(f"[DEBUG websocket_callback] Got event loop: {loop}")
+                    # Schedule the coroutine on the current loop
+                    asyncio.ensure_future(ws_manager.send_progress(submission_id, data), loop=loop)
+                    print(f"[DEBUG websocket_callback] Scheduled send_progress successfully")
+                except RuntimeError as e:
+                    # If no event loop, try creating a task in the running loop
+                    print(f"[DEBUG websocket_callback] WebSocket callback error: {e}")
+                    try:
+                        asyncio.create_task(ws_manager.send_progress(submission_id, data))
+                        print(f"[DEBUG websocket_callback] Created task successfully")
+                    except RuntimeError:
+                        print(f"[DEBUG websocket_callback] Could not schedule WebSocket notification: {data.get('type', 'unknown')}")
 
             judge_summary = run_judge_panel(
                 agent_id=submission.agent_id,
@@ -913,10 +1032,27 @@ async def create_submission(
     agent_card_url = submission.agent_card_url
     url_map_str = os.getenv("AGENT_URL_MAP", "")
 
-    if url_map_str:
-        parsed = urlparse(agent_card_url)
-        netloc = parsed.netloc
+    # Parse the URL to check for localhost/127.0.0.1
+    parsed = urlparse(agent_card_url)
+    hostname = parsed.hostname
+    port = parsed.port
 
+    # Auto-convert localhost and 127.0.0.1 to host.docker.internal for Docker environment
+    if hostname in ("localhost", "127.0.0.1"):
+        # Preserve the port if specified
+        new_netloc = f"host.docker.internal:{port}" if port else "host.docker.internal"
+        agent_card_url = urlunparse((
+            parsed.scheme,
+            new_netloc,
+            parsed.path,
+            parsed.params,
+            parsed.query,
+            parsed.fragment
+        ))
+        print(f"[INFO] Auto-mapped localhost to host.docker.internal: {submission.agent_card_url} -> {agent_card_url}")
+    elif url_map_str:
+        # Use custom URL mapping if provided
+        netloc = parsed.netloc
         for mapping in url_map_str.split(","):
             if "=" in mapping:
                 from_netloc, to_netloc = mapping.split("=", 1)

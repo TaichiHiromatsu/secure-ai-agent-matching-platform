@@ -414,8 +414,8 @@ def _run_collaborative_jury_evaluation(
                         "statements": [
                             {
                                 "jurorId": stmt.juror_id,
-                                "statement": stmt.statement,
-                                "positionChanged": stmt.position_changed,
+                                "statement": stmt.reasoning,
+                                "positionChanged": stmt.updated_evaluation is not None,
                             }
                             for stmt in round.statements
                         ],
@@ -432,8 +432,9 @@ def _run_collaborative_jury_evaluation(
                     "finalVerdict": result.final_verdict,
                     "finalScore": result.final_score,
                     "confidence": result.phase3_judgment.confidence if result.phase3_judgment else 0.0,
-                    "rationale": result.phase3_judgment.rationale if result.phase3_judgment else "",
-                    "scoreBreakdown": result.phase3_judgment.score_breakdown if result.phase3_judgment else {},
+                    "rationale": result.phase3_judgment.final_judge_rationale if result.phase3_judgment else "",
+                    "voteDistribution": result.phase3_judgment.vote_distribution if result.phase3_judgment else {},
+                    "finalJudgeModel": result.phase3_judgment.final_judge_model if result.phase3_judgment else None,
                 }
             })
 

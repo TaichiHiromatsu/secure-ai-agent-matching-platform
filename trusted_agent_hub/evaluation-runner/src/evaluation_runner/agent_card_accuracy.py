@@ -957,7 +957,7 @@ def run_functional_accuracy(
   timeout: float,
   session_id: Optional[str] = None,
   user_id: Optional[str] = None,
-  use_multiturn: bool = False,
+  use_multiturn: bool = False,  # TODO: シングルターン経路は将来廃止し、マルチターンのみの設定に統一する
   max_turns: int = 5,
   use_adk_generator: bool = False
 ) -> Dict[str, Any]:

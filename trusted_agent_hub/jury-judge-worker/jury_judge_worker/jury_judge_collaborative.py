@@ -648,8 +648,10 @@ class CollaborativeJuryJudge:
             "type": "juror_statement",
             "round": round_num,
             "juror": juror_id,
-            "position": statement.position,
-            "updated": statement.updated_evaluation is not None,
+            "statement": statement.reasoning,
+            "positionChanged": statement.updated_evaluation is not None,
+            "newVerdict": statement.updated_evaluation.verdict if statement.updated_evaluation else None,
+            "newScore": statement.updated_evaluation.overall_score if statement.updated_evaluation else None,
             "timestamp": datetime.utcnow().isoformat(),
         })
 
@@ -990,12 +992,26 @@ You must be objective and not favor any specific juror's model.
         message: Dict[str, Any]
     ):
         """WebSocket通知を送信"""
+        import logging
+        logger = logging.getLogger(__name__)
+
+        print(f"[DEBUG _notify_websocket] callback={callback is not None}, message_type={message.get('type', 'unknown')}")
+
         if callback:
             try:
+                print(f"[DEBUG _notify_websocket] Sending WebSocket notification: {message.get('type', 'unknown')}")
+                logger.info(f"Sending WebSocket notification: {message.get('type', 'unknown')}")
                 if asyncio.iscoroutinefunction(callback):
                     await callback(message)
+                    print(f"[DEBUG _notify_websocket] WebSocket notification sent successfully (async)")
+                    logger.info("WebSocket notification sent successfully (async)")
                 else:
                     callback(message)
+                    print(f"[DEBUG _notify_websocket] WebSocket notification sent successfully (sync)")
+                    logger.info("WebSocket notification sent successfully (sync)")
             except Exception as e:
-                import logging
-                logging.error(f"WebSocket notification failed: {e}")
+                print(f"[DEBUG _notify_websocket] WebSocket notification failed: {e}")
+                logger.error(f"WebSocket notification failed: {e}", exc_info=True)
+        else:
+            print(f"[DEBUG _notify_websocket] WebSocket callback is None, skipping notification")
+            logger.warning("WebSocket callback is None, skipping notification")

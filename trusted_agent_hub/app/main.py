@@ -3,8 +3,9 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
 from .database import engine, Base
-from .routers import submissions, reviews, ui, agents, websockets
+from .routers import submissions, reviews, ui, agents, websockets, orgs
 from app.services.agent_registry import load_agents
+from app.services.org_registry import load_orgs
 import os
 
 # Base directory for static files and templates
@@ -37,15 +38,23 @@ app.include_router(reviews.router)
 app.include_router(ui.router)
 app.include_router(agents.router)
 app.include_router(agents.api_router)
+app.include_router(orgs.router)
+app.include_router(orgs.api_router)
 app.include_router(websockets.router)  # WebSocket for real-time jury judge updates
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
     agents_list = load_agents()
+    orgs_list = load_orgs()
     # Sort by updated_at (or created_at) descending (newest first)
     agents_sorted = sorted(
         agents_list,
         key=lambda a: a.updated_at or a.created_at or "",
+        reverse=True
+    )
+    orgs_sorted = sorted(
+        orgs_list,
+        key=lambda o: o.updated_at or o.created_at or "",
         reverse=True
     )
     return templates.TemplateResponse(
@@ -53,6 +62,7 @@ async def read_root(request: Request):
         {
             "request": request,
             "agents": agents_sorted,
+            "orgs": orgs_sorted,
         },
     )
 
