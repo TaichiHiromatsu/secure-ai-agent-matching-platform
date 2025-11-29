@@ -1340,30 +1340,138 @@
     // Submission state change handler
     juryWS.on('submission_state_change', (data) => {
         console.log('[DEBUG] 🔄 submission_state_change event:', data);
-        // Reload the page to show updated state
-        window.location.reload();
+
+        // Update state display without full page reload
+        const stateEl = document.querySelector('[data-state-display]');
+        if (stateEl && data.newState) {
+            stateEl.textContent = data.newState;
+            console.log(`[DEBUG] ✅ Updated state display to: ${data.newState}`);
+        }
     });
 
-    // Score update handler
+    // Score update handler - using data-score attributes
     juryWS.on('score_update', (data) => {
         console.log('[DEBUG] 📊 score_update event:', data);
-        // Update scores in real-time if elements exist
-        if (data.security_score !== undefined) {
-            const securityScoreEl = document.getElementById('security-score');
-            if (securityScoreEl) {
-                securityScoreEl.textContent = data.security_score;
+
+        // Update scores in real-time using data-score attributes
+        if (data.scores) {
+            // Update security score
+            if (data.scores.security_score !== undefined) {
+                const securityScoreEl = document.querySelector('[data-score="security"]');
+                if (securityScoreEl) {
+                    securityScoreEl.textContent = data.scores.security_score;
+                    console.log(`[DEBUG] ✅ Updated security score to: ${data.scores.security_score}`);
+                }
+            }
+
+            // Update functional score
+            if (data.scores.functional_score !== undefined) {
+                const functionalScoreEl = document.querySelector('[data-score="functional"]');
+                if (functionalScoreEl) {
+                    functionalScoreEl.textContent = data.scores.functional_score;
+                    console.log(`[DEBUG] ✅ Updated functional score to: ${data.scores.functional_score}`);
+                }
+            }
+
+            // Update trust score
+            if (data.scores.trust_score !== undefined) {
+                const trustScoreEl = document.querySelector('[data-score="trust"]');
+                if (trustScoreEl) {
+                    trustScoreEl.textContent = data.scores.trust_score;
+                    console.log(`[DEBUG] ✅ Updated trust score to: ${data.scores.trust_score}`);
+                }
+            }
+
+            // Update judge score
+            if (data.scores.judge_score !== undefined) {
+                const judgeScoreEl = document.querySelector('[data-score="judge"]');
+                if (judgeScoreEl) {
+                    judgeScoreEl.textContent = data.scores.judge_score;
+                    console.log(`[DEBUG] ✅ Updated judge score to: ${data.scores.judge_score}`);
+                }
+            }
+
+            // Update implementation score
+            if (data.scores.implementation_score !== undefined) {
+                const implScoreEl = document.querySelector('[data-score="implementation"]');
+                if (implScoreEl) {
+                    implScoreEl.textContent = data.scores.implementation_score;
+                    console.log(`[DEBUG] ✅ Updated implementation score to: ${data.scores.implementation_score}`);
+                }
             }
         }
-        if (data.functional_score !== undefined) {
-            const functionalScoreEl = document.getElementById('functional-score');
-            if (functionalScoreEl) {
-                functionalScoreEl.textContent = data.functional_score;
+    });
+
+    // Stage update handler - for progress bar and content updates
+    juryWS.on('stage_update', async (data) => {
+        console.log('[DEBUG] 🎯 stage_update event:', data);
+
+        if (data.stage && data.status) {
+            // Update progress bar icon immediately
+            const stageEl = document.querySelector(`[data-stage="${data.stage}"]`);
+            if (stageEl) {
+                // Remove all status classes
+                stageEl.classList.remove(
+                    'bg-green-100', 'border-green-500',
+                    'bg-red-100', 'border-red-500',
+                    'bg-yellow-100', 'border-yellow-500', 'animate-pulse',
+                    'bg-gray-100', 'border-gray-300'
+                );
+
+                // Add appropriate classes based on status
+                if (data.status === 'completed') {
+                    stageEl.classList.add('bg-green-100', 'border-green-500');
+                    console.log(`[DEBUG] ✅ Stage ${data.stage} marked as completed`);
+                } else if (data.status === 'failed') {
+                    stageEl.classList.add('bg-red-100', 'border-red-500');
+                    console.log(`[DEBUG] ❌ Stage ${data.stage} marked as failed`);
+                } else if (data.status === 'running') {
+                    stageEl.classList.add('bg-yellow-100', 'border-yellow-500', 'animate-pulse');
+                    console.log(`[DEBUG] ⏳ Stage ${data.stage} marked as running`);
+                } else {
+                    stageEl.classList.add('bg-gray-100', 'border-gray-300');
+                    console.log(`[DEBUG] ⏸️ Stage ${data.stage} marked as pending`);
+                }
             }
-        }
-        if (data.trust_score !== undefined) {
-            const trustScoreEl = document.getElementById('trust-score');
-            if (trustScoreEl) {
-                trustScoreEl.textContent = data.trust_score;
+
+            // Fetch and update full content to refresh "Automated Review Steps"
+            try {
+                console.log('[DEBUG] 🔄 Fetching updated content...');
+                const response = await fetch(window.location.href);
+                if (!response.ok) {
+                    console.error('[DEBUG] ❌ Failed to fetch updated content:', response.status);
+                    return;
+                }
+
+                const htmlText = await response.text();
+                const parser = new DOMParser();
+                const newDoc = parser.parseFromString(htmlText, 'text/html');
+                const newContent = newDoc.getElementById('main-content');
+                const currentContent = document.getElementById('main-content');
+
+                if (newContent && currentContent) {
+                    // Capture current state
+                    const scrollPos = window.scrollY;
+                    const openDetails = Array.from(document.querySelectorAll('details[open]'))
+                        .map(el => el.id)
+                        .filter(id => id);
+
+                    // Replace content
+                    currentContent.innerHTML = newContent.innerHTML;
+
+                    // Restore state
+                    openDetails.forEach(id => {
+                        const el = document.getElementById(id);
+                        if (el) el.open = true;
+                    });
+
+                    // Restore scroll position
+                    window.scrollTo(0, scrollPos);
+
+                    console.log('[DEBUG] ✅ Content updated successfully');
+                }
+            } catch (error) {
+                console.error('[DEBUG] ❌ Error updating content:', error);
             }
         }
     });

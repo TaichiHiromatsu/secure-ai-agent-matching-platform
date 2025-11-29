@@ -137,6 +137,24 @@ class JuryJudgeWebSocket {
                     this.handleFinalJudgment(data);
                     break;
 
+                // Stage update (progress bar updates)
+                case 'stage_update':
+                    console.log('[JuryJudgeWS] 🎯 Handling stage_update');
+                    this.emit('stage_update', data);
+                    break;
+
+                // Score update
+                case 'score_update':
+                    console.log('[JuryJudgeWS] 📊 Handling score_update');
+                    this.emit('score_update', data);
+                    break;
+
+                // Submission state change
+                case 'submission_state_change':
+                    console.log('[JuryJudgeWS] 🔄 Handling submission_state_change');
+                    this.emit('submission_state_change', data);
+                    break;
+
                 // Error
                 case 'error':
                     console.log('[JuryJudgeWS] ⚠️ Handling error');

@@ -266,10 +266,23 @@ async def notify_score_update(submission_id: str, scores: dict):
     })
     print(f"[WebSocket] Score update: {scores}")
 
+async def notify_stage_update(submission_id: str, stage: str, status: str):
+    """Send stage update notification for progress bar via WebSocket"""
+    from app.routers.websockets import get_connection_manager
+    ws_manager = get_connection_manager()
+    await ws_manager.send_progress(submission_id, {
+        "type": "stage_update",
+        "stage": stage,
+        "status": status,
+        "timestamp": datetime.utcnow().isoformat()
+    })
+    print(f"[WebSocket] Stage update: {stage} -> {status}")
+
 def process_submission(submission_id: str):
     """
     Execute the real review pipeline using evaluation-runner.
     """
+    import asyncio
     db = SessionLocal()
     try:
         submission = db.query(models.Submission).filter(models.Submission.id == submission_id).first()
@@ -359,6 +372,10 @@ def process_submission(submission_id: str):
         # --- 0. PreCheck ---
         if stages_cfg["precheck"]:
             print(f"Running PreCheck for submission {submission_id}")
+
+            # Notify WebSocket: PreCheck stage started
+            asyncio.run(notify_stage_update(submission_id, "precheck", "running"))
+
             precheck_summary = run_precheck(submission)
 
             if not precheck_summary["passed"]:
@@ -376,6 +393,10 @@ def process_submission(submission_id: str):
                 }
                 submission.updated_at = datetime.utcnow()
                 db.commit()
+
+                # Notify WebSocket: PreCheck stage failed
+                asyncio.run(notify_stage_update(submission_id, "precheck", "failed"))
+
                 print(f"PreCheck failed for submission {submission_id}: {precheck_summary['errors']}")
                 return
 
@@ -395,6 +416,9 @@ def process_submission(submission_id: str):
                 "warnings": precheck_summary.get("warnings", [])
             }
             submission.score_breakdown = current_breakdown
+
+            # Notify WebSocket: PreCheck stage completed
+            asyncio.run(notify_stage_update(submission_id, "precheck", "completed"))
             submission.updated_at = datetime.utcnow()
             db.commit()
             print(f"PreCheck passed for submission {submission_id}")
@@ -522,6 +546,9 @@ def process_submission(submission_id: str):
             submission.state = "security_gate_running"
             submission.updated_at = datetime.utcnow()
             db.commit()
+
+            # Notify WebSocket: Security stage started
+            asyncio.run(notify_stage_update(submission_id, "security", "running"))
 
             try:
                 security_summary = run_security_gate(
@@ -659,22 +686,14 @@ def process_submission(submission_id: str):
 
         # WebSocket notification for Security Gate completion
         try:
-            import asyncio
-            loop = asyncio.get_event_loop()
-            asyncio.ensure_future(notify_state_change(submission_id, "security_gate_running", "security_gate_completed"), loop=loop)
-            asyncio.ensure_future(notify_score_update(submission_id, {
+            asyncio.run(notify_state_change(submission_id, "security_gate_running", "security_gate_completed"))
+            asyncio.run(notify_score_update(submission_id, {
                 "security_score": security_score,
                 "security_summary": enhanced_security_summary
-            }), loop=loop)
-        except RuntimeError:
-            try:
-                asyncio.create_task(notify_state_change(submission_id, "security_gate_running", "security_gate_completed"))
-                asyncio.create_task(notify_score_update(submission_id, {
-                    "security_score": security_score,
-                    "security_summary": enhanced_security_summary
-                }))
-            except RuntimeError as e:
-                print(f"[WebSocket] Could not send Security Gate completion notification: {e}")
+            }))
+            asyncio.run(notify_stage_update(submission_id, "security", "completed"))
+        except RuntimeError as e:
+            print(f"[WebSocket] Could not send Security Gate completion notification: {e}")
 
         # --- 2. Functional Check ---
         if stages_cfg["functional"]:
@@ -691,6 +710,9 @@ def process_submission(submission_id: str):
             submission.state = "capability_validation_running"
             submission.updated_at = datetime.utcnow()
             db.commit()
+
+            # Notify WebSocket: Functional stage started
+            asyncio.run(notify_stage_update(submission_id, "functional", "running"))
 
             ragtruth_dir = base_dir / "evaluation-runner/resources/ragtruth"
 
@@ -851,24 +873,15 @@ def process_submission(submission_id: str):
 
         # WebSocket notification for Functional Accuracy completion
         try:
-            import asyncio
-            loop = asyncio.get_event_loop()
-            asyncio.ensure_future(notify_state_change(submission_id, "capability_validation_running", "functional_accuracy_completed"), loop=loop)
-            asyncio.ensure_future(notify_score_update(submission_id, {
+            asyncio.run(notify_state_change(submission_id, "capability_validation_running", "functional_accuracy_completed"))
+            asyncio.run(notify_score_update(submission_id, {
                 "functional_score": functional_score,
                 "trust_score": submission.trust_score,
                 "functional_summary": enhanced_functional_summary
-            }), loop=loop)
-        except RuntimeError:
-            try:
-                asyncio.create_task(notify_state_change(submission_id, "capability_validation_running", "functional_accuracy_completed"))
-                asyncio.create_task(notify_score_update(submission_id, {
-                    "functional_score": functional_score,
-                    "trust_score": submission.trust_score,
-                    "functional_summary": enhanced_functional_summary
-                }))
-            except RuntimeError as e:
-                print(f"[WebSocket] Could not send Functional Accuracy completion notification: {e}")
+            }))
+            asyncio.run(notify_stage_update(submission_id, "functional", "completed"))
+        except RuntimeError as e:
+            print(f"[WebSocket] Could not send Functional Accuracy completion notification: {e}")
 
         # --- 3. Judge Panel ---
         if stages_cfg["judge"]:
