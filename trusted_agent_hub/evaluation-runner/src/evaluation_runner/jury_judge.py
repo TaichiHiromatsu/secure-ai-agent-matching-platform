@@ -334,14 +334,24 @@ def _run_collaborative_jury_evaluation(
 
     # 環境変数から設定を読み込む
     use_collaborative = os.environ.get("JURY_USE_COLLABORATIVE", "true").lower() == "true"
-    max_discussion_rounds = int(os.environ.get("JURY_MAX_DISCUSSION_ROUNDS", "3"))
+
+    # 古い環境変数のチェック（エラーとする）
+    if os.environ.get("JURY_MAX_DISCUSSION_ROUNDS") is not None:
+        raise ValueError(
+            "JURY_MAX_DISCUSSION_ROUNDS is deprecated. "
+            "Please use JURY_MAX_DISCUSSION_TURNS instead. "
+            "See docs/round-to-turn-migration.md for migration guide."
+        )
+
+    # 新しい環境変数を使用
+    max_discussion_turns = int(os.environ.get("JURY_MAX_DISCUSSION_TURNS", "9"))
     consensus_threshold = float(os.environ.get("JURY_CONSENSUS_THRESHOLD", "2.0"))
     final_judgment_method = os.environ.get("JURY_FINAL_JUDGMENT_METHOD", "final_judge")
     final_judge_model = os.environ.get("JURY_FINAL_JUDGE_MODEL", "gemini-2.5-pro")
 
     # Collaborative Jury Judgeを初期化
     jury_judge = CollaborativeJuryJudge(
-        max_discussion_rounds=max_discussion_rounds,
+        max_discussion_turns=max_discussion_turns,
         consensus_threshold=consensus_threshold,
         stagnation_threshold=2,
         final_judgment_method=final_judgment_method,
@@ -501,7 +511,7 @@ def _run_collaborative_jury_evaluation(
         "llmJudge": {
             "provider": "collaborative-jury",
             "models": jury_judge.jurors,
-            "maxDiscussionRounds": max_discussion_rounds,
+            "maxDiscussionRounds": max_discussion_turns,
             "consensusThreshold": consensus_threshold,
             "finalJudgmentMethod": final_judgment_method,
         },

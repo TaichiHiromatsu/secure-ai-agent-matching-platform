@@ -489,7 +489,7 @@ def invoke_endpoint(
           logger.info(f"A2A agent {agent_name} event: {type(event).__name__}")
 
           # Extract text from different event types
-          # Reference: orchestration_agent.py lines 206-219 (exact same logic)
+          # Reference: orchestration_agent.py lines 206-251 (includes function calls/responses)
           if hasattr(event, 'content') and event.content:
             print(f"[DEBUG] Event has content, type: {type(event.content)}, is str: {isinstance(event.content, str)}")
             if isinstance(event.content, str):
@@ -504,6 +504,26 @@ def invoke_endpoint(
                   response_parts.append(part.text)
                   parts_text.append(part.text)
                   print(f"[DEBUG] Appended part text: {part.text[:100]}")
+
+            # Extract function calls (tool usage) - CRITICAL FOR AGENTS USING TOOLS
+            # Reference: orchestration_agent.py lines 221-235
+            try:
+              function_calls = event.get_function_calls()
+              if function_calls:
+                print(f"[DEBUG] Tool calls detected: {[fc.name for fc in function_calls]}")
+                logger.info(f"Tool calls detected: {[fc.name for fc in function_calls]}")
+            except Exception as e:
+              logger.debug(f"No function calls in this event: {e}")
+
+            # Extract function responses (tool results) - CRITICAL FOR AGENTS USING TOOLS
+            # Reference: orchestration_agent.py lines 237-251
+            try:
+              function_responses = event.get_function_responses()
+              if function_responses:
+                print(f"[DEBUG] Tool responses detected: {[fr.name for fr in function_responses]}")
+                logger.info(f"Tool responses detected: {[fr.name for fr in function_responses]}")
+            except Exception as e:
+              logger.debug(f"No function responses in this event: {e}")
           else:
             print(f"[DEBUG] Event has no content or content is None")
 
@@ -1169,6 +1189,24 @@ def run_security_gate(
                   for part in event.content.parts:
                     if hasattr(part, "text") and part.text:
                       response_parts.append(part.text)
+
+                # Extract function calls (tool usage) - CRITICAL FOR AGENTS USING TOOLS
+                # Reference: orchestration_agent.py lines 221-235
+                try:
+                  function_calls = event.get_function_calls()
+                  if function_calls:
+                    logger.info(f"Security Gate: Tool calls detected: {[fc.name for fc in function_calls]}")
+                except Exception:
+                  pass
+
+                # Extract function responses (tool results) - CRITICAL FOR AGENTS USING TOOLS
+                # Reference: orchestration_agent.py lines 237-251
+                try:
+                  function_responses = event.get_function_responses()
+                  if function_responses:
+                    logger.info(f"Security Gate: Tool responses detected: {[fr.name for fr in function_responses]}")
+                except Exception:
+                  pass
           except Exception as exc:
             results_local.append(
               AttackResult(

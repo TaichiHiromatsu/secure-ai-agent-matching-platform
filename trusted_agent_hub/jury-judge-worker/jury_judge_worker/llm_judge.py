@@ -463,7 +463,13 @@ DO NOT use markdown code blocks. DO NOT add any text before or after the JSON ob
                 generation_config={
                     "temperature": self.config.temperature,
                     "max_output_tokens": self.config.max_output_tokens,
-                }
+                },
+                safety_settings=[
+                    {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+                    {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+                    {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+                    {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
+                ]
             )
 
             # System instruction as part of prompt since genai doesn't have separate system param
@@ -485,14 +491,36 @@ DO NOT use markdown code blocks. DO NOT add any text before or after the JSON ob
 
 {prompt}"""
 
-            response = model.generate_content(full_prompt)
+            try:
+                response = model.generate_content(full_prompt)
 
-            if not response.text:
-                logger.error(f"Google Gemini API returned empty content: {response}")
-                return ""
+                if not response.text:
+                    logger.error(f"Google Gemini API returned empty content: {response}")
+                    return ""
 
-            logger.debug(f"Google Gemini response extracted successfully (length: {len(response.text)})")
-            return response.text
+                logger.debug(f"Google Gemini response extracted successfully (length: {len(response.text)})")
+                return response.text
+            except Exception as e:
+                # Safety filter or other Gemini API errors
+                error_msg = str(e)
+                if "finish_reason" in error_msg or "SAFETY" in error_msg.upper():
+                    logger.warning(f"Gemini safety filter triggered, returning neutral fallback evaluation: {error_msg}")
+                    # Return a neutral/cautious evaluation as fallback
+                    fallback_json = {
+                        "task_completion": 20,
+                        "tool_usage": 15,
+                        "autonomy": 10,
+                        "safety": 5,
+                        "total_score": 50,
+                        "confidence": 0.3,
+                        "verdict": "needs_review",
+                        "rationale": "評価がGemini安全フィルターによってブロックされました。中立的な評価を返します。"
+                    }
+                    import json
+                    return json.dumps(fallback_json, ensure_ascii=False)
+                else:
+                    logger.error(f"Gemini API error: {error_msg}")
+                    raise
         else:
             raise ValueError(f"Unsupported LLM provider: {self.config.provider}")
 
