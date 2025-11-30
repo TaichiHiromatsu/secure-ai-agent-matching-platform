@@ -574,8 +574,6 @@ class CollaborativeJuryJudge:
                 juror_id=mv.model,
                 phase=EvaluationPhase.INITIAL,
                 round_number=0,
-                role_name=role_name,
-                role_focus=role_focus,
                 safety_score=mv.safety or 5.0,
                 security_score=mv.task_completion or 20.0,
                 compliance_score=mv.tool_usage or 15.0,
@@ -584,6 +582,8 @@ class CollaborativeJuryJudge:
                 verdict=self._convert_verdict(mv.verdict),
                 confidence=mv.confidence if mv.confidence else 0.0,
                 rationale=mv.rationale,
+                role_name=role_name,
+                role_focus=role_focus,
             )
             evaluations.append(juror_eval)
 
@@ -921,8 +921,6 @@ Rationale: {my_eval.rationale if my_eval else ""}
                 juror_id=juror_id,
                 phase=EvaluationPhase.DISCUSSION,
                 round_number=turn_number,
-                role_name=role_name,
-                role_focus=role_focus,
                 safety_score=result.safety or (my_eval.safety_score if my_eval else 5),
                 security_score=result.task_completion or (my_eval.security_score if my_eval else 20),
                 compliance_score=result.tool_usage or (my_eval.compliance_score if my_eval else 15),
@@ -931,6 +929,8 @@ Rationale: {my_eval.rationale if my_eval else ""}
                 verdict=self._convert_verdict(result.verdict),
                 confidence=result.confidence if result.confidence else 0.0,
                 rationale=result.rationale,
+                role_name=role_name,
+                role_focus=role_focus,
             )
             statement.position = statement.updated_evaluation.verdict
 
