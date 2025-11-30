@@ -1019,7 +1019,7 @@ def process_submission(submission_id: str):
             judge_score = judge_breakdown.final_score
 
             submission.judge_score = judge_score
-        submission.trust_score = security_score + functional_score + judge_score + submission.implementation_score
+            submission.trust_score = security_score + functional_score + judge_score + submission.implementation_score
 
             current_breakdown = dict(submission.score_breakdown)
             current_breakdown["judge_summary"] = enhanced_judge_summary
@@ -1082,7 +1082,7 @@ def process_submission(submission_id: str):
             judge_summary = None
             judge_score = 0
             submission.judge_score = 0
-        submission.trust_score = security_score + functional_score + submission.implementation_score
+            submission.trust_score = security_score + functional_score + submission.implementation_score
             current_breakdown = dict(submission.score_breakdown)
             if "stages" not in current_breakdown:
                 current_breakdown["stages"] = {}
