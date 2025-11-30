@@ -337,6 +337,7 @@ Multi-Model Judge Panelとして以下のモデルを併用:
 - **Jury Judge**: 4軸スコア算出と Trust Score 計算・返却の唯一の責務を持つ。
 - **submissions サービス**: 受信した Trust Score を採用し、score_breakdown へ格納。計算への加算や再合算は行わず、整合性チェックとステージ結果の集約のみを担当。
 - **Security Gate / Agent Card Accuracy**: Pass/Needs Review/Failed 件数と補足指標を記録するだけで、Trust Score には加算しない（従来の security_score / functional_score 加算ロジックは廃止）。
+- **最終判定**: フェーズ3は常に final_judge を実行する。majority_vote / weighted_average は廃止し、環境変数による切替も行わない。final_judge の返答（rationale）は UI で表示する。
 
 ### 出力形式
 
@@ -597,6 +598,9 @@ export AUTO_REJECT_THRESHOLD=50     # 50点以下で自動差し戻し (デフ�
 - ✅ **Trust Score計算の責務を Jury Judge に集約**
   - Jury Judge が4軸重み(40/30/20/10)で trustScore を計算し返却
   - submissions は受領した trustScore を信頼ソースとして保存し、再計算・加算を行わない
+- ✅ **Final Judge 一本化**
+  - Phase 3 は必ず final_judge を実行し、majority_vote / weighted_average を廃止
+  - 環境変数による切替を撤廃し、final_judge の返答 rationale を UI で表示
 - ✅ **Trust Scoreの計算式を明確化**
   - AISI 4軸評価の重み付き平均 (Task 40%, Tool 30%, Autonomy 20%, Safety 10%)
   - Security GateとAgent Card Accuracyの結果を参考情報として活用

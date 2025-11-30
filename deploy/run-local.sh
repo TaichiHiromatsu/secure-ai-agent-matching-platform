@@ -1,6 +1,10 @@
 #!/bin/bash
 # Local Deployment Script - Fast startup for development
 # Starts all components: trusted_agent_hub, external agents, and mediation agent
+#
+# Usage:
+#   ./deploy/run-local.sh              # Start all services
+#   ./deploy/run-local.sh --store-only # Rebuild and restart only the store (Docker)
 
 set -e
 
@@ -11,9 +15,26 @@ BLUE='\033[0;34m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-echo -e "${BLUE}========================================${NC}"
-echo -e "${BLUE}  Secure AI Agent Platform - Local Dev ${NC}"
-echo -e "${BLUE}========================================${NC}"
+# Parse arguments
+STORE_ONLY=false
+for arg in "$@"; do
+    case $arg in
+        --store-only)
+            STORE_ONLY=true
+            shift
+            ;;
+    esac
+done
+
+if [ "$STORE_ONLY" = true ]; then
+    echo -e "${BLUE}========================================${NC}"
+    echo -e "${BLUE}  Rebuilding Store Only (Docker)       ${NC}"
+    echo -e "${BLUE}========================================${NC}"
+else
+    echo -e "${BLUE}========================================${NC}"
+    echo -e "${BLUE}  Secure AI Agent Platform - Local Dev ${NC}"
+    echo -e "${BLUE}========================================${NC}"
+fi
 echo ""
 
 # Navigate to project root
@@ -37,9 +58,11 @@ if ! command -v docker &> /dev/null; then
     exit 1
 fi
 
-if ! command -v python3 &> /dev/null; then
-    echo -e "${RED}Error: Python 3 is not installed${NC}"
-    exit 1
+if [ "$STORE_ONLY" = false ]; then
+    if ! command -v python3 &> /dev/null; then
+        echo -e "${RED}Error: Python 3 is not installed${NC}"
+        exit 1
+    fi
 fi
 
 echo -e "${GREEN}✓ Dependencies OK${NC}"
@@ -105,66 +128,82 @@ echo ""
 # ============================================
 # 2. Start A2A API Server (All External Agents)
 # ============================================
-echo -e "${BLUE}[2/4] Starting A2A API Server (Airline, Hotel, Car Rental Agents)...${NC}"
+if [ "$STORE_ONLY" = false ]; then
+    echo -e "${BLUE}[2/4] Starting A2A API Server (Airline, Hotel, Car Rental Agents)...${NC}"
 
-cd "$PROJECT_ROOT"
-nohup "$PROJECT_ROOT/.venv/bin/adk" api_server --a2a --host 0.0.0.0 --port 8002 external-agents/trusted-agents/ > "$LOG_DIR/a2a_api_server.log" 2>&1 &
-A2A_PID=$!
-echo $A2A_PID > "$PID_DIR/a2a_api_server.pid"
+    cd "$PROJECT_ROOT"
+    nohup "$PROJECT_ROOT/.venv/bin/adk" api_server --a2a --host 0.0.0.0 --port 8002 external-agents/trusted-agents/ > "$LOG_DIR/a2a_api_server.log" 2>&1 &
+    A2A_PID=$!
+    echo $A2A_PID > "$PID_DIR/a2a_api_server.pid"
 
-echo -e "${GREEN}✓ A2A API Server started on port 8002 (PID: $A2A_PID)${NC}"
-echo -e "${GREEN}  - Airline Agent: http://localhost:8002/a2a/airline_agent${NC}"
-echo -e "${GREEN}  - Hotel Agent: http://localhost:8002/a2a/hotel_agent${NC}"
-echo -e "${GREEN}  - Car Rental Agent: http://localhost:8002/a2a/car_rental_agent${NC}"
-echo ""
+    echo -e "${GREEN}✓ A2A API Server started on port 8002 (PID: $A2A_PID)${NC}"
+    echo -e "${GREEN}  - Airline Agent: http://localhost:8002/a2a/airline_agent${NC}"
+    echo -e "${GREEN}  - Hotel Agent: http://localhost:8002/a2a/hotel_agent${NC}"
+    echo -e "${GREEN}  - Car Rental Agent: http://localhost:8002/a2a/car_rental_agent${NC}"
+    echo ""
 
-# ============================================
-# 3. Start Secure Mediation Agent (ADK Web)
-# ============================================
-echo -e "${BLUE}[3/4] Starting Secure Mediation Agent (with ADK Web)...${NC}"
+    # ============================================
+    # 3. Start Secure Mediation Agent (ADK Web)
+    # ============================================
+    echo -e "${BLUE}[3/4] Starting Secure Mediation Agent (with ADK Web)...${NC}"
 
-cd secure-mediation-agent
-nohup "$PROJECT_ROOT/.venv/bin/adk" web . --port 8000 --reload > "$LOG_DIR/secure_mediation_agent.log" 2>&1 &
-MEDIATION_PID=$!
-echo $MEDIATION_PID > "$PID_DIR/secure_mediation_agent.pid"
-cd "$PROJECT_ROOT"
+    cd secure-mediation-agent
+    nohup "$PROJECT_ROOT/.venv/bin/adk" web . --port 8000 --reload > "$LOG_DIR/secure_mediation_agent.log" 2>&1 &
+    MEDIATION_PID=$!
+    echo $MEDIATION_PID > "$PID_DIR/secure_mediation_agent.pid"
+    cd "$PROJECT_ROOT"
 
-echo -e "${GREEN}✓ Secure Mediation Agent started on port 8000 (PID: $MEDIATION_PID)${NC}"
-echo ""
+    echo -e "${GREEN}✓ Secure Mediation Agent started on port 8000 (PID: $MEDIATION_PID)${NC}"
+    echo ""
+fi
 
 # ============================================
 # Wait for services to start
 # ============================================
 echo -e "${YELLOW}Waiting for services to initialize...${NC}"
-sleep 5
+sleep 3
 
 # ============================================
 # Summary
 # ============================================
 echo ""
-echo -e "${GREEN}========================================${NC}"
-echo -e "${GREEN}  All Services Started Successfully! ${NC}"
-echo -e "${GREEN}========================================${NC}"
-echo ""
-echo -e "${BLUE}Access URLs:${NC}"
-echo -e "  • Trusted Agent Hub:          ${GREEN}http://localhost:8080${NC}"
-echo -e "  • Secure Mediation Agent:     ${GREEN}http://localhost:8000${NC}"
-echo -e "  • ADK Web (Dev UI):           ${GREEN}http://localhost:8000/dev-ui${NC}"
-echo -e "  • A2A API Server:             ${GREEN}http://localhost:8002${NC}"
-echo -e "    - Airline Agent:            ${GREEN}http://localhost:8002/a2a/airline_agent${NC}"
-echo -e "    - Hotel Agent:              ${GREEN}http://localhost:8002/a2a/hotel_agent${NC}"
-echo -e "    - Car Rental Agent:         ${GREEN}http://localhost:8002/a2a/car_rental_agent${NC}"
-echo ""
-echo -e "${BLUE}Agent Card URLs (for submission):${NC}"
-echo -e "  ${YELLOW}http://host.docker.internal:8002/a2a/airline_agent/.well-known/agent.json${NC}"
-echo -e "  ${YELLOW}http://host.docker.internal:8002/a2a/hotel_agent/.well-known/agent.json${NC}"
-echo -e "  ${YELLOW}http://host.docker.internal:8002/a2a/car_rental_agent/.well-known/agent.json${NC}"
-echo ""
-echo -e "${BLUE}Useful Commands:${NC}"
-echo -e "  ./deploy/stop-local.sh                  # Stop all services"
-echo -e "  docker logs -f secure-platform          # View hub logs"
-echo -e "  tail -f $LOG_DIR/a2a_api_server.log     # View A2A API server logs"
-echo -e "  tail -f $LOG_DIR/secure_mediation_agent.log   # View mediation logs"
-echo ""
-echo -e "${YELLOW}Note: It may take 10-20 seconds for all services to be fully ready.${NC}"
+if [ "$STORE_ONLY" = true ]; then
+    echo -e "${GREEN}========================================${NC}"
+    echo -e "${GREEN}  Store Rebuilt Successfully!          ${NC}"
+    echo -e "${GREEN}========================================${NC}"
+    echo ""
+    echo -e "${BLUE}Access URL:${NC}"
+    echo -e "  • Trusted Agent Hub:          ${GREEN}http://localhost:8080${NC}"
+    echo ""
+    echo -e "${BLUE}Useful Commands:${NC}"
+    echo -e "  docker logs -f secure-platform          # View hub logs"
+    echo ""
+else
+    echo -e "${GREEN}========================================${NC}"
+    echo -e "${GREEN}  All Services Started Successfully! ${NC}"
+    echo -e "${GREEN}========================================${NC}"
+    echo ""
+    echo -e "${BLUE}Access URLs:${NC}"
+    echo -e "  • Trusted Agent Hub:          ${GREEN}http://localhost:8080${NC}"
+    echo -e "  • Secure Mediation Agent:     ${GREEN}http://localhost:8000${NC}"
+    echo -e "  • ADK Web (Dev UI):           ${GREEN}http://localhost:8000/dev-ui${NC}"
+    echo -e "  • A2A API Server:             ${GREEN}http://localhost:8002${NC}"
+    echo -e "    - Airline Agent:            ${GREEN}http://localhost:8002/a2a/airline_agent${NC}"
+    echo -e "    - Hotel Agent:              ${GREEN}http://localhost:8002/a2a/hotel_agent${NC}"
+    echo -e "    - Car Rental Agent:         ${GREEN}http://localhost:8002/a2a/car_rental_agent${NC}"
+    echo ""
+    echo -e "${BLUE}Agent Card URLs (for submission):${NC}"
+    echo -e "  ${YELLOW}http://host.docker.internal:8002/a2a/airline_agent/.well-known/agent.json${NC}"
+    echo -e "  ${YELLOW}http://host.docker.internal:8002/a2a/hotel_agent/.well-known/agent.json${NC}"
+    echo -e "  ${YELLOW}http://host.docker.internal:8002/a2a/car_rental_agent/.well-known/agent.json${NC}"
+    echo ""
+    echo -e "${BLUE}Useful Commands:${NC}"
+    echo -e "  ./deploy/stop-local.sh                  # Stop all services"
+    echo -e "  ./deploy/run-local.sh --store-only      # Rebuild store only"
+    echo -e "  docker logs -f secure-platform          # View hub logs"
+    echo -e "  tail -f $LOG_DIR/a2a_api_server.log     # View A2A API server logs"
+    echo -e "  tail -f $LOG_DIR/secure_mediation_agent.log   # View mediation logs"
+    echo ""
+    echo -e "${YELLOW}Note: It may take 10-20 seconds for all services to be fully ready.${NC}"
+fi
 echo ""

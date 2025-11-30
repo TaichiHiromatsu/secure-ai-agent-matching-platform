@@ -20,29 +20,38 @@
     </div>
 
     <div>
-        <h2 class="text-xl font-semibold mb-4">Trust Score</h2>
         <div class="bg-blue-50 p-4 rounded-lg">
-            <div class="flex items-center justify-between mb-2">
-                <span class="text-lg font-bold">Trust Score (Jury Judge)</span>
+            <div class="flex items-center justify-between mb-3">
+                <div>
+                    <span class="text-lg font-bold">Trust Score</span>
+                </div>
                 <span class="text-2xl font-bold text-blue-600"><span data-score="trust">{{ submission.trust_score }}</span> / 100</span>
             </div>
             <div class="space-y-2 text-sm text-gray-700">
                 {% set sec = submission.score_breakdown.security_summary or {} %}
-                <div class="flex justify-between">
-                    <span>Security Gate</span>
-                    <span>
-                        {{ sec.passed or 0 }}/{{ sec.total or 0 }} passed
-                        (needs {{ sec.needsReview or 0 }}, failed {{ sec.failed or 0 }})
-                    </span>
+                <div>
+                    <div class="text-xs text-gray-500">Security Gate</div>
+                    <div class="font-medium leading-tight">
+                        passed {{ sec.passed or 0 }}/{{ sec.total or 0 }}<br>
+                        needs {{ sec.needsReview or 0 }}/{{ sec.total or 0 }}<br>
+                        failed {{ sec.failed or 0 }}/{{ sec.total or 0 }}
+                    </div>
                 </div>
                 {% set fn = submission.score_breakdown.functional_summary or {} %}
-                <div class="flex justify-between">
-                    <span>Agent Card Accuracy</span>
-                    <span>
-                        {{ fn.passed_scenarios or 0 }}/{{ fn.total_scenarios or 0 }} passed
-                        (needs {{ fn.needsReview or 0 }}, failed {{ fn.failed_scenarios or 0 }})
-                    </span>
+                <div>
+                    <div class="text-xs text-gray-500">Agent Card Accuracy</div>
+                    <div class="font-medium leading-tight">
+                        passed {{ fn.passed_scenarios or 0 }}/{{ fn.total_scenarios or 0 }}<br>
+                        needs {{ fn.needsReview or 0 }}/{{ fn.total_scenarios or 0 }}<br>
+                        failed {{ fn.failed_scenarios or 0 }}/{{ fn.total_scenarios or 0 }}
+                    </div>
                 </div>
+                {% if submission.score_breakdown.jury_judge and submission.score_breakdown.jury_judge.rationale %}
+                <details class="text-xs bg-white border rounded p-2">
+                    <summary class="font-semibold cursor-pointer text-blue-700">📋 Final Judge Rationale</summary>
+                    <div class="mt-2 whitespace-pre-wrap text-gray-700">{{ submission.score_breakdown.jury_judge.rationale }}</div>
+                </details>
+                {% endif %}
             </div>
         </div>
     </div>

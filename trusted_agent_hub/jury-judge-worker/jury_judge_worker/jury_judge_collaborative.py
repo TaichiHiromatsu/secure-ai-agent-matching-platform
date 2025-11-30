@@ -206,7 +206,7 @@ class ConsensusCheckResult:
 @dataclass
 class FinalJudgment:
     """最終判断結果"""
-    method: str  # "unanimous", "majority_vote", "weighted_average", "final_judge"
+    method: str  # final_judge (固定)
     final_verdict: str
     final_score: float
     confidence: float
@@ -283,8 +283,7 @@ class CollaborativeJuryJudge:
         max_discussion_turns: int = 9,
         consensus_threshold: float = 2.0,  # 2.0 = 議論を必須化（3人では到達不可能）
         stagnation_threshold: int = 2,  # 連続して変化がない回数
-        final_judgment_method: str = "final_judge",  # "majority_vote", "weighted_average", "final_judge"
-        final_judge_model: Optional[str] = "gemini-2.5-pro",
+        final_judge_model: Optional[str] = "gemini-2.0-pro",
         enable_openai: bool = True,
         enable_anthropic: bool = True,
         enable_google: bool = True,
@@ -294,7 +293,6 @@ class CollaborativeJuryJudge:
         self.num_jurors = 3
         self.consensus_threshold = consensus_threshold
         self.stagnation_threshold = stagnation_threshold
-        self.final_judgment_method = final_judgment_method
         self.final_judge_model = final_judge_model
         self.dry_run = dry_run
 
@@ -322,8 +320,9 @@ class CollaborativeJuryJudge:
         )
 
         # 最終審査用のジャッジ（Phase 3用）
+        # Phase 3 は常に final_judge を実行する（majority_vote / weighted_average は廃止）
         self.final_judge = None
-        if final_judgment_method == "final_judge" and final_judge_model:
+        if final_judge_model:
             from .llm_judge import LLMJudge, LLMJudgeConfig
             config = LLMJudgeConfig(
                 enabled=True,
@@ -1288,26 +1287,11 @@ Rationale: {my_eval.rationale if my_eval else ""}
     ) -> FinalJudgment:
         """Phase 3: 最終合議"""
 
-        logger.info(f"🎯 Phase 3: Final judgment method = {self.final_judgment_method}")
+        logger.info("🎯 Phase 3: Final judgment method = final_judge (forced)")
 
-        if self.final_judgment_method == "majority_vote":
-            logger.info("📊 Executing majority_vote judgment")
-            return self._majority_vote_judgment(final_evaluations)
-
-        elif self.final_judgment_method == "weighted_average":
-            logger.info("⚖️ Executing weighted_average judgment")
-            return self._weighted_average_judgment(final_evaluations)
-
-        elif self.final_judgment_method == "final_judge":
-            logger.info("👨‍⚖️ Executing final_judge judgment")
-            return await self._final_judge_judgment(
-                question, execution, final_evaluations, discussion_rounds, websocket_callback
-            )
-
-        else:
-            # デフォルトは多数決
-            logger.warning(f"⚠️ Unknown final_judgment_method: {self.final_judgment_method}. Falling back to majority_vote.")
-            return self._majority_vote_judgment(final_evaluations)
+        return await self._final_judge_judgment(
+            question, execution, final_evaluations, discussion_rounds, websocket_callback
+        )
 
     def _majority_vote_judgment(self, evaluations: List[JurorEvaluation]) -> FinalJudgment:
         """多数決による最終判断"""

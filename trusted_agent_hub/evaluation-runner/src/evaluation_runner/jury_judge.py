@@ -346,7 +346,6 @@ def _run_collaborative_jury_evaluation(
     # 新しい環境変数を使用
     max_discussion_turns = int(os.environ.get("JURY_MAX_DISCUSSION_TURNS", "9"))
     consensus_threshold = float(os.environ.get("JURY_CONSENSUS_THRESHOLD", "2.0"))
-    final_judgment_method = os.environ.get("JURY_FINAL_JUDGMENT_METHOD", "final_judge")
     final_judge_model = os.environ.get("JURY_FINAL_JUDGE_MODEL", "gemini-2.5-pro")
 
     # Collaborative Jury Judgeを初期化
@@ -354,7 +353,6 @@ def _run_collaborative_jury_evaluation(
         max_discussion_turns=max_discussion_turns,
         consensus_threshold=consensus_threshold,
         stagnation_threshold=2,
-        final_judgment_method=final_judgment_method,
         final_judge_model=final_judge_model,
         enable_openai=enable_openai,
         enable_anthropic=enable_anthropic,
@@ -538,7 +536,7 @@ def _run_collaborative_jury_evaluation(
             "models": jury_judge.jurors,
             "maxDiscussionRounds": max_discussion_turns,
             "consensusThreshold": consensus_threshold,
-            "finalJudgmentMethod": final_judgment_method,
+            "finalJudgmentMethod": "final_judge",  # 常にfinal_judgeを使用
         },
         "scenarios": detailed_reports,
     }

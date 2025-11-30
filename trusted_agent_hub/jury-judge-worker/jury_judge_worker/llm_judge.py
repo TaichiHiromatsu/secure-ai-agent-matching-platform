@@ -459,16 +459,16 @@ DO NOT use markdown code blocks. DO NOT add any text before or after the JSON ob
             genai.configure(api_key=api_key)
 
             model = genai.GenerativeModel(
-                model_name=self.config.model or "gemini-2.5-flash",
+                model_name=self.config.model or "gemini-2.0-pro",
                 generation_config={
                     "temperature": self.config.temperature,
                     "max_output_tokens": self.config.max_output_tokens,
                 },
                 safety_settings=[
-                    {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
-                    {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
-                    {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
-                    {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
+                    {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_ONLY_HIGH"},
+                    {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_ONLY_HIGH"},
+                    {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_ONLY_HIGH"},
+                    {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_ONLY_HIGH"},
                 ]
             )
 

@@ -1048,6 +1048,10 @@ def process_submission(submission_id: str):
                 stages=current_breakdown.get("stages"),
             )
 
+            # Pass through final judgment info for UI (rationale display)
+            if judge_summary.get("finalJudgment"):
+                current_breakdown["jury_judge"]["rationale"] = judge_summary["finalJudgment"].get("rationale")
+
             submission.score_breakdown = current_breakdown
             submission.state = "judge_panel_completed"
             submission.updated_at = datetime.utcnow()
