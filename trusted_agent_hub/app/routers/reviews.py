@@ -110,6 +110,7 @@ def update_trust_score(
         submission.functional_score = score_update.functional_score
     if score_update.judge_score is not None:
         submission.judge_score = score_update.judge_score
+    # Human Review (旧Implementation) をここで入力できる
     if score_update.implementation_score is not None:
         submission.implementation_score = score_update.implementation_score
 
@@ -118,7 +119,7 @@ def update_trust_score(
         submission.security_score +
         submission.functional_score +
         submission.judge_score +
-        submission.implementation_score
+        submission.implementation_score  # human review
     )
 
     if score_update.reasoning:
