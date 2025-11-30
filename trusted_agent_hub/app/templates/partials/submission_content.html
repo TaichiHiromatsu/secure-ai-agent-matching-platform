@@ -993,10 +993,6 @@
             <div class="border-t pt-4">
                 <h4 class="font-semibold mb-2">LLM Judge Configuration</h4>
                 <div class="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm">
-            <div class="bg-white p-2 rounded border">
-                <span class="text-xs text-gray-500">Provider:</span>
-                <span class="font-medium ml-2">{{ submission.score_breakdown.judge_summary.llmJudge.provider }}</span>
-            </div>
             {% if submission.score_breakdown.judge_summary.llmJudge.models %}
             <div class="bg-white p-2 rounded border col-span-2">
                 <span class="text-xs text-gray-500">Models:</span>
@@ -1009,8 +1005,8 @@
             </div>
             {% endif %}
             <div class="bg-white p-2 rounded border">
-                <span class="text-xs text-gray-500">Temperature:</span>
-                <span class="font-medium ml-2">{{ submission.score_breakdown.judge_summary.llmJudge.temperature }}</span>
+                <span class="text-xs text-gray-500">Temperature (ランダム度):</span>
+                <span class="font-medium ml-2">{{ submission.score_breakdown.judge_summary.llmJudge.temperature or 'default' }}</span>
             </div>
             {% if submission.score_breakdown.judge_summary.llmJudge.vetoThreshold is defined %}
             <div class="bg-white p-2 rounded border">

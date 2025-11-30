@@ -346,7 +346,7 @@ def _run_collaborative_jury_evaluation(
     # 新しい環境変数を使用
     max_discussion_turns = int(os.environ.get("JURY_MAX_DISCUSSION_TURNS", "9"))
     consensus_threshold = float(os.environ.get("JURY_CONSENSUS_THRESHOLD", "2.0"))
-    final_judge_model = os.environ.get("JURY_FINAL_JUDGE_MODEL", "gemini-2.5-pro")
+    final_judge_model = os.environ.get("JURY_FINAL_JUDGE_MODEL", "gemini-2.0-pro")
 
     # Collaborative Jury Judgeを初期化
     jury_judge = CollaborativeJuryJudge(
