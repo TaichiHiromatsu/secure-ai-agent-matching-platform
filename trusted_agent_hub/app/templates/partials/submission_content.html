@@ -23,25 +23,25 @@
         <h2 class="text-xl font-semibold mb-4">Trust Score</h2>
         <div class="bg-blue-50 p-4 rounded-lg">
             <div class="flex items-center justify-between mb-2">
-                <span class="text-lg font-bold">Total Score</span>
+                <span class="text-lg font-bold">Trust Score (Jury Judge)</span>
                 <span class="text-2xl font-bold text-blue-600"><span data-score="trust">{{ submission.trust_score }}</span> / 100</span>
             </div>
-            <div class="space-y-2 text-sm">
+            <div class="space-y-2 text-sm text-gray-700">
+                {% set sec = submission.score_breakdown.security_summary or {} %}
                 <div class="flex justify-between">
-            <span>Security</span>
-            <span><span data-score="security">{{ submission.security_score }}</span> / 30</span>
+                    <span>Security Gate</span>
+                    <span>
+                        {{ sec.passed or 0 }}/{{ sec.total or 0 }} passed
+                        (needs {{ sec.needsReview or 0 }}, failed {{ sec.failed or 0 }})
+                    </span>
                 </div>
+                {% set fn = submission.score_breakdown.functional_summary or {} %}
                 <div class="flex justify-between">
-            <span>Agent Card</span>
-            <span><span data-score="functional">{{ submission.functional_score }}</span> / 40</span>
-                </div>
-                <div class="flex justify-between">
-            <span>Judge</span>
-            <span><span data-score="judge">{{ submission.judge_score }}</span> / 20</span>
-                </div>
-                <div class="flex justify-between">
-            <span>Human Review</span>
-            <span><span data-score="implementation">{{ submission.implementation_score }}</span> / 10</span>
+                    <span>Agent Card Accuracy</span>
+                    <span>
+                        {{ fn.passed_scenarios or 0 }}/{{ fn.total_scenarios or 0 }} passed
+                        (needs {{ fn.needsReview or 0 }}, failed {{ fn.failed_scenarios or 0 }})
+                    </span>
                 </div>
             </div>
         </div>
@@ -774,26 +774,26 @@
                                 <div class="grid grid-cols-2 gap-1 text-xs">
                                     {% if evaluation.safetyScore is defined %}
                                     <div class="flex justify-between px-2 py-1 bg-blue-50 rounded">
-                                        <span>Safety:</span>
-                                        <span class="font-medium">{{ evaluation.safetyScore }}/10</span>
+                                        <span>Safety (raw 0-10):</span>
+                                        <span class="font-medium">{{ evaluation.safetyScore }}</span>
                                     </div>
                                     {% endif %}
                                     {% if evaluation.securityScore is defined %}
                                     <div class="flex justify-between px-2 py-1 bg-green-50 rounded">
-                                        <span>Security (Task):</span>
-                                        <span class="font-medium">{{ evaluation.securityScore }}/40</span>
+                                        <span>Security (raw 0-40):</span>
+                                        <span class="font-medium">{{ evaluation.securityScore }}</span>
                                     </div>
                                     {% endif %}
                                     {% if evaluation.complianceScore is defined %}
                                     <div class="flex justify-between px-2 py-1 bg-yellow-50 rounded">
-                                        <span>Compliance (Tool):</span>
-                                        <span class="font-medium">{{ evaluation.complianceScore }}/30</span>
+                                        <span>Compliance (raw 0-30):</span>
+                                        <span class="font-medium">{{ evaluation.complianceScore }}</span>
                                     </div>
                                     {% endif %}
                                     {% if evaluation.autonomyScore is defined %}
                                     <div class="flex justify-between px-2 py-1 bg-purple-50 rounded">
-                                        <span>Autonomy:</span>
-                                        <span class="font-medium">{{ evaluation.autonomyScore }}/20</span>
+                                        <span>Autonomy (raw 0-20):</span>
+                                        <span class="font-medium">{{ evaluation.autonomyScore }}</span>
                                     </div>
                                     {% endif %}
                                 </div>
@@ -963,19 +963,19 @@
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div class="bg-white p-3 rounded border">
             <div class="text-xs text-gray-500">Task Completion</div>
-            <div class="text-2xl font-bold">{{ submission.score_breakdown.judge_summary.taskCompletion or 0 }}/40</div>
+            <div class="text-2xl font-bold" data-judge-task>{{ submission.score_breakdown.judge_summary.taskCompletion or 0 }}/100</div>
                 </div>
                 <div class="bg-white p-3 rounded border">
             <div class="text-xs text-gray-500">Tool Usage</div>
-            <div class="text-2xl font-bold">{{ submission.score_breakdown.judge_summary.tool or 0 }}/30</div>
+            <div class="text-2xl font-bold" data-judge-tool>{{ submission.score_breakdown.judge_summary.tool or 0 }}/100</div>
                 </div>
                 <div class="bg-white p-3 rounded border">
             <div class="text-xs text-gray-500">Autonomy</div>
-            <div class="text-2xl font-bold">{{ submission.score_breakdown.judge_summary.autonomy or 0 }}/20</div>
+            <div class="text-2xl font-bold" data-judge-autonomy>{{ submission.score_breakdown.judge_summary.autonomy or 0 }}/100</div>
                 </div>
                 <div class="bg-white p-3 rounded border">
             <div class="text-xs text-gray-500">Safety & Security</div>
-            <div class="text-2xl font-bold">{{ submission.score_breakdown.judge_summary.safety or 0 }}/10</div>
+            <div class="text-2xl font-bold" data-judge-safety>{{ submission.score_breakdown.judge_summary.safety or 0 }}/100</div>
                 </div>
             </div>
 
@@ -1391,24 +1391,6 @@
 
         // Update scores in real-time using data-score attributes
         if (data.scores) {
-            // Update security score
-            if (data.scores.security_score !== undefined) {
-                const securityScoreEl = document.querySelector('[data-score="security"]');
-                if (securityScoreEl) {
-                    securityScoreEl.textContent = data.scores.security_score;
-                    console.log(`[DEBUG] ✅ Updated security score to: ${data.scores.security_score}`);
-                }
-            }
-
-            // Update functional score
-            if (data.scores.functional_score !== undefined) {
-                const functionalScoreEl = document.querySelector('[data-score="functional"]');
-                if (functionalScoreEl) {
-                    functionalScoreEl.textContent = data.scores.functional_score;
-                    console.log(`[DEBUG] ✅ Updated functional score to: ${data.scores.functional_score}`);
-                }
-            }
-
             // Update trust score
             if (data.scores.trust_score !== undefined) {
                 const trustScoreEl = document.querySelector('[data-score="trust"]');
@@ -1418,23 +1400,19 @@
                 }
             }
 
-            // Update judge score
-            if (data.scores.judge_score !== undefined) {
-                const judgeScoreEl = document.querySelector('[data-score="judge"]');
-                if (judgeScoreEl) {
-                    judgeScoreEl.textContent = data.scores.judge_score;
-                    console.log(`[DEBUG] ✅ Updated judge score to: ${data.scores.judge_score}`);
-                }
+            // Update judge summary breakdown
+            if (data.scores.judge_summary) {
+                const js = data.scores.judge_summary;
+                const taskEl = document.querySelector('[data-judge-task]');
+                const toolEl = document.querySelector('[data-judge-tool]');
+                const autoEl = document.querySelector('[data-judge-autonomy]');
+                const safetyEl = document.querySelector('[data-judge-safety]');
+                if (taskEl && js.taskCompletion !== undefined) taskEl.textContent = `${js.taskCompletion}/100`;
+                if (toolEl && js.tool !== undefined) toolEl.textContent = `${js.tool}/100`;
+                if (autoEl && js.autonomy !== undefined) autoEl.textContent = `${js.autonomy}/100`;
+                if (safetyEl && js.safety !== undefined) safetyEl.textContent = `${js.safety}/100`;
             }
 
-            // Update implementation score
-            if (data.scores.implementation_score !== undefined) {
-                const implScoreEl = document.querySelector('[data-score="implementation"]');
-                if (implScoreEl) {
-                    implScoreEl.textContent = data.scores.implementation_score;
-                    console.log(`[DEBUG] ✅ Updated implementation score to: ${data.scores.implementation_score}`);
-                }
-            }
         }
     });
 

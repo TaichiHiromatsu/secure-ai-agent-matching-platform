@@ -55,14 +55,8 @@ async def api_update_trust(agent_id: str, payload: dict):
             # バリデーションは上位(Cloud Run IAM)で想定。値はそのまま上書き。
             if "trust_score" in payload:
                 a.trust_score = payload.get("trust_score")
-            if "security_score" in payload:
-                a.security_score = payload.get("security_score")
-            if "functional_score" in payload:
-                a.functional_score = payload.get("functional_score")
-            if "judge_score" in payload:
-                a.judge_score = payload.get("judge_score")
-            if "implementation_score" in payload:
-                a.implementation_score = payload.get("implementation_score")
+            if "trust_score" in payload:
+                a.trust_score = payload.get("trust_score")
             a.updated_at = datetime.utcnow().isoformat()
             break
     if not found:

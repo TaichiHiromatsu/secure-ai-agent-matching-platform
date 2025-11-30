@@ -64,10 +64,6 @@ class Submission(SubmissionBase):
     manifest_warnings: List[str] = []
 
     trust_score: int
-    security_score: int
-    functional_score: int
-    judge_score: int
-    implementation_score: int
     score_breakdown: Dict[str, Any]
     auto_decision: Optional[AutoDecision] = None
 
@@ -91,10 +87,7 @@ class ReviewRequest(BaseModel):
     notes: Optional[str] = None
 
 class TrustScoreUpdate(BaseModel):
-    security_score: Optional[int] = None
-    functional_score: Optional[int] = None
-    judge_score: Optional[int] = None
-    implementation_score: Optional[int] = None
+    trust_score: Optional[int] = None
     reasoning: Optional[Dict[str, str]] = None
 
 # --- Publish Schemas ---

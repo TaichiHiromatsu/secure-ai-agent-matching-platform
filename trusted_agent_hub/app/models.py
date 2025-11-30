@@ -58,12 +58,8 @@ class Submission(Base):
     manifest_warnings = Column(JSON, default=[])
     request_context = Column(JSON)
 
-    # Trust Score columns
+    # Trust Score
     trust_score = Column(Integer, default=0, index=True)
-    security_score = Column(Integer, default=0)
-    functional_score = Column(Integer, default=0)
-    judge_score = Column(Integer, default=0)
-    implementation_score = Column(Integer, default=0)
     score_breakdown = Column(JSON, default={})
     auto_decision = Column(String, index=True) # auto_approved, auto_rejected, requires_human_review
 

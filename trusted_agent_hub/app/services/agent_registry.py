@@ -34,10 +34,6 @@ class AgentEntry:
     updated_at: Optional[str] = None
     # Evaluation scores
     trust_score: Optional[int] = None
-    security_score: Optional[int] = None
-    functional_score: Optional[int] = None
-    judge_score: Optional[int] = None
-    implementation_score: Optional[int] = None
 
 
 def _ensure_file() -> None:

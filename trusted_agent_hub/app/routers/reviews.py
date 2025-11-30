@@ -104,23 +104,8 @@ def update_trust_score(
     if submission is None:
         raise HTTPException(status_code=404, detail="Submission not found")
 
-    if score_update.security_score is not None:
-        submission.security_score = score_update.security_score
-    if score_update.functional_score is not None:
-        submission.functional_score = score_update.functional_score
-    if score_update.judge_score is not None:
-        submission.judge_score = score_update.judge_score
-    # Human Review (旧Implementation) をここで入力できる
-    if score_update.implementation_score is not None:
-        submission.implementation_score = score_update.implementation_score
-
-    # Recalculate total score (simplified)
-    submission.trust_score = (
-        submission.security_score +
-        submission.functional_score +
-        submission.judge_score +
-        submission.implementation_score  # human review
-    )
+    if score_update.trust_score is not None:
+        submission.trust_score = score_update.trust_score
 
     if score_update.reasoning:
         submission.score_breakdown = score_update.reasoning

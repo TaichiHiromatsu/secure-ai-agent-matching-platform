@@ -75,30 +75,7 @@
                             <span class="text-xs text-gray-400">N/A</span>
                             {% endif %}
                         </td>
-                        <td class="px-4 py-3">
-                            {% if agent.trust_score is not none %}
-                            <div class="space-y-1 text-xs">
-                                <div class="flex items-center justify-between">
-                                    <span class="text-gray-600">Security:</span>
-                                    <span class="font-medium">{{ agent.security_score or 0 }} / 30</span>
-                                </div>
-                                <div class="flex items-center justify-between">
-                                    <span class="text-gray-600">Functional:</span>
-                                    <span class="font-medium">{{ agent.functional_score or 0 }} / 40</span>
-                                </div>
-                                <div class="flex items-center justify-between">
-                                    <span class="text-gray-600">Judge:</span>
-                                    <span class="font-medium">{{ agent.judge_score or 0 }} / 20</span>
-                                </div>
-                                <div class="flex items-center justify-between">
-                                    <span class="text-gray-600">Human Review:</span>
-                                    <span class="font-medium">{{ agent.implementation_score or 0 }} / 10</span>
-                                </div>
-                            </div>
-                            {% else %}
-                            <span class="text-xs text-gray-400">N/A</span>
-                            {% endif %}
-                        </td>
+                        <td class="px-4 py-3 text-xs text-gray-500">—</td>
                         <td class="px-4 py-3">
                             {% if agent.use_cases %}
                             <div class="flex flex-wrap gap-1">

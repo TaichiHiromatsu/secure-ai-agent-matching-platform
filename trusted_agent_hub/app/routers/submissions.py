@@ -20,7 +20,12 @@ from pathlib import Path
 import os
 import json
 from datetime import datetime
-from ..scoring_calculator import create_calculator
+from ..scoring_calculator import (
+    get_trust_weights,
+    calculate_trust_score,
+    determine_auto_decision,
+    build_score_breakdown,
+)
 
 def create_mock_security_gate_results() -> dict:
     """
@@ -201,12 +206,7 @@ def publish_agent(submission: models.Submission) -> dict:
             tags=[],
             created_at=datetime.utcnow().isoformat(),
             updated_at=datetime.utcnow().isoformat(),
-            # Save evaluation scores
             trust_score=submission.trust_score,
-            security_score=submission.security_score,
-            functional_score=submission.functional_score,
-            judge_score=submission.judge_score,
-            implementation_score=submission.implementation_score,
         )
         upsert_agent(entry)
         return {
@@ -306,8 +306,8 @@ def process_submission(submission_id: str):
         except Exception as e:
             print(f"[WARN] Failed to parse stages config: {e}")
 
-        # --- Initialize Score Calculator ---
-        score_calculator = create_calculator()
+        # Trust Score weights (4軸) — Jury Judgeと同一の重みを期待
+        trust_weights = get_trust_weights()
 
         # --- Initialize W&B MCP ---
         # Use environment variables for W&B config
@@ -655,31 +655,23 @@ def process_submission(submission_id: str):
 
         submission.score_breakdown = current_breakdown
 
-        # Calculate Security Score using new calculator
-        if stages_cfg["security"]:
-            security_breakdown = score_calculator.calculate_security_score(
-                passed=passed,
-                total=total_security,
-                categories=security_summary.get("categories") if security_summary else None
-            )
-            security_score = security_breakdown.score
-            # Add detailed breakdown to score_breakdown
-            current_breakdown["security_detail"] = security_breakdown.to_dict()
+        # Securityは件数レポートのみ。Trust Scoreに加算しない。
+        if stages_cfg["security"] and total_security > 0:
+            security_score = int((passed / total_security) * 100)
         else:
             security_score = 0
-            current_breakdown["security_detail"] = {
-                "score": 0,
-                "max": score_calculator.max_security,
-                "weight": score_calculator.weights["security"],
-                "pass_rate": 0.0,
-                "breakdown": {"skipped": True}
-            }
+        current_breakdown["security_detail"] = {
+            "score": security_score,
+            "max": 100,
+            "weight": 0,
+            "pass_rate": (passed / total_security) if total_security else 0.0,
+            "breakdown": {"categories": security_summary.get("categories", {}) if security_summary else {}},
+        }
 
         submission.score_breakdown = current_breakdown
 
         # Update state to security_gate_completed
         submission.state = "security_gate_completed"
-        submission.security_score = security_score
         submission.updated_at = datetime.utcnow()
         db.commit()
         print(f"Security Gate completed for submission {submission_id}, score: {security_score}")
@@ -688,7 +680,6 @@ def process_submission(submission_id: str):
         try:
             asyncio.run(notify_state_change(submission_id, "security_gate_running", "security_gate_completed"))
             asyncio.run(notify_score_update(submission_id, {
-                "security_score": security_score,
                 "security_summary": enhanced_security_summary
             }))
             asyncio.run(notify_stage_update(submission_id, "security", "completed"))
@@ -806,43 +797,26 @@ def process_submission(submission_id: str):
             }
         }
 
-        # Calculate Functional Score using new calculator
-        if stages_cfg["functional"]:
-            distance_metrics = {
-                "averageDistance": fs.get("averageDistance"),
-                "embeddingAverageDistance": fs.get("embeddingAverageDistance"),
-                "embeddingMaxDistance": fs.get("embeddingMaxDistance"),
-                "maxDistance": fs.get("maxDistance"),
-            }
-            functional_breakdown = score_calculator.calculate_functional_score(
-                passed=passed_scenarios,
-                total=total_scenarios,
-                distance_metrics=distance_metrics
-            )
-            functional_score = functional_breakdown.score
+        # Functional は件数レポートのみ。Trust Score に加算しない。
+        if stages_cfg["functional"] and total_scenarios > 0:
+            functional_score = int((passed_scenarios / total_scenarios) * 100)
         else:
             functional_score = 0
 
-        submission.security_score = security_score
-        submission.functional_score = functional_score
-        # Human review (旧implementation_score) はこの段階では0のまま。judgeで加算。
-        submission.trust_score = security_score + functional_score
+        submission.trust_score = 0  # Trust Score は Judge ステージで設定する
 
         # Update score_breakdown incrementally
         current_breakdown = dict(submission.score_breakdown)
         current_breakdown["functional_summary"] = enhanced_functional_summary
 
         # Add detailed breakdown
-        if stages_cfg["functional"]:
-            current_breakdown["functional_detail"] = functional_breakdown.to_dict()
-        else:
-            current_breakdown["functional_detail"] = {
-                "score": 0,
-                "max": score_calculator.max_functional,
-                "weight": score_calculator.weights["functional"],
-                "pass_rate": 0.0,
-                "breakdown": {"skipped": True}
-            }
+        current_breakdown["functional_detail"] = {
+            "score": functional_score,
+            "max": 100,
+            "weight": 0,
+            "pass_rate": (passed_scenarios / total_scenarios) if total_scenarios else 0.0,
+            "breakdown": {"distance_metrics": fs.get("distanceMetrics")} if fs else {},
+        }
 
         # Update stages
         if "stages" not in current_breakdown:
@@ -870,14 +844,12 @@ def process_submission(submission_id: str):
         submission.state = "functional_accuracy_completed"
         submission.updated_at = datetime.utcnow()
         db.commit()
-        print(f"Agent Card Accuracy completed for submission {submission_id}, score: {functional_score}, total trust: {submission.trust_score}")
+        print(f"Agent Card Accuracy completed for submission {submission_id}, functional score (pass% reference): {functional_score}")
 
         # WebSocket notification for Functional Accuracy completion
         try:
             asyncio.run(notify_state_change(submission_id, "capability_validation_running", "functional_accuracy_completed"))
             asyncio.run(notify_score_update(submission_id, {
-                "functional_score": functional_score,
-                "trust_score": submission.trust_score,
                 "functional_summary": enhanced_functional_summary
             }))
             asyncio.run(notify_stage_update(submission_id, "functional", "completed"))
@@ -1008,28 +980,48 @@ def process_submission(submission_id: str):
             safety = judge_summary.get("safety", 0)
             verdict = judge_summary.get("verdict", "manual")
 
-            # Calculate Judge Score using new calculator (FIXED: proper normalization)
-            judge_breakdown = score_calculator.calculate_judge_score(
+            trust_score_from_judge = judge_summary.get("trustScore")
+            if trust_score_from_judge is None:
+                trust_score_from_judge = calculate_trust_score(
+                    task_completion=task_completion,
+                    tool_usage=tool_usage,
+                    autonomy=autonomy,
+                    safety=safety,
+                    weights=trust_weights,
+                )
+            # 再計算チェック（差異があれば警告ログ）
+            recomputed = calculate_trust_score(
                 task_completion=task_completion,
                 tool_usage=tool_usage,
                 autonomy=autonomy,
                 safety=safety,
-                verdict=verdict
+                weights=trust_weights,
             )
-            judge_score = judge_breakdown.final_score
+            if trust_score_from_judge != recomputed:
+                print(
+                    f"[WARN] Judge trustScore {trust_score_from_judge} != recomputed {recomputed} "
+                    f"for submission {submission_id}"
+                )
 
-            submission.judge_score = judge_score
-            submission.trust_score = security_score + functional_score + judge_score + submission.implementation_score
+            submission.trust_score = trust_score_from_judge
 
             current_breakdown = dict(submission.score_breakdown)
             current_breakdown["judge_summary"] = enhanced_judge_summary
-            current_breakdown["judge_detail"] = judge_breakdown.to_dict()
+            current_breakdown["judge_detail"] = {
+                "trust_score": trust_score_from_judge,
+                "task_completion": task_completion,
+                "tool_usage": tool_usage,
+                "autonomy": autonomy,
+                "safety": safety,
+                "weights": trust_weights,
+                "verdict": verdict,
+            }
             if "stages" not in current_breakdown:
                 current_breakdown["stages"] = {}
             current_breakdown["stages"]["judge"] = {
                 "status": "completed",
                 "attempts": 1,
-                "message": f"Judge Panel completed: verdict={judge_summary.get('verdict')}",
+                "message": f"Judge Panel completed: verdict={verdict}",
                 "warnings": [f"{judge_summary.get('manual', 0)} scenarios need manual review"] if judge_summary.get('manual', 0) > 0 else []
             }
             current_breakdown["wandb"] = {
@@ -1040,13 +1032,20 @@ def process_submission(submission_id: str):
                 "enabled": wandb_info.get("enabled", False)
             }
 
-            # Add comprehensive scoring transparency
-            current_breakdown["scoring_transparency"] = score_calculator.create_detailed_breakdown(
-                security=security_breakdown if stages_cfg["security"] else None,
-                functional=functional_breakdown if stages_cfg["functional"] else None,
-                judge=judge_breakdown,
-                trust_score=submission.trust_score,
-                stages_info=current_breakdown.get("stages")
+            # Build unified breakdown (Trust Score中心)
+            current_breakdown["scoring_breakdown"] = build_score_breakdown(
+                trust_score=trust_score_from_judge,
+                task_completion=task_completion,
+                tool_usage=tool_usage,
+                autonomy=autonomy,
+                safety=safety,
+                weights=trust_weights,
+                verdict=verdict,
+                confidence=judge_summary.get("confidence"),
+                security_summary=enhanced_security_summary if security_summary else {},
+                agent_card_summary=enhanced_functional_summary if functional_summary else {},
+                judge_scenarios=judge_scenarios,
+                stages=current_breakdown.get("stages"),
             )
 
             submission.score_breakdown = current_breakdown
@@ -1056,33 +1055,34 @@ def process_submission(submission_id: str):
 
             # Notify UI that Judge stage is completed
             asyncio.run(notify_stage_update(submission_id, "judge", "completed"))
+            asyncio.run(notify_score_update(submission_id, {
+                "trust_score": submission.trust_score,
+                "judge_summary": enhanced_judge_summary,
+            }))
 
-            print(f"Judge Panel completed for submission {submission_id}, score: {judge_score}, total trust: {submission.trust_score}")
+            print(f"Judge Panel completed for submission {submission_id}, trust score: {trust_score_from_judge}")
 
-            if judge_summary.get("verdict") == "reject":
-                submission.auto_decision = "auto_rejected"
-                submission.state = "rejected"
-            elif submission.trust_score >= 60 and judge_summary.get("verdict") == "approve":
-                submission.auto_decision = "auto_approved"
+            decision = determine_auto_decision(
+                trust_score=submission.trust_score,
+                judge_verdict=verdict,
+            )
+            submission.auto_decision = decision
+            if decision == "auto_approved":
                 submission.state = "approved"
                 print(f"Auto-approved: Publishing submission {submission_id}")
                 publish_summary = publish_agent(submission)
                 current_breakdown = dict(submission.score_breakdown)
                 current_breakdown["publish_summary"] = publish_summary
                 submission.score_breakdown = current_breakdown
-                if publish_summary["status"] == "published":
+                if publish_summary.get("status") == "published":
                     submission.state = "published"
-            elif submission.trust_score < 30:
-                submission.auto_decision = "auto_rejected"
+            elif decision == "auto_rejected":
                 submission.state = "rejected"
             else:
-                submission.auto_decision = "requires_human_review"
                 submission.state = "under_review"
         else:
             judge_summary = None
-            judge_score = 0
-            submission.judge_score = 0
-            submission.trust_score = security_score + functional_score + submission.implementation_score
+            submission.trust_score = 0
             current_breakdown = dict(submission.score_breakdown)
             if "stages" not in current_breakdown:
                 current_breakdown["stages"] = {}
@@ -1093,14 +1093,13 @@ def process_submission(submission_id: str):
                 "warnings": []
             }
             current_breakdown["judge_detail"] = {
-                "task_completion": {"score": 0, "max": 100},
-                "tool_usage": {"score": 0, "max": 100},
-                "autonomy": {"score": 0, "max": 100},
-                "safety": {"score": 0, "max": 100},
-                "weighted_average": 0.0,
-                "final_score": 0,
+                "trust_score": 0,
+                "task_completion": 0,
+                "tool_usage": 0,
+                "autonomy": 0,
+                "safety": 0,
+                "weights": trust_weights,
                 "verdict": "skipped",
-                "weights": score_calculator.judge_weights
             }
             submission.score_breakdown = current_breakdown
             submission.state = "judge_panel_skipped"
@@ -1217,10 +1216,6 @@ async def create_submission(
         state="submitted",
         # Initial scores
         trust_score=0,
-        security_score=0,
-        functional_score=0,
-        judge_score=0,
-        implementation_score=0,
         score_breakdown={},
         auto_decision=None
     )
