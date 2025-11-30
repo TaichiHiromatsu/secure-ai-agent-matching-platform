@@ -682,53 +682,53 @@
                 </div>
 
                 <!-- Real-time WebSocket containers (only shown during execution) -->
-                {% if show_realtime %}
-                <div id="juror-evaluations-container" class="mb-4 hidden">
-                    <h5 class="text-sm font-semibold mb-2">陪審員の評価:</h5>
-                    <div id="juror-evaluations" class="grid md:grid-cols-3 gap-2"></div>
-                </div>
+                <div id="jury-realtime-container" class="hidden">
+                    <div id="juror-evaluations-container" class="mb-4 hidden">
+                        <h5 class="text-sm font-semibold mb-2">陪審員の評価:</h5>
+                        <div id="juror-evaluations" class="grid md:grid-cols-3 gap-2"></div>
+                    </div>
 
-                <div id="consensus-container" class="mb-4 hidden">
-                    <div class="bg-white p-3 rounded border">
-                        <div class="flex items-center justify-between">
-                            <span class="text-sm font-semibold">合意状況:</span>
-                            <span id="consensus-status" class="text-sm font-bold"></span>
+                    <div id="consensus-container" class="mb-4 hidden">
+                        <div class="bg-white p-3 rounded border">
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm font-semibold">合意状況:</span>
+                                <span id="consensus-status" class="text-sm font-bold"></span>
+                            </div>
+                            <div id="consensus-details" class="text-xs text-gray-600 mt-1"></div>
                         </div>
-                        <div id="consensus-details" class="text-xs text-gray-600 mt-1"></div>
+                    </div>
+
+                    <div id="discussion-container" class="mb-4 hidden">
+                        <h5 class="text-sm font-semibold mb-2">ディスカッション:</h5>
+                        <div id="current-round-info" class="text-xs text-gray-600 mb-2"></div>
+                        <div id="discussion-messages" class="space-y-2 max-h-96 overflow-y-auto"></div>
+                    </div>
+
+                    <div id="final-judgment-container" class="mb-4 hidden">
+                        <div class="bg-green-50 border border-green-200 rounded-lg p-3">
+                            <h5 class="text-sm font-semibold mb-2">最終判定結果:</h5>
+                            <div class="grid md:grid-cols-2 gap-3">
+                                <div>
+                                    <div class="text-xs text-gray-600">判定:</div>
+                                    <div id="final-verdict" class="text-lg font-bold"></div>
+                                </div>
+                                <div>
+                                    <div class="text-xs text-gray-600">スコア:</div>
+                                    <div id="final-score" class="text-lg font-bold"></div>
+                                </div>
+                                <div>
+                                    <div class="text-xs text-gray-600">信頼度:</div>
+                                    <div id="final-confidence" class="text-sm font-medium"></div>
+                                </div>
+                                <div>
+                                    <div class="text-xs text-gray-600">判定方法:</div>
+                                    <div id="final-method" class="text-sm font-medium"></div>
+                                </div>
+                            </div>
+                            <div id="final-rationale" class="mt-2 text-xs"></div>
+                        </div>
                     </div>
                 </div>
-
-                <div id="discussion-container" class="mb-4 hidden">
-                    <h5 class="text-sm font-semibold mb-2">ディスカッション:</h5>
-                    <div id="current-round-info" class="text-xs text-gray-600 mb-2"></div>
-                    <div id="discussion-messages" class="space-y-2 max-h-96 overflow-y-auto"></div>
-                </div>
-
-                <div id="final-judgment-container" class="mb-4 hidden">
-                    <div class="bg-green-50 border border-green-200 rounded-lg p-3">
-                        <h5 class="text-sm font-semibold mb-2">最終判定結果:</h5>
-                        <div class="grid md:grid-cols-2 gap-3">
-                            <div>
-                                <div class="text-xs text-gray-600">判定:</div>
-                                <div id="final-verdict" class="text-lg font-bold"></div>
-                            </div>
-                            <div>
-                                <div class="text-xs text-gray-600">スコア:</div>
-                                <div id="final-score" class="text-lg font-bold"></div>
-                            </div>
-                            <div>
-                                <div class="text-xs text-gray-600">信頼度:</div>
-                                <div id="final-confidence" class="text-sm font-medium"></div>
-                            </div>
-                            <div>
-                                <div class="text-xs text-gray-600">判定方法:</div>
-                                <div id="final-method" class="text-sm font-medium"></div>
-                            </div>
-                        </div>
-                        <div id="final-rationale" class="mt-2 text-xs"></div>
-                    </div>
-                </div>
-                {% endif %}
 
                 <!-- Historical Data (only shown after completion) -->
                 {% if show_historical and collective.found %}
@@ -1275,7 +1275,10 @@
 
         if (container && roundInfo) {
             container.classList.remove('hidden');
-            roundInfo.textContent = `Round ${data.round} - 発言順: ${data.speakerOrder.join(', ')}`;
+            const speakerOrderText = data.speakerOrder && Array.isArray(data.speakerOrder)
+                ? ` - 発言順: ${data.speakerOrder.join(', ')}`
+                : '';
+            roundInfo.textContent = `Round ${data.round}${speakerOrderText}`;
             console.log('[DEBUG] Updated round info to:', roundInfo.textContent);
                 }
             });

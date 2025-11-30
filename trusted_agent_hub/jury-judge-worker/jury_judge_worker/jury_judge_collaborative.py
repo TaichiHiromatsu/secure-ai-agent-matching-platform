@@ -1046,19 +1046,25 @@ Rationale: {my_eval.rationale if my_eval else ""}
     ) -> FinalJudgment:
         """Phase 3: 最終合議"""
 
+        logger.info(f"🎯 Phase 3: Final judgment method = {self.final_judgment_method}")
+
         if self.final_judgment_method == "majority_vote":
+            logger.info("📊 Executing majority_vote judgment")
             return self._majority_vote_judgment(final_evaluations)
 
         elif self.final_judgment_method == "weighted_average":
+            logger.info("⚖️ Executing weighted_average judgment")
             return self._weighted_average_judgment(final_evaluations)
 
         elif self.final_judgment_method == "final_judge":
+            logger.info("👨‍⚖️ Executing final_judge judgment")
             return await self._final_judge_judgment(
                 question, execution, final_evaluations, discussion_rounds, websocket_callback
             )
 
         else:
             # デフォルトは多数決
+            logger.warning(f"⚠️ Unknown final_judgment_method: {self.final_judgment_method}. Falling back to majority_vote.")
             return self._majority_vote_judgment(final_evaluations)
 
     def _majority_vote_judgment(self, evaluations: List[JurorEvaluation]) -> FinalJudgment:
@@ -1117,7 +1123,13 @@ Rationale: {my_eval.rationale if my_eval else ""}
     ) -> FinalJudgment:
         """最終審査役による判断"""
 
-        if not self.final_judge:
+        # final_judgeが初期化されているか、または正しく動作可能かをチェック
+        if not self.final_judge or not self.final_judge.is_ready():
+            logger.warning(
+                f"⚠️ Final judge is not ready (exists={self.final_judge is not None}, "
+                f"ready={self.final_judge.is_ready() if self.final_judge else False}). "
+                f"Falling back to majority_vote."
+            )
             # フォールバック: 多数決
             return self._majority_vote_judgment(final_evaluations)
 
