@@ -21,6 +21,7 @@ from typing import Any
 import httpx
 from google.adk import Agent
 from google.genai import types
+from ..config.safety import SAFETY_SETTINGS_RELAXED
 
 # Agent Store API configuration
 # Default to 127.0.0.1:8001 for container deployment (trusted_agent_hub internal port)
@@ -351,11 +352,6 @@ Output your matching results with:
     ],
     generate_content_config=types.GenerateContentConfig(
         temperature=0.4,  # Moderate temperature for consistent matching
-        safety_settings=[
-            types.SafetySetting(
-                category=types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-                threshold=types.HarmBlockThreshold.OFF,
-            ),
-        ],
+        safety_settings=SAFETY_SETTINGS_RELAXED,
     ),
 )

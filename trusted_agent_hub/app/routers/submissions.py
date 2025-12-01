@@ -222,60 +222,45 @@ def publish_agent(submission: models.Submission) -> dict:
             "error": str(e)
         }
 
-# WebSocket notification helpers
-def create_websocket_callback(submission_id: str):
-    """Create a WebSocket callback function for the given submission"""
-    from app.routers.websockets import get_connection_manager
-    import asyncio
-    ws_manager = get_connection_manager()
-
-    def callback(data: dict):
-        """Send WebSocket notification"""
-        print(f"[WebSocket] Sending notification for {submission_id}: {data.get('type', 'unknown')}")
-        try:
-            loop = asyncio.get_event_loop()
-            asyncio.ensure_future(ws_manager.send_progress(submission_id, data), loop=loop)
-        except RuntimeError:
-            try:
-                asyncio.create_task(ws_manager.send_progress(submission_id, data))
-            except RuntimeError as e:
-                print(f"[WebSocket] Could not send notification: {e}")
-
-    return callback
-
 async def notify_state_change(submission_id: str, old_state: str, new_state: str):
     """Send state change notification via WebSocket"""
-    from app.routers.websockets import get_connection_manager
-    ws_manager = get_connection_manager()
-    await ws_manager.send_progress(submission_id, {
+    from app.routers.sse import get_sse_manager
+    from app.schemas.jury_stream import validate_event_dict
+    sse_manager = get_sse_manager()
+    payload = validate_event_dict({
         "type": "submission_state_change",
         "oldState": old_state,
         "newState": new_state,
         "timestamp": datetime.utcnow().isoformat()
     })
+    await sse_manager.send(submission_id, payload)
     print(f"[WebSocket] State change: {old_state} -> {new_state}")
 
 async def notify_score_update(submission_id: str, scores: dict):
     """Send score update notification via WebSocket"""
-    from app.routers.websockets import get_connection_manager
-    ws_manager = get_connection_manager()
-    await ws_manager.send_progress(submission_id, {
+    from app.routers.sse import get_sse_manager
+    from app.schemas.jury_stream import validate_event_dict
+    sse_manager = get_sse_manager()
+    payload = validate_event_dict({
         "type": "score_update",
         "scores": scores,
         "timestamp": datetime.utcnow().isoformat()
     })
+    await sse_manager.send(submission_id, payload)
     print(f"[WebSocket] Score update: {scores}")
 
 async def notify_stage_update(submission_id: str, stage: str, status: str):
     """Send stage update notification for progress bar via WebSocket"""
-    from app.routers.websockets import get_connection_manager
-    ws_manager = get_connection_manager()
-    await ws_manager.send_progress(submission_id, {
+    from app.routers.sse import get_sse_manager
+    from app.schemas.jury_stream import validate_event_dict
+    sse_manager = get_sse_manager()
+    payload = validate_event_dict({
         "type": "stage_update",
         "stage": stage,
         "status": status,
         "timestamp": datetime.utcnow().isoformat()
     })
+    await sse_manager.send(submission_id, payload)
     print(f"[WebSocket] Stage update: {stage} -> {status}")
 
 def process_submission(submission_id: str):
@@ -868,9 +853,10 @@ def process_submission(submission_id: str):
                 agent_card_accuracy = None
 
             # Create WebSocket callback for real-time updates
-            from app.routers.websockets import get_connection_manager
+            from app.routers.sse import get_sse_manager
+            from app.schemas.jury_stream import validate_event_dict
             import asyncio
-            ws_manager = get_connection_manager()
+            sse_manager = get_sse_manager()
 
             def websocket_callback(data: dict):
                 """Send real-time updates to WebSocket clients
@@ -883,17 +869,20 @@ def process_submission(submission_id: str):
                     # Get the current event loop (should exist within asyncio.run() context)
                     loop = asyncio.get_event_loop()
                     print(f"[DEBUG websocket_callback] Got event loop: {loop}")
-                    # Schedule the coroutine on the current loop
-                    asyncio.ensure_future(ws_manager.send_progress(submission_id, data), loop=loop)
-                    print(f"[DEBUG websocket_callback] Scheduled send_progress successfully")
+                    # Validate/normalize payload once
+                    payload = validate_event_dict(data)
+                    # Schedule the coroutine on the current loop (WebSocket + SSE)
+                    asyncio.ensure_future(sse_manager.send(submission_id, payload), loop=loop)
+                    print(f"[DEBUG websocket_callback] Scheduled SSE successfully")
                 except RuntimeError as e:
                     # If no event loop, try creating a task in the running loop
                     print(f"[DEBUG websocket_callback] WebSocket callback error: {e}")
                     try:
-                        asyncio.create_task(ws_manager.send_progress(submission_id, data))
-                        print(f"[DEBUG websocket_callback] Created task successfully")
+                        payload = validate_event_dict(data)
+                        asyncio.create_task(sse_manager.send(submission_id, payload))
+                        print(f"[DEBUG websocket_callback] Created SSE task successfully")
                     except RuntimeError:
-                        print(f"[DEBUG websocket_callback] Could not schedule WebSocket notification: {data.get('type', 'unknown')}")
+                        print(f"[DEBUG websocket_callback] Could not schedule SSE notification: {data.get('type', 'unknown')}")
 
             judge_summary = run_judge_panel(
                 agent_id=submission.agent_id,

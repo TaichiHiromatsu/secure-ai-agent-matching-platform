@@ -21,6 +21,7 @@ from typing import Any
 
 from google.adk import Agent
 from google.genai import types
+from ..config.safety import SAFETY_SETTINGS_RELAXED
 
 # Import conversation history utilities
 from ..utils.plan_utils import load_all_conversations, load_plan_from_artifact
@@ -514,11 +515,6 @@ This feedback loop helps the platform learn which agents are reliable.
     ],
     generate_content_config=types.GenerateContentConfig(
         temperature=0.2,  # Low temperature for consistent, cautious analysis
-        safety_settings=[
-            types.SafetySetting(
-                category=types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-                threshold=types.HarmBlockThreshold.OFF,
-            ),
-        ],
+        safety_settings=SAFETY_SETTINGS_RELAXED,
     ),
 )

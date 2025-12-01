@@ -1094,27 +1094,65 @@
     {% endif %}
 </div>
 
-<script src="/static/judge-websocket.js"></script>
+<script src="/static/judge-stream.js"></script>
 <script>
-// Initialize Jury Judge WebSocket for real-time updates
-(function() {
-    const submissionId = '{{ submission.id }}';
-    const judgeState = '{{ submission.state }}';
+    // Initialize Jury Judge SSE client for real-time updates
+    (function() {
+        const submissionId = '{{ submission.id }}';
+        const judgeState = '{{ submission.state }}';
+        const urlPrefix = '{{ url_prefix }}' || '';
 
-    console.log('[DEBUG] Initializing Jury Judge WebSocket');
-    console.log('[DEBUG] Submission ID:', submissionId);
-    console.log('[DEBUG] Judge State:', judgeState);
+        console.log('[DEBUG] Initializing Jury Judge stream client');
+        console.log('[DEBUG] Submission ID:', submissionId);
+        console.log('[DEBUG] Judge State:', judgeState);
 
-    // ALWAYS connect WebSocket for real-time updates (not just for judge panel)
-    console.log('[DEBUG] Initializing WebSocket for ALL evaluation stages');
+        const juryStream = new JuryJudgeStream(submissionId, { basePath: urlPrefix });
+        console.log('[DEBUG] JuryJudgeStream instance created:', juryStream);
 
-    // Initialize WebSocket client for ALL stages (not just judge panel)
-    console.log('[DEBUG] Creating JuryJudgeWebSocket instance for submission:', submissionId);
-    const juryWS = new JuryJudgeWebSocket(submissionId);
-    console.log('[DEBUG] JuryJudgeWebSocket instance created:', juryWS);
+    // Initialize SSE (primary path for real-time streaming)
+    let jurySSE = null;
+    function connectSSE() {
+        const base = window.location.origin.replace(/\/$/, '');
+        const sseUrl = `${base}${urlPrefix}/sse/submissions/${submissionId}/judge`;
+        console.log('[DEBUG] Attempting SSE connection:', sseUrl);
+        try {
+            jurySSE = new EventSource(sseUrl, { withCredentials: false });
+
+            jurySSE.onopen = () => {
+                console.log('[DEBUG] 🟢 SSE connected');
+                const wsStatus = document.getElementById('ws-status');
+                if (wsStatus) {
+                    wsStatus.textContent = '接続済み (SSE)';
+                    wsStatus.className = 'ml-auto text-xs px-2 py-1 rounded bg-green-100 text-green-800';
+                }
+            };
+
+            jurySSE.onmessage = (event) => {
+                if (!event?.data) return;
+                // Reuse existing handler pipeline
+                juryStream.handleMessage({ data: event.data });
+            };
+
+            jurySSE.addEventListener('ping', () => {
+                // Heartbeat; no-op
+            });
+
+            jurySSE.onerror = (err) => {
+                console.error('[DEBUG] SSE error:', err);
+                const wsStatus = document.getElementById('ws-status');
+                if (wsStatus) {
+                    wsStatus.textContent = '再接続中 (SSE)';
+                    wsStatus.className = 'ml-auto text-xs px-2 py-1 rounded bg-yellow-100 text-yellow-800';
+                }
+                // Browser auto-reconnects EventSource; no manual reconnect needed
+            };
+        } catch (e) {
+            console.error('[DEBUG] SSE init failed:', e);
+        }
+    }
 
     // Connection status handlers
-    juryWS.on('connected', () => {
+    juryStream.on('connected', () => {
         console.log('[DEBUG] 🟢 WebSocket connected event fired');
 
         // Update unified panel status badge
@@ -1127,7 +1165,7 @@
         }
     });
 
-    juryWS.on('disconnected', () => {
+    juryStream.on('disconnected', () => {
         const wsStatus = document.getElementById('ws-status');
         if (wsStatus) {
             wsStatus.textContent = '切断';
@@ -1136,7 +1174,7 @@
     });
 
             // Phase change handler
-    juryWS.on('phase_change', (data) => {
+    juryStream.on('phase_change', (data) => {
         console.log('[DEBUG] 🔄 phase_change event handler called with data:', data);
 
         // Show parent realtime container
@@ -1182,7 +1220,7 @@
             });
 
             // Juror evaluation handler (Phase 1)
-    juryWS.on('juror_evaluation', (data) => {
+    juryStream.on('juror_evaluation', (data) => {
         console.log('[DEBUG] 👨‍⚖️ juror_evaluation event handler called with data:', data);
 
         // Show parent realtime container
@@ -1222,7 +1260,7 @@
             });
 
             // Consensus check handler
-    juryWS.on('consensus_check', (data) => {
+    juryStream.on('consensus_check', (data) => {
         // Show parent realtime container
         const parentContainer = document.getElementById('jury-realtime-container');
         if (parentContainer) {
@@ -1250,7 +1288,7 @@
             });
 
             // Discussion start handler (Phase 2)
-    juryWS.on('discussion_start', (data) => {
+    juryStream.on('discussion_start', (data) => {
         console.log('[DEBUG] 💬 discussion_start event handler called with data:', data);
 
         // Show parent realtime container
@@ -1274,7 +1312,7 @@
             });
 
             // Juror statement handler
-    juryWS.on('juror_statement', (data) => {
+    juryStream.on('juror_statement', (data) => {
         console.log('[DEBUG] 🗣️ juror_statement event handler called with data:', data);
 
         // Show parent realtime container
@@ -1309,7 +1347,7 @@
             });
 
             // Round complete handler
-    juryWS.on('round_complete', (data) => {
+    juryStream.on('round_complete', (data) => {
         const roundInfo = document.getElementById('current-round-info');
         if (roundInfo) {
             const status = data.consensusReached ? '✓ 合意成立' : (data.stagnant ? '⚠ 停滞検出' : '進行中');
@@ -1318,7 +1356,7 @@
             });
 
             // Final judgment handler (Phase 3)
-    juryWS.on('final_judgment', (data) => {
+    juryStream.on('final_judgment', (data) => {
         // Show parent realtime container
         const parentContainer = document.getElementById('jury-realtime-container');
         if (parentContainer) {
@@ -1349,7 +1387,7 @@
             });
 
             // Evaluation complete handler
-    juryWS.on('evaluation_complete', (data) => {
+    juryStream.on('evaluation_complete', (data) => {
         console.log('[DEBUG] 🎉 Evaluation complete - keeping real-time display visible');
         console.log('[DEBUG] Evaluation complete data:', data);
 
@@ -1369,7 +1407,7 @@
             });
 
             // Error handler
-    juryWS.on('error', (data) => {
+    juryStream.on('error', (data) => {
                 console.error('Jury Judge WebSocket error:', data);
         const wsStatus = document.getElementById('ws-status');
         if (wsStatus) {
@@ -1379,7 +1417,7 @@
             });
 
     // Submission state change handler
-    juryWS.on('submission_state_change', (data) => {
+    juryStream.on('submission_state_change', (data) => {
         console.log('[DEBUG] 🔄 submission_state_change event:', data);
 
         // Update state display without full page reload
@@ -1391,7 +1429,7 @@
     });
 
     // Score update handler - using data-score attributes
-    juryWS.on('score_update', (data) => {
+    juryStream.on('score_update', (data) => {
         console.log('[DEBUG] 📊 score_update event:', data);
 
         // Update scores in real-time using data-score attributes
@@ -1422,7 +1460,7 @@
     });
 
     // Stage update handler - for progress bar and content updates
-    juryWS.on('stage_update', async (data) => {
+    juryStream.on('stage_update', async (data) => {
         console.log('[DEBUG] 🎯 stage_update event:', data);
 
         if (data.stage && data.status) {
@@ -1507,12 +1545,15 @@
         }
     });
 
-    // Connect to WebSocket
-    juryWS.connect();
+    // Connect SSE client
+    juryStream.connect();
 
     // Cleanup on page unload
     window.addEventListener('beforeunload', () => {
-        juryWS.disconnect();
+        juryStream.disconnect();
+        if (jurySSE) {
+            jurySSE.close();
+        }
     });
 })();
 </script>

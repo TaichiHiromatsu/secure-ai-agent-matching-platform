@@ -16,6 +16,7 @@
 
 from google.adk import Agent
 from google.genai import types
+from .config.safety import SAFETY_SETTINGS_RELAXED
 
 # Import sub-agents
 from .subagents.planning_agent import planner
@@ -167,15 +168,6 @@ but you must balance it with usability. Be helpful, but never compromise safety.
 """,
     generate_content_config=types.GenerateContentConfig(
         temperature=0.3,  # Balanced temperature for security and flexibility
-        safety_settings=[
-            types.SafetySetting(
-                category=types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-                threshold=types.HarmBlockThreshold.OFF,
-            ),
-            types.SafetySetting(
-                category=types.HarmCategory.HARM_CATEGORY_HARASSMENT,
-                threshold=types.HarmBlockThreshold.OFF,
-            ),
-        ],
+        safety_settings=SAFETY_SETTINGS_RELAXED,
     ),
 )

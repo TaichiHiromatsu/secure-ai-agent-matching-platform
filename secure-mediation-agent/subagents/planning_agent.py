@@ -21,6 +21,7 @@ from pathlib import Path
 
 from google.adk import Agent
 from google.genai import types
+from ..config.safety import SAFETY_SETTINGS_RELAXED
 
 
 async def save_plan_as_artifact(
@@ -177,11 +178,6 @@ After creating the plan, use the save_plan_as_artifact tool to save it.
     ],
     generate_content_config=types.GenerateContentConfig(
         temperature=0.3,  # Lower temperature for more consistent planning
-        safety_settings=[
-            types.SafetySetting(
-                category=types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-                threshold=types.HarmBlockThreshold.OFF,
-            ),
-        ],
+        safety_settings=SAFETY_SETTINGS_RELAXED,
     ),
 )

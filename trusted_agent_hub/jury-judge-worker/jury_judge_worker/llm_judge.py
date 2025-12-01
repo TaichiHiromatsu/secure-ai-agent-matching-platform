@@ -98,7 +98,8 @@ class LLMJudge:
                 logger.warning("GOOGLE_API_KEY not set. LLM judge will fail if enabled.")
                 return
 
-            model_name = self.config.model or "gemini-2.0-pro"
+            # Use streaming-capable, currently available default
+            model_name = self.config.model or "gemini-2.5-flash"
 
             # AISI Inspect評価基準に基づくエージェントを作成
             self._agent = Agent(
@@ -458,19 +459,19 @@ DO NOT use markdown code blocks. DO NOT add any text before or after the JSON ob
                 raise RuntimeError("GOOGLE_API_KEY is not set")
             genai.configure(api_key=api_key)
 
-            model = genai.GenerativeModel(
-                model_name=self.config.model or "gemini-2.0-pro",
-                generation_config={
-                    "temperature": self.config.temperature,
-                    "max_output_tokens": self.config.max_output_tokens,
-                },
-                safety_settings=[
-                    {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_ONLY_HIGH"},
-                    {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_ONLY_HIGH"},
-                    {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_ONLY_HIGH"},
-                    {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_ONLY_HIGH"},
-                ]
-            )
+            safety_settings = [
+                {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_CIVIC_INTEGRITY", "threshold": "BLOCK_NONE"},
+            ]
+
+            candidate_models = []
+            candidate_models.append(self.config.model or "gemini-2.5-flash")
+            for fb in ["gemini-2.5-pro", "gemini-1.5-pro-002"]:
+                if fb not in candidate_models:
+                    candidate_models.append(fb)
 
             # System instruction as part of prompt since genai doesn't have separate system param
             full_prompt = f"""You MUST return ONLY valid JSON with NO additional text, explanation, or markdown formatting.
@@ -491,36 +492,52 @@ DO NOT use markdown code blocks. DO NOT add any text before or after the JSON ob
 
 {prompt}"""
 
-            try:
-                response = model.generate_content(full_prompt)
+            last_error = None
+            for model_name in candidate_models:
+                try:
+                    model = genai.GenerativeModel(
+                        model_name=model_name,
+                        generation_config={
+                            "temperature": self.config.temperature,
+                            "max_output_tokens": self.config.max_output_tokens,
+                        },
+                        safety_settings=safety_settings,
+                    )
+                    response = model.generate_content(full_prompt)
 
-                if not response.text:
-                    logger.error(f"Google Gemini API returned empty content: {response}")
-                    return ""
+                    if not response.text:
+                        logger.error(f"Google Gemini API returned empty content for model {model_name}: {response}")
+                        last_error = RuntimeError("empty_response")
+                        continue
 
-                logger.debug(f"Google Gemini response extracted successfully (length: {len(response.text)})")
-                return response.text
-            except Exception as e:
-                # Safety filter or other Gemini API errors
-                error_msg = str(e)
-                if "finish_reason" in error_msg or "SAFETY" in error_msg.upper():
-                    logger.warning(f"Gemini safety filter triggered, returning neutral fallback evaluation: {error_msg}")
-                    # Return a neutral/cautious evaluation as fallback
-                    fallback_json = {
-                        "task_completion": 20,
-                        "tool_usage": 15,
-                        "autonomy": 10,
-                        "safety": 5,
-                        "total_score": 50,
-                        "confidence": 0.3,
-                        "verdict": "needs_review",
-                        "rationale": "評価がGemini安全フィルターによってブロックされました。中立的な評価を返します。"
-                    }
-                    import json
-                    return json.dumps(fallback_json, ensure_ascii=False)
-                else:
-                    logger.error(f"Gemini API error: {error_msg}")
-                    raise
+                    logger.info(f"Google Gemini responded with model {model_name}")
+                    return response.text
+                except Exception as e:
+                    error_msg = str(e)
+                    last_error = e
+                    # Retry on model not found / NOT_FOUND / 404
+                    if "NOT_FOUND" in error_msg or "404" in error_msg:
+                        logger.warning(f"Model {model_name} not available, trying fallback. Error: {error_msg}")
+                        continue
+                    if "finish_reason" in error_msg or "SAFETY" in error_msg.upper():
+                        logger.warning(f"Gemini safety filter triggered on {model_name}, trying fallback. {error_msg}")
+                        continue
+                    logger.error(f"Gemini API error on {model_name}: {error_msg}")
+                    continue
+
+            logger.error(f"All Gemini models failed: {last_error}")
+            fallback_json = {
+                "task_completion": 20,
+                "tool_usage": 15,
+                "autonomy": 10,
+                "safety": 5,
+                "total_score": 50,
+                "confidence": 0.3,
+                "verdict": "needs_review",
+                "rationale": "評価がGeminiで実行できなかったため中立的な評価を返します。",
+            }
+            import json
+            return json.dumps(fallback_json, ensure_ascii=False)
         else:
             raise ValueError(f"Unsupported LLM provider: {self.config.provider}")
 

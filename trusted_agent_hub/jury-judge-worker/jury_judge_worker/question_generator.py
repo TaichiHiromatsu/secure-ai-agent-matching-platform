@@ -88,7 +88,7 @@ class AgentQuestionGenerator:
     単なるテンプレートではなく、エージェントの能力を深く理解して質問を作成。
     """
 
-    def __init__(self, model_name: str = "gemini-2.0-pro", use_agent: bool = True):
+    def __init__(self, model_name: str = "gemini-2.5-flash", use_agent: bool = True):
         """
         Args:
             model_name: 使用するGoogle ADKモデル名

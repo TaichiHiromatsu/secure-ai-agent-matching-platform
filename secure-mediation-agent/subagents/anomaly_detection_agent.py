@@ -21,6 +21,7 @@ from typing import Any
 
 from google.adk import Agent
 from google.genai import types
+from ..config.safety import SAFETY_SETTINGS_RELAXED
 
 
 async def compare_with_plan(
@@ -405,11 +406,6 @@ Only recommend stopping for genuine security threats or critical deviations.
     ],
     generate_content_config=types.GenerateContentConfig(
         temperature=0.2,  # Low temperature for consistent detection
-        safety_settings=[
-            types.SafetySetting(
-                category=types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-                threshold=types.HarmBlockThreshold.OFF,
-            ),
-        ],
+        safety_settings=SAFETY_SETTINGS_RELAXED,
     ),
 )

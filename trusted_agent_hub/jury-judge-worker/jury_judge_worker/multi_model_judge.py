@@ -103,10 +103,10 @@ class MultiModelJudge:
                 # Claude 3.5 Sonnetは提供終了。安価で現行提供のHaikuへ切替。
                 models.append("claude-3-haiku-20240307")
             if enable_google:
-                models.append("gemini-2.0-pro")
+                models.append("gemini-2.5-flash")
         else:
-            if enable_google and "gemini-2.0-pro" not in models:
-                models.append("gemini-2.0-pro")
+            if enable_google and "gemini-2.5-flash" not in models:
+                models.append("gemini-2.5-flash")
 
         # 重複を除去し順序保持
         self.models = list(dict.fromkeys(models))

@@ -16,10 +16,11 @@
 
 import json
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any, Optional, Callable, Awaitable
 
 from google.adk import Agent
 from google.genai import types
+from ..config.safety import SAFETY_SETTINGS_RELAXED
 
 # Import plan utilities from shared module
 from ..utils.plan_utils import load_plan_from_artifact, parse_plan_for_step
@@ -97,6 +98,9 @@ async def invoke_a2a_agent(
     planned_agent: str = "",
     trust_score: float = 1.0,
     plan_id: str = "",
+    *,
+    stream: bool = False,
+    on_chunk: Optional[Callable[[dict[str, Any]], Awaitable[None]]] = None,
 ) -> str:
     """Invoke an A2A agent with security context using ADK's RemoteA2aAgent.
 
@@ -207,6 +211,12 @@ Input data:
                 if isinstance(event.content, str):
                     response_parts.append(event.content)
                     event_record["text"] = event.content
+                    if stream and on_chunk:
+                        await on_chunk({
+                            "type": "message_chunk",
+                            "role": getattr(event.content, "role", "model") if hasattr(event.content, "role") else "model",
+                            "content": event.content,
+                        })
                 else:
                     # Handle Content object with parts
                     parts_text = []
@@ -214,6 +224,12 @@ Input data:
                         if hasattr(part, 'text') and part.text:
                             response_parts.append(part.text)
                             parts_text.append(part.text)
+                            if stream and on_chunk:
+                                await on_chunk({
+                                    "type": "message_chunk",
+                                    "role": event.content.role if hasattr(event.content, 'role') else "model",
+                                    "content": part.text,
+                                })
 
                     event_record["text"] = "\n".join(parts_text)
                     event_record["role"] = event.content.role if hasattr(event.content, 'role') else "model"
@@ -231,6 +247,11 @@ Input data:
                         ]
                         tool_calls.extend(event_record["function_calls"])
                         logger.info(f"📞 Tool calls detected: {[fc['name'] for fc in event_record['function_calls']]}")
+                        if stream and on_chunk:
+                            await on_chunk({
+                                "type": "tool_call",
+                                "calls": event_record["function_calls"],
+                            })
                 except Exception as e:
                     logger.debug(f"No function calls in this event: {e}")
 
@@ -247,6 +268,11 @@ Input data:
                         ]
                         tool_responses.extend(event_record["function_responses"])
                         logger.info(f"📥 Tool responses detected: {[fr['name'] for fr in event_record['function_responses']]}")
+                        if stream and on_chunk:
+                            await on_chunk({
+                                "type": "tool_response",
+                                "responses": event_record["function_responses"],
+                            })
                 except Exception as e:
                     logger.debug(f"No function responses in this event: {e}")
 
@@ -709,12 +735,7 @@ Use the provided tools:
     after_tool_callback=a2a_security_callback,  # セキュリティコールバックを有効化
     generate_content_config=types.GenerateContentConfig(
         temperature=0.1,  # Very low temperature for precise execution
-        safety_settings=[
-            types.SafetySetting(
-                category=types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-                threshold=types.HarmBlockThreshold.OFF,
-            ),
-        ],
+        safety_settings=SAFETY_SETTINGS_RELAXED,
     ),
 )
 
@@ -742,4 +763,3 @@ Use the provided tools:
 #
 # See security/custom_judge.py for implementation details.
 # ============================================================================
-
