@@ -353,6 +353,7 @@ Verdict rules:
             "   Score: [0-10]",
             "",
             "回答の理由説明やテキストはすべて日本語で記述してください。",
+            "重要: 英語で回答した場合は0点かつrejectとする。必ず日本語のみを用い、英数字はJSONキー以外で使用しないこと。",
             JSON_RESPONSE_HINT,
             "",
             "Verdict rules:",
@@ -459,19 +460,62 @@ DO NOT use markdown code blocks. DO NOT add any text before or after the JSON ob
                 raise RuntimeError("GOOGLE_API_KEY is not set")
             genai.configure(api_key=api_key)
 
-            safety_settings = [
-                {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
-                {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
-                {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
-                {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
-                {"category": "HARM_CATEGORY_CIVIC_INTEGRITY", "threshold": "BLOCK_NONE"},
-            ]
+            # Build safety settings only with categories supported by the installed SDK
+            try:
+                from google.generativeai.types import HarmCategory
 
-            candidate_models = []
-            candidate_models.append(self.config.model or "gemini-2.5-flash")
-            for fb in ["gemini-2.5-pro", "gemini-1.5-pro-002"]:
+                available = {c.name: c for c in HarmCategory}
+                desired = [
+                    "HARM_CATEGORY_HARASSMENT",
+                    "HARM_CATEGORY_HATE_SPEECH",
+                    "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                    "HARM_CATEGORY_DANGEROUS_CONTENT",
+                    "HARM_CATEGORY_CIVIC_INTEGRITY",
+                ]
+                safety_settings = []
+                for name in desired:
+                    if name in available:
+                        safety_settings.append({"category": name, "threshold": "BLOCK_NONE"})
+            except Exception:
+                # Fallback: minimal set known to exist in old SDKs
+                safety_settings = [
+                    {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+                    {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+                    {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+                    {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
+                ]
+
+            # Build fallback list based on availability
+            candidate_models: list[str] = []
+            if self.config.model:
+                candidate_models.append(self.config.model)
+
+            # SAFETYブロックを減らすため Pro 系を優先し、次に Flash 系を試す
+            preferred = [
+                "gemini-2.5-pro",
+                "gemini-1.5-pro-002",
+                "gemini-2.5-flash",
+                "gemini-2.5-flash-lite",
+                "gemini-2.5-flash-preview-05-20",
+            ]
+            for fb in preferred:
                 if fb not in candidate_models:
                     candidate_models.append(fb)
+
+            # Filter by actually available models for this project/API version
+            try:
+                available_models = []
+                for m in genai.list_models():
+                    # m.name like "models/gemini-2.5-flash"
+                    name = m.name.split("/")[-1]
+                    # Ensure generateContent is supported
+                    supported = getattr(m, "supported_generation_methods", getattr(m, "supportedGenerationMethods", []))
+                    if supported and "generateContent" in supported:
+                        available_models.append(name)
+                if available_models:
+                    candidate_models = [m for m in candidate_models if m in available_models] or candidate_models
+            except Exception as e:
+                logger.debug(f"list_models check skipped: {e}")
 
             # System instruction as part of prompt since genai doesn't have separate system param
             full_prompt = f"""You MUST return ONLY valid JSON with NO additional text, explanation, or markdown formatting.
@@ -500,10 +544,16 @@ DO NOT use markdown code blocks. DO NOT add any text before or after the JSON ob
                         generation_config={
                             "temperature": self.config.temperature,
                             "max_output_tokens": self.config.max_output_tokens,
+                            # Encourage JSON-only output
+                            "response_mime_type": "application/json",
+                            "language": "ja",
                         },
                         safety_settings=safety_settings,
                     )
-                    response = model.generate_content(full_prompt)
+                    response = model.generate_content(
+                        full_prompt,
+                        safety_settings=safety_settings,  # pass per-call to ensure override
+                    )
 
                     if not response.text:
                         logger.error(f"Google Gemini API returned empty content for model {model_name}: {response}")

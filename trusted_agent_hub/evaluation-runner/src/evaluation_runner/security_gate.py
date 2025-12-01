@@ -213,13 +213,17 @@ def _sample_by_priority(
     strategy: サンプリング戦略
   """
   if strategy == "priority_balanced":
-    # Priority 1は全件、残りは比率配分
+    # Priority 1は優先、残りは比率配分（ただしmax_countは厳守）
     p1 = [p for p in prompts if p.priority == 1]
     p2 = [p for p in prompts if p.priority == 2]
     p3 = [p for p in prompts if p.priority == 3]
     p4 = [p for p in prompts if p.priority == 4]
 
-    selected = list(p1)  # Priority 1は必須
+    # max_countを厳守: Priority 1だけでmax_countを超える場合はサンプリング
+    if len(p1) >= max_count:
+      return random.sample(p1, max_count)
+
+    selected = list(p1)  # Priority 1は優先
     remaining = max_count - len(selected)
 
     if remaining > 0:
