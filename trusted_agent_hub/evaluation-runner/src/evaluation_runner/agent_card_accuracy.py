@@ -657,8 +657,9 @@ async def invoke_multiturn_dialogue(
     import json
 
     # Construct agent card URL from endpoint URL
+    # A2A Protocol v0.3.16 spec: agent cards are at /.well-known/agent-card.json
     parsed_url = urlparse(endpoint_url)
-    card_url = f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path}/.well-known/agent.json"
+    card_url = f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path}/.well-known/agent-card.json"
 
     logger.info(f"Fetching agent card from: {card_url}")
 

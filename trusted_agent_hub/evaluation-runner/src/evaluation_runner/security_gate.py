@@ -392,8 +392,8 @@ def invoke_endpoint(
           parsed_url = urlparse(normalized_endpoint_url)
 
         # Get agent card URL - use the normalized endpoint_url
-        # A2A Protocol spec: agent cards are at /.well-known/agent.json
-        card_url = f"{normalized_endpoint_url.rstrip('/')}/.well-known/agent.json"
+        # A2A Protocol v0.3.16 spec: agent cards are at /.well-known/agent-card.json
+        card_url = f"{normalized_endpoint_url.rstrip('/')}/.well-known/agent-card.json"
 
         print(f"[DEBUG] Invoking A2A agent {agent_name} at {normalized_endpoint_url}")
         print(f"[DEBUG] Agent card URL: {card_url}")
@@ -1110,8 +1110,8 @@ def run_security_gate(
       ))
 
       async with httpx.AsyncClient(timeout=timeout + 5) as client:
-        # A2A Protocol spec: agent cards are at /.well-known/agent.json
-        card_url = f"{normalized_endpoint_url.rstrip('/')}/.well-known/agent.json"
+        # A2A Protocol v0.3.16 spec: agent cards are at /.well-known/agent-card.json
+        card_url = f"{normalized_endpoint_url.rstrip('/')}/.well-known/agent-card.json"
         try:
           card_response = await client.get(card_url)
           card_response.raise_for_status()

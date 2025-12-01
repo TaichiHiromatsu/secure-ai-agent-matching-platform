@@ -22,10 +22,10 @@
 
 ```bash
 # 各ポートが応答するか確認
-curl http://localhost:8001/.well-known/agent.json  # 仲介エージェント
-curl http://localhost:8002/.well-known/agent.json  # 航空会社
-curl http://localhost:8003/.well-known/agent.json  # ホテル
-curl http://localhost:8004/.well-known/agent.json  # レンタカー
+curl http://localhost:8000/.well-known/agent-card.json  # 仲介エージェント
+curl http://localhost:8002/a2a/airline_agent/.well-known/agent-card.json  # 航空会社
+curl http://localhost:8002/a2a/hotel_agent/.well-known/agent-card.json  # ホテル
+curl http://localhost:8002/a2a/car_rental_agent/.well-known/agent-card.json  # レンタカー
 ```
 
 全て正常に応答すれば準備完了です。
@@ -407,10 +407,10 @@ cat artifacts/logs/execution.log
 **解決策**:
 ```bash
 # 全エージェントの状態を確認
-curl http://localhost:8001/.well-known/agent.json
-curl http://localhost:8002/.well-known/agent.json
-curl http://localhost:8003/.well-known/agent.json
-curl http://localhost:8004/.well-known/agent.json
+curl http://localhost:8000/.well-known/agent-card.json
+curl http://localhost:8002/a2a/airline_agent/.well-known/agent-card.json
+curl http://localhost:8002/a2a/hotel_agent/.well-known/agent-card.json
+curl http://localhost:8002/a2a/car_rental_agent/.well-known/agent-card.json
 ```
 
 ### 異常検知が動作しない

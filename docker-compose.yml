@@ -70,7 +70,7 @@ services:
     networks:
       - agent-net
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8002/a2a/airline_agent/.well-known/agent.json"]
+      test: ["CMD", "curl", "-f", "http://localhost:8002/a2a/airline_agent/.well-known/agent-card.json"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -91,7 +91,7 @@ services:
     networks:
       - agent-net
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8003/a2a/hotel_agent/.well-known/agent.json"]
+      test: ["CMD", "curl", "-f", "http://localhost:8003/a2a/hotel_agent/.well-known/agent-card.json"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -112,7 +112,7 @@ services:
     networks:
       - agent-net
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8004/a2a/car_rental_agent/.well-known/agent.json"]
+      test: ["CMD", "curl", "-f", "http://localhost:8004/a2a/car_rental_agent/.well-known/agent-card.json"]
       interval: 30s
       timeout: 10s
       retries: 3

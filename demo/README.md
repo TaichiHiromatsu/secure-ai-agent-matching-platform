@@ -209,9 +209,9 @@ tail -f /tmp/mediation-agent.log
 
 | サービス | URL | A2A Endpoint |
 |---------|-----|--------------|
-| Airline Agent | http://localhost:8002 | http://localhost:8002/.well-known/agent.json |
-| Hotel Agent | http://localhost:8003 | http://localhost:8003/.well-known/agent.json |
-| Car Rental Agent | http://localhost:8004 | http://localhost:8004/.well-known/agent.json |
+| Airline Agent | http://localhost:8002/a2a/airline_agent | http://localhost:8002/a2a/airline_agent/.well-known/agent-card.json |
+| Hotel Agent | http://localhost:8002/a2a/hotel_agent | http://localhost:8002/a2a/hotel_agent/.well-known/agent-card.json |
+| Car Rental Agent | http://localhost:8002/a2a/car_rental_agent | http://localhost:8002/a2a/car_rental_agent/.well-known/agent-card.json |
 | Mediation Agent Web UI | http://localhost:8000 | - |
 
 ---

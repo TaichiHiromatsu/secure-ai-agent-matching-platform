@@ -497,38 +497,9 @@ def process_submission(submission_id: str):
             db.commit()
             print(f"Invalid or missing serviceUrl/url in Agent Card for submission {submission_id}")
             return
-        from urllib.parse import urlparse, urlunparse
-        parsed_endpoint = urlparse(endpoint_url)
 
-        # Normalize endpoint URL: replace 0.0.0.0, localhost, 127.0.0.1 with appropriate hostname
-        if parsed_endpoint.hostname in ("0.0.0.0", "localhost", "127.0.0.1"):
-            agent_name = submission.agent_id
-            if not agent_name:
-                path_parts = parsed_endpoint.path.strip('/').split('/')
-                if len(path_parts) >= 2 and path_parts[0] == "a2a":
-                    agent_name = path_parts[1]
-
-            # In Docker environment, use host.docker.internal to access host machine
-            # In development, agent services are typically on the host
-            service_name = agent_name if agent_name else "host.docker.internal"
-
-            # If hostname is localhost/127.0.0.1 and we're in Docker, use host.docker.internal
-            if parsed_endpoint.hostname in ("localhost", "127.0.0.1"):
-                service_name = "host.docker.internal"
-
-            normalized_netloc = f"{service_name}:{parsed_endpoint.port}"
-            normalized_endpoint = urlunparse((
-                parsed_endpoint.scheme,
-                normalized_netloc,
-                parsed_endpoint.path,
-                parsed_endpoint.params,
-                parsed_endpoint.query,
-                parsed_endpoint.fragment
-            ))
-            print(f"Normalized endpoint_url: {endpoint_url} -> {normalized_endpoint}")
-            endpoint_url = normalized_endpoint
-            submission.card_document["url"] = normalized_endpoint
-            db.commit()
+        # Note: In Dockerfile.cloudrun environment, all services run in a single container
+        # and can communicate via 127.0.0.1, so no hostname normalization is needed.
 
         # --- 1. Security Gate ---
         if stages_cfg["security"]:
@@ -1132,49 +1103,10 @@ async def create_submission(
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db)
 ):
-    # Normalize agent_card_url using environment variable mapping
-    # This allows localhost URLs from browser to be converted to Docker service names
-    import os
-    from urllib.parse import urlparse, urlunparse
-
+    # Fetch Agent Card
+    # Note: In Dockerfile.cloudrun environment, all services run in a single container
+    # and can communicate via 127.0.0.1, so no hostname normalization is needed.
     agent_card_url = submission.agent_card_url
-    url_map_str = os.getenv("AGENT_URL_MAP", "")
-
-    # Parse the URL to check for localhost/127.0.0.1
-    parsed = urlparse(agent_card_url)
-    hostname = parsed.hostname
-    port = parsed.port
-
-    # Auto-convert localhost and 127.0.0.1 to host.docker.internal for Docker environment
-    if hostname in ("localhost", "127.0.0.1"):
-        # Preserve the port if specified
-        new_netloc = f"host.docker.internal:{port}" if port else "host.docker.internal"
-        agent_card_url = urlunparse((
-            parsed.scheme,
-            new_netloc,
-            parsed.path,
-            parsed.params,
-            parsed.query,
-            parsed.fragment
-        ))
-        print(f"[INFO] Auto-mapped localhost to host.docker.internal: {submission.agent_card_url} -> {agent_card_url}")
-    elif url_map_str:
-        # Use custom URL mapping if provided
-        netloc = parsed.netloc
-        for mapping in url_map_str.split(","):
-            if "=" in mapping:
-                from_netloc, to_netloc = mapping.split("=", 1)
-                if netloc == from_netloc.strip():
-                    agent_card_url = urlunparse((
-                        parsed.scheme,
-                        to_netloc.strip(),
-                        parsed.path,
-                        parsed.params,
-                        parsed.query,
-                        parsed.fragment
-                    ))
-                    print(f"[INFO] Mapped agent_card_url: {submission.agent_card_url} -> {agent_card_url}")
-                    break
 
     # Fetch Agent Card
     try:
@@ -1185,20 +1117,8 @@ async def create_submission(
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to fetch Agent Card: {str(e)}")
 
-    # Normalize the agent card's url field to use the accessible host from agent_card_url
-    # This ensures the url field points to a hostname that is accessible from the Trusted Agent Hub
-    if "url" in card_document:
-        from urllib.parse import urlparse
-        agent_card_url_parsed = urlparse(submission.agent_card_url)
-        agent_card_host = agent_card_url_parsed.netloc
-
-        original_url = card_document["url"]
-        url_parsed = urlparse(original_url)
-        # Replace the host in the url field with the accessible host from agent_card_url
-        normalized_url = f"{url_parsed.scheme}://{agent_card_host}{url_parsed.path}"
-        if original_url != normalized_url:
-            card_document["url"] = normalized_url
-            print(f"Normalized agent card URL: {original_url} -> {normalized_url}")
+    # Note: In Dockerfile.cloudrun environment, ADK uses --host 127.0.0.1
+    # so the url field in agent card is already accessible. No normalization needed.
 
     # Extract agent_id from Agent Card - A2A Protocol uses "name" field as the primary identifier
     agent_id = card_document.get("name")

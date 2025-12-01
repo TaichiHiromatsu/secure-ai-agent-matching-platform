@@ -153,7 +153,7 @@ graph TB
 
 #### 4. A2A標準準拠
 - Agent-to-Agent Protocol v0.3 完全対応
-- エージェントカード (`/.well-known/agent.json`) による自己記述
+- エージェントカード (`/.well-known/agent-card.json`) による自己記述
 - 標準化された通信プロトコル
 
 ---

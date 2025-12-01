@@ -18,7 +18,7 @@ test_agent() {
 
     echo -n "Testing $name... "
 
-    if response=$(curl -s -f "$url/.well-known/agent.json" 2>&1); then
+    if response=$(curl -s -f "$url/.well-known/agent-card.json" 2>&1); then
         echo -e "${GREEN}✅ OK${NC}"
         echo "  Agent Name: $(echo $response | jq -r '.name // "N/A"')"
         echo "  Description: $(echo $response | jq -r '.description // "N/A"')"

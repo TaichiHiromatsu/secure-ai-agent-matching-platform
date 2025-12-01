@@ -14,7 +14,7 @@ cd /Users/taichihiromatsu/Development/secure-ai-agent-matching-platform
 adk serve secure-mediation-agent/agent.py --port 8001
 ```
 
-エージェントカード: http://localhost:8001/.well-known/agent.json
+エージェントカード: http://localhost:8000/.well-known/agent-card.json
 
 ---
 
@@ -24,7 +24,7 @@ cd /Users/taichihiromatsu/Development/secure-ai-agent-matching-platform
 adk serve external-agents/trusted-agents/airline-agent/agent.py --port 8002
 ```
 
-エージェントカード: http://localhost:8002/.well-known/agent.json
+エージェントカード: http://localhost:8002/a2a/airline_agent/.well-known/agent-card.json
 
 ---
 
@@ -34,7 +34,7 @@ cd /Users/taichihiromatsu/Development/secure-ai-agent-matching-platform
 adk serve external-agents/trusted-agents/hotel-agent/agent.py --port 8003
 ```
 
-エージェントカード: http://localhost:8003/.well-known/agent.json
+エージェントカード: http://localhost:8002/a2a/hotel_agent/.well-known/agent-card.json
 
 ---
 
@@ -44,7 +44,7 @@ cd /Users/taichihiromatsu/Development/secure-ai-agent-matching-platform
 adk serve external-agents/trusted-agents/car-rental-agent/agent.py --port 8004
 ```
 
-エージェントカード: http://localhost:8004/.well-known/agent.json
+エージェントカード: http://localhost:8002/a2a/car_rental_agent/.well-known/agent-card.json
 
 ---
 
@@ -54,16 +54,16 @@ adk serve external-agents/trusted-agents/car-rental-agent/agent.py --port 8004
 
 ```bash
 # 仲介エージェント
-curl http://localhost:8001/.well-known/agent.json
+curl http://localhost:8000/.well-known/agent-card.json
 
 # 航空会社エージェント
-curl http://localhost:8002/.well-known/agent.json
+curl http://localhost:8002/a2a/airline_agent/.well-known/agent-card.json
 
 # ホテルエージェント
-curl http://localhost:8003/.well-known/agent.json
+curl http://localhost:8002/a2a/hotel_agent/.well-known/agent-card.json
 
 # レンタカーエージェント
-curl http://localhost:8004/.well-known/agent.json
+curl http://localhost:8002/a2a/car_rental_agent/.well-known/agent-card.json
 ```
 
 ## デモの実行

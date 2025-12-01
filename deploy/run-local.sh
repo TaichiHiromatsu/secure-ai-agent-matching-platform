@@ -90,6 +90,13 @@ echo -e "${GREEN}✓ Environment loaded${NC}"
 echo ""
 
 # ============================================
+# 0. Patch ADK for A2A Protocol v0.3.16
+# ============================================
+if [ "$STORE_ONLY" = false ]; then
+    "$PROJECT_ROOT/.venv/bin/python" "$PROJECT_ROOT/deploy/patch_adk_agent_card_path.py" > /dev/null 2>&1 || true
+fi
+
+# ============================================
 # 1. Start Trusted Agent Hub (Docker)
 # ============================================
 echo -e "${BLUE}[1/5] Starting Trusted Agent Hub (Docker)...${NC}"
@@ -193,9 +200,9 @@ else
     echo -e "    - Car Rental Agent:         ${GREEN}http://localhost:8002/a2a/car_rental_agent${NC}"
     echo ""
     echo -e "${BLUE}Agent Card URLs (for submission):${NC}"
-    echo -e "  ${YELLOW}http://host.docker.internal:8002/a2a/airline_agent/.well-known/agent.json${NC}"
-    echo -e "  ${YELLOW}http://host.docker.internal:8002/a2a/hotel_agent/.well-known/agent.json${NC}"
-    echo -e "  ${YELLOW}http://host.docker.internal:8002/a2a/car_rental_agent/.well-known/agent.json${NC}"
+    echo -e "  ${YELLOW}http://host.docker.internal:8002/a2a/airline_agent/.well-known/agent-card.json${NC}"
+    echo -e "  ${YELLOW}http://host.docker.internal:8002/a2a/hotel_agent/.well-known/agent-card.json${NC}"
+    echo -e "  ${YELLOW}http://host.docker.internal:8002/a2a/car_rental_agent/.well-known/agent-card.json${NC}"
     echo ""
     echo -e "${BLUE}Useful Commands:${NC}"
     echo -e "  ./deploy/stop-local.sh                  # Stop all services"

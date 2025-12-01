@@ -94,7 +94,7 @@ class MultiModelJudge:
         self.veto_threshold = veto_threshold
         self.dry_run = dry_run
 
-        # デフォルトモデル設定
+        # デフォルトモデル設定（重複排除）
         if models is None:
             models = []
             if enable_openai:
@@ -102,10 +102,14 @@ class MultiModelJudge:
             if enable_anthropic:
                 # Claude 3.5 Sonnetは提供終了。安価で現行提供のHaikuへ切替。
                 models.append("claude-3-haiku-20240307")
-        if enable_google:
-            models.append("gemini-2.0-pro")
+            if enable_google:
+                models.append("gemini-2.0-pro")
+        else:
+            if enable_google and "gemini-2.0-pro" not in models:
+                models.append("gemini-2.0-pro")
 
-        self.models = models
+        # 重複を除去し順序保持
+        self.models = list(dict.fromkeys(models))
         self.judges: List[LLMJudge] = []
 
         # 各モデル用のLLM Judgeを初期化

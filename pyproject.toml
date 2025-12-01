@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Secure AI Agent Matching Platform with A2A Protocol"
 requires-python = ">=3.12"
 dependencies = [
-    "google-adk[a2a]>=1.15.0",
+    "google-adk[a2a]==1.19.0",
     "a2a-sdk>=0.3.16",
     "httpx>=0.28.1",
     "fastapi>=0.115.0",

@@ -6,7 +6,7 @@ python-multipart>=0.0.6
 pydantic[email]>=2.6.0
 pydantic-settings>=2.1.0
 jsonschema>=4.23.0
-google-adk>=1.15.0
+google-adk==1.19.0
 a2a-sdk>=0.3.16
 httpx>=0.28.1
 python-jose[cryptography]>=3.3.0

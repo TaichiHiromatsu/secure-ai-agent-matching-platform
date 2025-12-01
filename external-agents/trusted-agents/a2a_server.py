@@ -1,0 +1,200 @@
+"""Custom A2A Server for external agents.
+
+This server wraps Google ADK agents and serves them with the correct
+A2A Protocol v0.3.16 endpoint paths (/.well-known/agent-card.json).
+"""
+
+import asyncio
+import json
+import logging
+import os
+import sys
+from pathlib import Path
+
+import uvicorn
+from starlette.applications import Starlette
+from starlette.routing import Route
+from starlette.responses import JSONResponse
+
+from a2a.server.apps.jsonrpc.starlette_app import A2AStarletteApplication
+from a2a.server.request_handlers import DefaultRequestHandler
+from a2a.server.agent_execution import AgentExecutor
+from a2a.types import AgentCard
+from a2a.utils.constants import AGENT_CARD_WELL_KNOWN_PATH
+
+from google.adk.agents import LiveRequestQueue
+from google.adk.agents.run_config import RunConfig
+from google.adk.events import Event
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
+class ADKAgentExecutor(AgentExecutor):
+    """Agent executor that wraps Google ADK agents."""
+
+    def __init__(self, adk_agent, agent_name: str):
+        self.adk_agent = adk_agent
+        self.agent_name = agent_name
+        self._request_queue = None
+
+    async def execute(self, context, event_queue):
+        """Execute the ADK agent with the given context."""
+        from google.adk.agents import InMemoryRunner
+
+        # Get the user message from the context
+        user_message = ""
+        if hasattr(context, 'message') and context.message:
+            for part in context.message.parts:
+                if hasattr(part, 'text'):
+                    user_message = part.text
+                    break
+
+        if not user_message:
+            user_message = "Hello"
+
+        logger.info(f"Executing agent {self.agent_name} with message: {user_message[:100]}")
+
+        # Create an InMemoryRunner for the ADK agent
+        runner = InMemoryRunner(
+            agent=self.adk_agent,
+            app_name=self.agent_name,
+        )
+
+        # Run the agent
+        try:
+            session_id = f"session_{self.agent_name}"
+            user_id = "a2a_user"
+
+            async for event in runner.run_async(
+                user_id=user_id,
+                session_id=session_id,
+                new_message=user_message,
+            ):
+                if hasattr(event, 'content') and event.content:
+                    # Yield the response
+                    from a2a.types import Message, TextPart
+                    response_message = Message(
+                        role="agent",
+                        parts=[TextPart(text=str(event.content))]
+                    )
+                    await event_queue.enqueue_event(response_message)
+        except Exception as e:
+            logger.error(f"Error executing agent: {e}")
+            from a2a.types import Message, TextPart
+            error_message = Message(
+                role="agent",
+                parts=[TextPart(text=f"Error: {str(e)}")]
+            )
+            await event_queue.enqueue_event(error_message)
+
+    async def cancel(self, context, event_queue):
+        """Cancel the execution."""
+        pass
+
+
+def load_agent_card(agent_dir: Path, base_url: str) -> AgentCard:
+    """Load agent card from agent.json file."""
+    card_path = agent_dir / "agent.json"
+    with open(card_path) as f:
+        data = json.load(f)
+
+    # Update URL to use the correct base
+    agent_name = agent_dir.name
+    data["url"] = f"{base_url}/a2a/{agent_name}"
+
+    return AgentCard(**data)
+
+
+def create_app(host: str, port: int, agents_dir: Path) -> Starlette:
+    """Create the Starlette application with all agents."""
+
+    routes = []
+    base_url = f"http://{host}:{port}"
+
+    # Discover all agent directories
+    for agent_path in agents_dir.iterdir():
+        if not agent_path.is_dir():
+            continue
+        if agent_path.name.startswith((".", "__")):
+            continue
+        if not (agent_path / "agent.json").exists():
+            continue
+
+        agent_name = agent_path.name
+        logger.info(f"Loading agent: {agent_name}")
+
+        try:
+            # Load the agent card
+            agent_card = load_agent_card(agent_path, base_url)
+
+            # Import the ADK agent
+            sys.path.insert(0, str(agent_path))
+            agent_module = __import__("agent")
+            adk_agent = agent_module.root_agent
+            sys.path.pop(0)
+
+            # Create executor and handler
+            executor = ADKAgentExecutor(adk_agent, agent_name)
+            handler = DefaultRequestHandler(
+                agent_executor=executor,
+                task_store=None,
+            )
+
+            # Create A2A application with new spec path
+            a2a_app = A2AStarletteApplication(
+                agent_card=agent_card,
+                http_handler=handler,
+            )
+
+            # Get routes with the new agent-card.json path
+            agent_routes = a2a_app.routes(
+                rpc_url=f"/a2a/{agent_name}",
+                agent_card_url=f"/a2a/{agent_name}{AGENT_CARD_WELL_KNOWN_PATH}",
+            )
+
+            routes.extend(agent_routes)
+            logger.info(f"Successfully loaded agent: {agent_name}")
+            logger.info(f"  - RPC URL: /a2a/{agent_name}")
+            logger.info(f"  - Agent Card: /a2a/{agent_name}{AGENT_CARD_WELL_KNOWN_PATH}")
+
+        except Exception as e:
+            logger.error(f"Failed to load agent {agent_name}: {e}")
+            import traceback
+            traceback.print_exc()
+
+    # Create root endpoint
+    async def root(request):
+        return JSONResponse({
+            "status": "ok",
+            "message": "A2A Server for external agents",
+            "agents": [r.path for r in routes if "agent-card.json" in r.path]
+        })
+
+    routes.insert(0, Route("/", root))
+
+    app = Starlette(routes=routes)
+    return app
+
+
+def main():
+    import argparse
+
+    parser = argparse.ArgumentParser(description="A2A Server for external agents")
+    parser.add_argument("--host", default="127.0.0.1", help="Host to bind to")
+    parser.add_argument("--port", type=int, default=8002, help="Port to bind to")
+    parser.add_argument("agents_dir", type=Path, help="Directory containing agents")
+
+    args = parser.parse_args()
+
+    if not args.agents_dir.exists():
+        logger.error(f"Agents directory not found: {args.agents_dir}")
+        sys.exit(1)
+
+    app = create_app(args.host, args.port, args.agents_dir)
+
+    uvicorn.run(app, host=args.host, port=args.port)
+
+
+if __name__ == "__main__":
+    main()

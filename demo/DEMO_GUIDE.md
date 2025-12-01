@@ -72,9 +72,9 @@
 ## 期待される動作フロー
 
 1. **Matching Agent** が各エージェントのカードを取得
-   - `http://localhost:8002/.well-known/agent.json`
-   - `http://localhost:8003/.well-known/agent.json`
-   - `http://localhost:8004/.well-known/agent.json`
+   - `http://localhost:8002/a2a/airline_agent/.well-known/agent-card.json`
+   - `http://localhost:8002/a2a/hotel_agent/.well-known/agent-card.json`
+   - `http://localhost:8002/a2a/car_rental_agent/.well-known/agent-card.json`
 
 2. **Planning Agent** が実行プランを作成
    - Step 1: フライト検索・予約
@@ -97,7 +97,7 @@
 
 ### エージェントが見つからない
 - `./start_agents.sh` が実行されているか確認
-- `curl http://localhost:8002/.well-known/agent.json` でエージェントが応答するか確認
+- `curl http://localhost:8002/a2a/airline_agent/.well-known/agent-card.json` でエージェントが応答するか確認
 
 ### API Key エラー
 - `.env` ファイルに `GOOGLE_API_KEY` が設定されているか確認

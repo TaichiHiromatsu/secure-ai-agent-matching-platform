@@ -234,16 +234,16 @@ uv run adk web secure-mediation-agent --port 8000
 
 ```bash
 # 仲介エージェント
-curl http://localhost:8001/.well-known/agent.json | jq
+curl http://localhost:8000/.well-known/agent-card.json | jq
 
 # 航空会社エージェント
-curl http://localhost:8002/.well-known/agent.json | jq
+curl http://localhost:8002/a2a/airline_agent/.well-known/agent-card.json | jq
 
 # ホテルエージェント
-curl http://localhost:8003/.well-known/agent.json | jq
+curl http://localhost:8002/a2a/hotel_agent/.well-known/agent-card.json | jq
 
 # レンタカーエージェント
-curl http://localhost:8004/.well-known/agent.json | jq
+curl http://localhost:8002/a2a/car_rental_agent/.well-known/agent-card.json | jq
 ```
 
 **期待される出力**: 各エージェントのA2Aエージェントカード（JSON形式）
@@ -361,10 +361,10 @@ pip install google-adk httpx
 
 1. ✅ 全4つのエージェントが起動していますか？
    ```bash
-   curl http://localhost:8001/.well-known/agent.json
-   curl http://localhost:8002/.well-known/agent.json
-   curl http://localhost:8003/.well-known/agent.json
-   curl http://localhost:8004/.well-known/agent.json
+   curl http://localhost:8000/.well-known/agent-card.json
+   curl http://localhost:8002/a2a/airline_agent/.well-known/agent-card.json
+   curl http://localhost:8002/a2a/hotel_agent/.well-known/agent-card.json
+   curl http://localhost:8002/a2a/car_rental_agent/.well-known/agent-card.json
    ```
 
 2. ✅ 環境変数は設定されていますか？
