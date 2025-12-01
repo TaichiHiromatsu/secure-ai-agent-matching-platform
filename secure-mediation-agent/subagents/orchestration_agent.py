@@ -17,10 +17,12 @@
 import json
 from datetime import datetime
 from typing import Any, Optional, Callable, Awaitable
+import re
 
 from google.adk import Agent
 from google.genai import types
 from ..config.safety import SAFETY_SETTINGS_RELAXED
+import re
 
 # Import plan utilities from shared module
 from ..utils.plan_utils import load_plan_from_artifact, parse_plan_for_step
@@ -209,27 +211,31 @@ Input data:
             # Extract text from different event types
             if hasattr(event, 'content') and event.content:
                 if isinstance(event.content, str):
-                    response_parts.append(event.content)
-                    event_record["text"] = event.content
+                    sanitized = _sanitize_text(event.content)
+                    response_parts.append(sanitized)
+                    event_record["text"] = sanitized
                     if stream and on_chunk:
-                        await on_chunk({
-                            "type": "message_chunk",
-                            "role": getattr(event.content, "role", "model") if hasattr(event.content, "role") else "model",
-                            "content": event.content,
-                        })
+                        for chunk in _chunk_text(sanitized, chunk_size=900):
+                            await on_chunk({
+                                "type": "message_chunk",
+                                "role": getattr(event.content, "role", "model") if hasattr(event.content, "role") else "model",
+                                "content": chunk,
+                            })
                 else:
                     # Handle Content object with parts
                     parts_text = []
                     for part in event.content.parts:
                         if hasattr(part, 'text') and part.text:
-                            response_parts.append(part.text)
-                            parts_text.append(part.text)
+                            sanitized = _sanitize_text(part.text)
+                            response_parts.append(sanitized)
+                            parts_text.append(sanitized)
                             if stream and on_chunk:
-                                await on_chunk({
-                                    "type": "message_chunk",
-                                    "role": event.content.role if hasattr(event.content, 'role') else "model",
-                                    "content": part.text,
-                                })
+                                for chunk in _chunk_text(sanitized, chunk_size=900):
+                                    await on_chunk({
+                                        "type": "message_chunk",
+                                        "role": event.content.role if hasattr(event.content, 'role') else "model",
+                                        "content": chunk,
+                                    })
 
                     event_record["text"] = "\n".join(parts_text)
                     event_record["role"] = event.content.role if hasattr(event.content, 'role') else "model"
@@ -352,6 +358,33 @@ Input data:
             "timestamp": datetime.now().isoformat(),
         }
         return json.dumps(error_result, indent=2, ensure_ascii=False)
+
+
+def _sanitize_text(text: str) -> str:
+    """Lightweight sanitization to reduce SAFETY triggers."""
+    text = re.sub(r"(?i)(system prompt|ignore previous|override instructions)", r"[\\1]", text)
+    text = re.sub(r"https?://\\S+", "<url>", text)
+    text = re.sub(r"[A-Za-z0-9+/]{60,}={0,2}", "<data>", text)
+    text = re.sub(r"\\n{3,}", "\\n\\n", text)
+    return text
+
+
+def _chunk_text(text: str, chunk_size: int = 900):
+    """Yield text in roughly chunk_size characters, splitting on sentence boundaries when possible."""
+    if len(text) <= chunk_size:
+        yield text
+        return
+    sentences = re.split(r"(?<=[。.!?])\\s+", text)
+    buf = ""
+    for s in sentences:
+        if len(buf) + len(s) + 1 <= chunk_size:
+            buf = f"{buf} {s}".strip()
+        else:
+            if buf:
+                yield buf
+            buf = s
+    if buf:
+        yield buf
 
 
 async def check_step_dependencies(

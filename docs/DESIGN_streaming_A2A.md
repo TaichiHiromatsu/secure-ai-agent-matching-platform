@@ -80,3 +80,17 @@ safety_settings_relaxed = [
 - イベントスキーマ型定義を共通ライブラリに切り出し済み（`app/schemas/jury_stream.py`）だが、送り手/受け手の未対応部分を適用する。
 - Live API を併用する場合の権限確認。  
 - 計測メトリクスを既存監視に統合（latency, block_count, fallback_count）。  
+
+## 10. A2A SAFETY緩和とサニタイズ方針（新規）
+- **チャンク分割**: A2A 応答は 512–1024 tokens 相当で分割し、各チャンクを個別に LLM へ送信。ブロック発生チャンクのみモデルフォールバック（flash→pro→1.5）を行う。
+- **サニタイズ**: 以下をマスク/緩和してから送信する  
+  - メタ指示語（system prompt/ignore/override 等）を `[...]` 括弧化  
+  - URL/コードブロック/長いBase64 文字列を簡略化 (`<url>`, `<code>` 等)  
+  - 連続改行・重複引用符を正規化  
+  - 履歴は圧縮要約のみを残し、最新ユーザ要求と直近チャンクに絞る
+- **モデル順**: A2A 経路は `gemini-2.5-pro` を優先、低遅延が必須な場合のみ flash 系。各チャンクで SAFETY が出たら即次モデルへ。
+- **可視化**: ブロック発生時に `type: safety_block` を SSE 送信し、category/probability を UI 表示。
+
+## 11. Jury Judge スキーマエラー防止（JurorEvaluation）
+- 議論フェーズの statement イベントでスコア未設定の場合に `JurorEvaluation` を生成しない。スコア付き評価のみを `JurorEvaluation` にし、ステートメントは別の lightweight dict で扱う。
+- どうしてもスコアが欠ける場合はファクトリで必須フィールドを 0/None で補完し、round_number を常に付与する。

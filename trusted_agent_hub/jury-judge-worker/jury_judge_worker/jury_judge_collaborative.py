@@ -140,6 +140,29 @@ class JurorEvaluation:
     timestamp: datetime = field(default_factory=datetime.utcnow)
     evaluation_time_ms: float = 0.0
 
+    @staticmethod
+    def from_dict(data: dict) -> "JurorEvaluation":
+        """安全に欠損フィールドを補完して生成するヘルパー"""
+        return JurorEvaluation(
+            juror_id=data.get("juror_id", "unknown"),
+            phase=data.get("phase", EvaluationPhase.DISCUSSION),
+            round_number=data.get("round_number", data.get("round", 0)),
+            safety_score=data.get("safety_score", data.get("safety", 0.0)),
+            security_score=data.get("security_score", data.get("task_completion", 0.0)),
+            compliance_score=data.get("compliance_score", data.get("tool_usage", 0.0)),
+            autonomy_score=data.get("autonomy_score", data.get("autonomy", 0.0)),
+            overall_score=data.get("overall_score", data.get("total_score", data.get("score", 0.0))),
+            verdict=data.get("verdict", "needs_review"),
+            confidence=data.get("confidence", 0.0),
+            rationale=data.get("rationale", ""),
+            role_name=data.get("role_name", ""),
+            role_focus=data.get("role_focus", ""),
+            critical_issues=data.get("critical_issues", []) or [],
+            agreement_points=data.get("agreement_points", []) or [],
+            disagreement_points=data.get("disagreement_points", []) or [],
+            evaluation_time_ms=data.get("evaluation_time_ms", 0.0),
+        )
+
 
 @dataclass
 class DiscussionRound:
@@ -916,21 +939,21 @@ Rationale: {my_eval.rationale if my_eval else ""}
 
         # 評価が更新された場合
         if result.total_score and my_eval and abs(result.total_score - my_eval.overall_score) > 5:
-            statement.updated_evaluation = JurorEvaluation(
-                juror_id=juror_id,
-                phase=EvaluationPhase.DISCUSSION,
-                round_number=turn_number,
-                safety_score=result.safety or (my_eval.safety_score if my_eval else 5),
-                security_score=result.task_completion or (my_eval.security_score if my_eval else 20),
-                compliance_score=result.tool_usage or (my_eval.compliance_score if my_eval else 15),
-                autonomy_score=result.autonomy or (my_eval.autonomy_score if my_eval else 10),
-                overall_score=result.total_score,
-                verdict=self._convert_verdict(result.verdict),
-                confidence=result.confidence if result.confidence else 0.0,
-                rationale=result.rationale,
-                role_name=role_name,
-                role_focus=role_focus,
-            )
+            statement.updated_evaluation = JurorEvaluation.from_dict({
+                "juror_id": juror_id,
+                "phase": EvaluationPhase.DISCUSSION,
+                "round_number": turn_number,
+                "safety_score": result.safety if result.safety is not None else (my_eval.safety_score if my_eval else 5),
+                "security_score": result.task_completion if result.task_completion is not None else (my_eval.security_score if my_eval else 20),
+                "compliance_score": result.tool_usage if result.tool_usage is not None else (my_eval.compliance_score if my_eval else 15),
+                "autonomy_score": result.autonomy if result.autonomy is not None else (my_eval.autonomy_score if my_eval else 10),
+                "overall_score": result.total_score,
+                "verdict": self._convert_verdict(result.verdict),
+                "confidence": result.confidence if result.confidence is not None else 0.0,
+                "rationale": result.rationale,
+                "role_name": role_name,
+                "role_focus": role_focus,
+            })
             statement.position = statement.updated_evaluation.verdict
 
         return statement
@@ -1159,21 +1182,21 @@ Rationale: {my_eval.rationale if my_eval else ""}
 
         # 評価が更新された場合
         if result.total_score and my_eval and abs(result.total_score - my_eval.overall_score) > 5:
-            statement.updated_evaluation = JurorEvaluation(
-                juror_id=juror_id,
-                phase=EvaluationPhase.DISCUSSION,
-                round_number=round_num,
-                role_name=role_name,
-                role_focus=role_focus,
-                safety_score=result.safety or (my_eval.safety_score if my_eval else 5),
-                security_score=result.task_completion or (my_eval.security_score if my_eval else 20),
-                compliance_score=result.tool_usage or (my_eval.compliance_score if my_eval else 15),
-                autonomy_score=result.autonomy or (my_eval.autonomy_score if my_eval else 10),
-                overall_score=result.total_score,
-                verdict=self._convert_verdict(result.verdict),
-                confidence=result.confidence if result.confidence else 0.0,
-                rationale=result.rationale,
-            )
+            statement.updated_evaluation = JurorEvaluation.from_dict({
+                "juror_id": juror_id,
+                "phase": EvaluationPhase.DISCUSSION,
+                "round_number": round_num,
+                "role_name": role_name,
+                "role_focus": role_focus,
+                "safety_score": result.safety if result.safety is not None else (my_eval.safety_score if my_eval else 5),
+                "security_score": result.task_completion if result.task_completion is not None else (my_eval.security_score if my_eval else 20),
+                "compliance_score": result.tool_usage if result.tool_usage is not None else (my_eval.compliance_score if my_eval else 15),
+                "autonomy_score": result.autonomy if result.autonomy is not None else (my_eval.autonomy_score if my_eval else 10),
+                "overall_score": result.total_score,
+                "verdict": self._convert_verdict(result.verdict),
+                "confidence": result.confidence if result.confidence is not None else 0.0,
+                "rationale": result.rationale,
+            })
 
         # WebSocket通知
         await self._notify_websocket(websocket_callback, {
@@ -1934,21 +1957,22 @@ Additional fields for collaborative evaluation:
         result = await judge.evaluate_async(question, execution)
 
         # JurorEvaluationに変換
-        return JurorEvaluation(
-            juror_id=juror_id,
-            phase=EvaluationPhase.INITIAL,
-            round_number=0,
-            role_name=role_name,
-            role_focus=role_focus,
-            safety_score=result.safety or 5.0,
-            security_score=result.task_completion or 20.0,
-            compliance_score=result.tool_usage or 15.0,
-            autonomy_score=result.autonomy or 10.0,
-            overall_score=result.total_score if result.total_score else 50.0,
-            verdict=self._convert_verdict_from_llm(result.verdict),
-            confidence=result.score if result.score else 0.5,
-            rationale=result.rationale,  # ← 実際のLLM評価理由
-        )
+        parsed = {
+            "juror_id": juror_id,
+            "phase": EvaluationPhase.INITIAL,
+            "round_number": 0,
+            "role_name": role_name,
+            "role_focus": role_focus,
+            "safety_score": result.safety if result.safety is not None else 5.0,
+            "security_score": result.task_completion if result.task_completion is not None else 20.0,
+            "compliance_score": result.tool_usage if result.tool_usage is not None else 15.0,
+            "autonomy_score": result.autonomy if result.autonomy is not None else 10.0,
+            "overall_score": result.total_score if result.total_score is not None else 50.0,
+            "verdict": self._convert_verdict_from_llm(result.verdict),
+            "confidence": result.score if result.score is not None else 0.5,
+            "rationale": result.rationale,
+        }
+        return JurorEvaluation.from_dict(parsed)
 
     def _get_provider_for_juror(self, juror_id: str) -> str:
         """Juror IDからLLMプロバイダーを特定"""
