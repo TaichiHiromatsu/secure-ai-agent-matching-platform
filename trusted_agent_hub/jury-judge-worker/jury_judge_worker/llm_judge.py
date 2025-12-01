@@ -190,23 +190,42 @@ Verdict rules:
 
         # レガシーパス: request_fnまたはOpenAI/Anthropic（同期APIを使用）
         prompt = self._build_prompt(question, execution)
-        raw_response = None
-        try:
-            raw_response = self._send_prompt(prompt)
-            parsed = self._parse_response(raw_response)
-            return LLMJudgeResult(
-                score=parsed.get("score"),
-                verdict=parsed.get("verdict"),
-                rationale=parsed.get("rationale", "llm_response"),
-                raw=raw_response,
-                task_completion=parsed.get("task_completion"),
-                tool_usage=parsed.get("tool_usage"),
-                autonomy=parsed.get("autonomy"),
-                safety=parsed.get("safety"),
-                total_score=parsed.get("total_score"),
-            )
-        except Exception as error:  # pragma: no cover - network/env specific
-            return self._fallback_result(f"llm_error:{error}")
+        max_retries = 2  # 初回 + 1回リトライ
+        last_error = None
+
+        for attempt in range(max_retries):
+            raw_response = None
+            try:
+                raw_response = self._send_prompt(prompt)
+                parsed = self._parse_response(raw_response)
+
+                # JSONパースエラー（verdict="error"）の場合はリトライ
+                if parsed.get("verdict") == "error" and attempt < max_retries - 1:
+                    logger.warning(f"JSON parse error detected, retrying... (attempt {attempt + 1}/{max_retries})")
+                    await asyncio.sleep(0.5)  # 短い待機後にリトライ
+                    continue
+
+                return LLMJudgeResult(
+                    score=parsed.get("score"),
+                    verdict=parsed.get("verdict"),
+                    rationale=parsed.get("rationale", "llm_response"),
+                    raw=raw_response,
+                    task_completion=parsed.get("task_completion"),
+                    tool_usage=parsed.get("tool_usage"),
+                    autonomy=parsed.get("autonomy"),
+                    safety=parsed.get("safety"),
+                    total_score=parsed.get("total_score"),
+                )
+            except Exception as error:  # pragma: no cover - network/env specific
+                last_error = error
+                if attempt < max_retries - 1:
+                    logger.warning(f"Evaluation error, retrying... (attempt {attempt + 1}/{max_retries}): {error}")
+                    await asyncio.sleep(0.5)
+                    continue
+                return self._fallback_result(f"llm_error:{error}")
+
+        # ループを抜けた場合（通常は到達しない）
+        return self._fallback_result(f"llm_error:max_retries_exceeded:{last_error}")
 
     def evaluate(self, question: QuestionSpec, execution: Optional[ExecutionResult]) -> LLMJudgeResult:
         """同期評価メソッド（後方互換性のため残存）"""
