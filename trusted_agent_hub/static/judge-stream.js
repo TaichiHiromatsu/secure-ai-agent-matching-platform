@@ -141,7 +141,8 @@ class JuryJudgeStream {
      * Handle individual juror evaluation
      */
     handleJurorEvaluation(data) {
-        const { juror, phase, verdict, score, confidence, rationale } = data;
+        const { juror, phase, verdict, score, confidence, rationale,
+                taskCompletion, toolUsage, autonomy, safety } = data;
 
         if (!this.jurorEvaluations[juror]) {
             this.jurorEvaluations[juror] = {};
@@ -152,6 +153,11 @@ class JuryJudgeStream {
             score,
             confidence,
             rationale,
+            // AISI 4軸スコア
+            taskCompletion,
+            toolUsage,
+            autonomy,
+            safety,
             timestamp: new Date()
         };
 
@@ -161,7 +167,12 @@ class JuryJudgeStream {
             verdict,
             score,
             confidence,
-            rationale
+            rationale,
+            // AISI 4軸スコア
+            taskCompletion,
+            toolUsage,
+            autonomy,
+            safety
         });
     }
 

@@ -138,9 +138,6 @@
             {{ "Passed" if submission.score_breakdown.precheck_summary.passed else "Failed" }}
                 </span>
             </p>
-            <p class="text-sm text-gray-700">
-                <span class="font-semibold">Agent ID:</span> {{ submission.score_breakdown.precheck_summary.agentId or "N/A" }}
-            </p>
             {% if submission.score_breakdown.precheck_summary.warnings %}
             <p class="text-sm text-yellow-600">
                 <span class="font-semibold">Warnings:</span> {{ submission.score_breakdown.precheck_summary.warnings|length }}
@@ -764,50 +761,42 @@
                                 </span>
                             </div>
 
-                            <!-- Score Summary -->
-                            <div class="grid grid-cols-2 gap-2 mb-2 text-xs">
-                                <div class="bg-gray-50 p-2 rounded">
-                                    <div class="text-gray-600">総合スコア</div>
-                                    <div class="font-bold text-lg">{{ evaluation.overallScore | int }}/100</div>
-                                </div>
-                                <div class="bg-gray-50 p-2 rounded">
-                                    <div class="text-gray-600">信頼度</div>
-                                    <div class="font-bold text-lg">{{ (evaluation.confidence * 100) | int }}%</div>
+                            <!-- AISI 4軸スコア表示 -->
+                            <div class="mb-2">
+                                <div class="text-xs text-gray-600 font-semibold mb-1">AISI 4軸スコア:</div>
+                                <div class="grid grid-cols-2 gap-1 text-xs">
+                                    <div class="flex justify-between px-2 py-1 bg-blue-50 rounded">
+                                        <span>Task Completion (0-40):</span>
+                                        <span class="font-medium">{{ evaluation.taskCompletion | default(evaluation.securityScore | default(0)) }}</span>
+                                    </div>
+                                    <div class="flex justify-between px-2 py-1 bg-green-50 rounded">
+                                        <span>Tool Usage (0-30):</span>
+                                        <span class="font-medium">{{ evaluation.toolUsage | default(evaluation.complianceScore | default(0)) }}</span>
+                                    </div>
+                                    <div class="flex justify-between px-2 py-1 bg-yellow-50 rounded">
+                                        <span>Autonomy (0-20):</span>
+                                        <span class="font-medium">{{ evaluation.autonomy | default(evaluation.autonomyScore | default(0)) }}</span>
+                                    </div>
+                                    <div class="flex justify-between px-2 py-1 bg-red-50 rounded">
+                                        <span>Safety (0-10):</span>
+                                        <span class="font-medium">{{ evaluation.safety | default(evaluation.safetyScore | default(0)) }}</span>
+                                    </div>
                                 </div>
                             </div>
 
-                            <!-- Score Breakdown (4 Axes) -->
-                            {% if evaluation.safetyScore is defined or evaluation.securityScore is defined or evaluation.complianceScore is defined or evaluation.autonomyScore is defined %}
-                            <div class="mb-2">
-                                <div class="text-xs text-gray-600 font-semibold mb-1">評価軸別スコア:</div>
-                                <div class="grid grid-cols-2 gap-1 text-xs">
-                                    {% if evaluation.safetyScore is defined %}
-                                    <div class="flex justify-between px-2 py-1 bg-blue-50 rounded">
-                                        <span>Safety (raw 0-10):</span>
-                                        <span class="font-medium">{{ evaluation.safetyScore }}</span>
+                            <!-- Trust Score（4軸から計算） -->
+                            <div class="mb-2 text-xs">
+                                <div class="bg-gray-50 p-2 rounded inline-block">
+                                    <div class="text-gray-600">Trust Score</div>
+                                    <div class="font-bold text-lg text-blue-600">
+                                        {% set tc = evaluation.taskCompletion | default(evaluation.securityScore | default(0)) %}
+                                        {% set tu = evaluation.toolUsage | default(evaluation.complianceScore | default(0)) %}
+                                        {% set au = evaluation.autonomy | default(evaluation.autonomyScore | default(0)) %}
+                                        {% set sf = evaluation.safety | default(evaluation.safetyScore | default(0)) %}
+                                        {{ (tc + tu + au + sf) | int if (tc > 0 or tu > 0 or au > 0 or sf > 0) else (evaluation.overallScore | int) }}/100
                                     </div>
-                                    {% endif %}
-                                    {% if evaluation.securityScore is defined %}
-                                    <div class="flex justify-between px-2 py-1 bg-green-50 rounded">
-                                        <span>Security (raw 0-40):</span>
-                                        <span class="font-medium">{{ evaluation.securityScore }}</span>
-                                    </div>
-                                    {% endif %}
-                                    {% if evaluation.complianceScore is defined %}
-                                    <div class="flex justify-between px-2 py-1 bg-yellow-50 rounded">
-                                        <span>Compliance (raw 0-30):</span>
-                                        <span class="font-medium">{{ evaluation.complianceScore }}</span>
-                                    </div>
-                                    {% endif %}
-                                    {% if evaluation.autonomyScore is defined %}
-                                    <div class="flex justify-between px-2 py-1 bg-purple-50 rounded">
-                                        <span>Autonomy (raw 0-20):</span>
-                                        <span class="font-medium">{{ evaluation.autonomyScore }}</span>
-                                    </div>
-                                    {% endif %}
                                 </div>
                             </div>
-                            {% endif %}
 
                             <!-- Rationale (Collapsible) -->
                             {% if evaluation.rationale %}
@@ -938,6 +927,11 @@
                         <summary class="text-xs font-semibold text-green-700 cursor-pointer hover:text-green-900 mb-2">
                             📋 最終判定の理由 (Final Judge)
                         </summary>
+                        {% if '陪審員3名の評価平均値を使用' in collective.found.finalJudgment.finalJudgeRationale %}
+                        <div class="p-2 mb-2 bg-yellow-100 border border-yellow-400 rounded text-xs text-yellow-800">
+                            ⚠️ 最終ジャッジLLMからの4軸スコア取得に失敗したため、陪審員の評価平均値を使用しています。
+                        </div>
+                        {% endif %}
                         <div class="p-3 bg-white border rounded text-xs text-gray-700 whitespace-pre-wrap">{{ collective.found.finalJudgment.finalJudgeRationale }}</div>
                     </details>
                     {% elif collective.found.finalJudgment.rationale %}
@@ -968,23 +962,23 @@
 
         {% if submission.score_breakdown.judge_summary %}
         <div class="ml-7 space-y-4 mt-2">
-            <!-- AISI Inspect Criteria Scores -->
+            <!-- AISI Inspect Criteria Scores (Final Judge) -->
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div class="bg-white p-3 rounded border">
-            <div class="text-xs text-gray-500">Task Completion</div>
-            <div class="text-2xl font-bold" data-judge-task>{{ submission.score_breakdown.judge_summary.taskCompletion or 0 }}/100</div>
+                <div class="bg-blue-50 p-3 rounded border">
+                    <div class="text-xs text-gray-600">Task Completio</div>
+                    <div class="text-2xl font-bold text-blue-600" data-judge-task>{{ submission.score_breakdown.judge_summary.taskCompletion or 0 }}/40</div>
                 </div>
-                <div class="bg-white p-3 rounded border">
-            <div class="text-xs text-gray-500">Tool Usage</div>
-            <div class="text-2xl font-bold" data-judge-tool>{{ submission.score_breakdown.judge_summary.tool or 0 }}/100</div>
+                <div class="bg-green-50 p-3 rounded border">
+                    <div class="text-xs text-gray-600">Tool Usage</div>
+                    <div class="text-2xl font-bold text-green-600" data-judge-tool>{{ submission.score_breakdown.judge_summary.tool or 0 }}/30</div>
                 </div>
-                <div class="bg-white p-3 rounded border">
-            <div class="text-xs text-gray-500">Autonomy</div>
-            <div class="text-2xl font-bold" data-judge-autonomy>{{ submission.score_breakdown.judge_summary.autonomy or 0 }}/100</div>
+                <div class="bg-yellow-50 p-3 rounded border">
+                    <div class="text-xs text-gray-600">Autonomy</div>
+                    <div class="text-2xl font-bold text-yellow-600" data-judge-autonomy>{{ submission.score_breakdown.judge_summary.autonomy or 0 }}/20</div>
                 </div>
-                <div class="bg-white p-3 rounded border">
-            <div class="text-xs text-gray-500">Safety & Security</div>
-            <div class="text-2xl font-bold" data-judge-safety>{{ submission.score_breakdown.judge_summary.safety or 0 }}/100</div>
+                <div class="bg-red-50 p-3 rounded border">
+                    <div class="text-xs text-gray-600">Safety</div>
+                    <div class="text-2xl font-bold text-red-600" data-judge-safety>{{ submission.score_breakdown.judge_summary.safety or 0 }}/10</div>
                 </div>
             </div>
 
@@ -1248,13 +1242,38 @@
             }
 
             const verdictColor = data.verdict === 'safe_pass' ? 'green' : (data.verdict === 'unsafe_fail' ? 'red' : 'yellow');
+            // AISI 4軸スコアを取得（未定義の場合は0）
+            const tc = data.taskCompletion || 0;
+            const tu = data.toolUsage || 0;
+            const au = data.autonomy || 0;
+            const sf = data.safety || 0;
+            const trustScore = tc + tu + au + sf;
+
             jurorEl.innerHTML = `
                 <div class="font-semibold mb-1">${data.juror}</div>
                 <div class="mb-1">
                     <span class="px-2 py-1 rounded bg-${verdictColor}-100 text-${verdictColor}-800">${data.verdict}</span>
                 </div>
-                <div class="text-gray-600">Score: ${data.score.toFixed(1)}/100</div>
-                <div class="text-gray-600">Confidence: ${(data.confidence * 100).toFixed(0)}%</div>
+                <div class="text-xs text-gray-600 font-semibold mb-1">AISI 4軸スコア:</div>
+                <div class="grid grid-cols-2 gap-1 text-xs mb-2">
+                    <div class="flex justify-between px-2 py-1 bg-blue-50 rounded">
+                        <span>Task Completion:</span>
+                        <span class="font-medium">${tc}</span>
+                    </div>
+                    <div class="flex justify-between px-2 py-1 bg-green-50 rounded">
+                        <span>Tool Usage:</span>
+                        <span class="font-medium">${tu}</span>
+                    </div>
+                    <div class="flex justify-between px-2 py-1 bg-yellow-50 rounded">
+                        <span>Autonomy:</span>
+                        <span class="font-medium">${au}</span>
+                    </div>
+                    <div class="flex justify-between px-2 py-1 bg-red-50 rounded">
+                        <span>Safety:</span>
+                        <span class="font-medium">${sf}</span>
+                    </div>
+                </div>
+                <div class="text-gray-600 font-bold">Trust Score: ${trustScore}/100</div>
             `;
                 }
             });

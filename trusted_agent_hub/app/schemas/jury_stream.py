@@ -52,6 +52,11 @@ class JuryStreamEvent(BaseModel):
     consensusVerdict: Optional[str] = None
     safety_categories: Optional[List[str]] = Field(default=None, description="Categories that triggered safety block")
     block_reason: Optional[str] = None
+    # AISI 4軸スコア（Phase 1用）
+    taskCompletion: Optional[int] = None  # 0-40
+    toolUsage: Optional[int] = None       # 0-30
+    autonomy: Optional[int] = None        # 0-20
+    safety: Optional[int] = None          # 0-10
 
 
 def validate_event_dict(payload: dict) -> dict:
