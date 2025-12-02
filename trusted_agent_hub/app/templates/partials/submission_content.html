@@ -190,31 +190,6 @@
                 </div>
             </div>
 
-            <!-- Categories Breakdown -->
-            {% if submission.score_breakdown.security_summary.categories %}
-            <div class="border-t pt-4">
-                <h4 class="font-semibold mb-2">Attack Category Breakdown</h4>
-                <div class="grid grid-cols-2 gap-2">
-            {% for category, count in submission.score_breakdown.security_summary.categories.items() %}
-            <div class="text-xs bg-white p-2 rounded border">
-                <span class="font-medium">{{ category }}:</span> {{ count }}
-            </div>
-            {% endfor %}
-                </div>
-            </div>
-            {% endif %}
-
-            <!-- Context Terms -->
-            {% if submission.score_breakdown.security_summary.contextTerms %}
-            <div class="border-t pt-4">
-                <h4 class="font-semibold mb-2">Context Terms Used</h4>
-                <div class="flex flex-wrap gap-2">
-            {% for term in submission.score_breakdown.security_summary.contextTerms %}
-            <span class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">{{ term }}</span>
-            {% endfor %}
-                </div>
-            </div>
-            {% endif %}
             <!-- Security Test Scenarios (Needs Review) -->
             {% if submission.score_breakdown.security_summary.scenarios %}
             <div class="border-t pt-4">
@@ -319,22 +294,11 @@
             {% endif %}
             <!-- Confirmation Points -->
             <div class="border-t pt-4">
-                <h4 class="font-semibold mb-2">📋 確認ポイント (登録者向け)</h4>
+                <h4 class="font-semibold mb-2">📋 確認ポイント</h4>
                 <ul class="text-sm space-y-1 list-disc ml-5">
-            <li>多データセット攻撃プロンプト評価の結果を確認 (AISI Security/Toxic/Robustness/Fairness + AdvBench)</li>
-            <li>優先度別・カテゴリ別の結果を確認し、想定した攻撃観点が網羅されているかを検証</li>
-            <li>「要確認シナリオ」セクションでneeds_review項目の詳細を確認し、適切な拒否応答かを判断</li>
-            <li>blocked/total の比率を確認し、セキュリティスコアの妥当性を評価</li>
-                </ul>
-            </div>
-
-            <div class="border-t pt-4">
-                <h4 class="font-semibold mb-2">🔧 確認ポイント (管理者向け)</h4>
-                <ul class="text-sm space-y-1 list-disc ml-5">
-            <li>security_report.jsonl を確認し、各プロンプトの詳細ログとLLM評価結果をレビュー</li>
-            <li>信頼度(confidence)が0.5未満のエントリを特定し、再評価が必要か判断</li>
-            <li>エンドポイント失敗(endpointFailures)やタイムアウト(timeoutFailures)の原因を調査</li>
-            <li>エージェントコンテキスト適用により、専門分野外の要求が適切に識別されているか確認</li>
+            <li><strong>Blocked (Safe)</strong>: セキュリティ攻撃プロンプトを適切にブロックしたケース</li>
+            <li><strong>Needs Review</strong>: 人手確認が必要なケース。「要確認シナリオ」で詳細を確認してください</li>
+            <li>全体のブロック率 (Blocked/Total) が高いほどセキュリティ対策が有効です</li>
                 </ul>
             </div>
 
@@ -391,15 +355,16 @@
             </div>
 
 
-            <!-- Failed Scenarios (Top 3) with Multi-turn Dialogue -->
+            <!-- Failed Scenarios with Multi-turn Dialogue -->
             {% if submission.score_breakdown.functional_summary.scenarios %}
             <div class="border-t pt-4">
-                <h4 class="font-semibold mb-2">❌ 失敗シナリオの詳細 (上位3件)</h4>
+                <h4 class="font-semibold mb-2">❌ 失敗シナリオの詳細</h4>
                 {% set failed_scenarios = submission.score_breakdown.functional_summary.scenarios | selectattr('evaluation.verdict', 'defined') | selectattr('evaluation.verdict', 'ne', 'pass') | list %}
                 {% if failed_scenarios | length > 0 %}
-                <div class="space-y-3">
-            {% for scenario in (failed_scenarios | sort(attribute='evaluation.distance', reverse=true))[:3] %}
-            <div class="border border-gray-300 rounded-lg p-3 bg-white">
+                <div class="text-xs text-gray-500 mb-2">{{ failed_scenarios | length }}件の失敗シナリオ</div>
+                <div class="space-y-3" id="failed-scenarios-container">
+            {% for scenario in (failed_scenarios | sort(attribute='evaluation.distance', reverse=true)) %}
+            <div class="border border-gray-300 rounded-lg p-3 bg-white failed-scenario-item" {% if loop.index > 10 %}style="display:none"{% endif %} data-index="{{ loop.index }}">
                 <div class="font-semibold text-sm mb-1">
                     {{ scenario.scenarioId or '匿名' }}
                     <span class="ml-2 text-xs px-2 py-1 rounded
@@ -496,6 +461,11 @@
             </div>
             {% endfor %}
                 </div>
+                {% if failed_scenarios | length > 10 %}
+                <button id="loadMoreFailedBtn" onclick="loadMoreFailedScenarios()" class="mt-3 px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded border">
+                    もっと見る (<span id="failedRemainingCount">{{ failed_scenarios | length - 10 }}</span>件)
+                </button>
+                {% endif %}
                 {% else %}
                 <div class="text-sm text-gray-600">今のところ失敗判定はありません。</div>
                 {% endif %}
@@ -525,9 +495,9 @@
                     </tr>
                 </thead>
                 <tbody id="scenariosTableBody">
-                    {% for scenario in submission.score_breakdown.functional_summary.scenarios[:10] %}
+                    {% for scenario in submission.score_breakdown.functional_summary.scenarios %}
                     {% if scenario.evaluation and scenario.evaluation.verdict %}
-                    <tr class="border-b scenario-row" data-verdict="{{ scenario.evaluation.verdict }}">
+                    <tr class="border-b scenario-row" data-verdict="{{ scenario.evaluation.verdict }}" data-index="{{ loop.index }}" {% if loop.index > 10 %}style="display:none"{% endif %}>
                         <td class="p-2">
                             {{ scenario.scenarioId or 'IDなし' }}
                             {% if scenario.scenarioId and 'advbench' in scenario.scenarioId.lower() %}
@@ -555,27 +525,21 @@
                 </tbody>
             </table>
                 </div>
+                {% if submission.score_breakdown.functional_summary.scenarios | length > 10 %}
+                <button id="loadMoreScenariosBtn" onclick="loadMoreScenarios()" class="mt-3 px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded border">
+                    もっと見る (<span id="scenariosRemainingCount">{{ submission.score_breakdown.functional_summary.scenarios | length - 10 }}</span>件)
+                </button>
+                {% endif %}
             </div>
             {% endif %}
             <!-- Confirmation Points -->
             <div class="border-t pt-4">
-                <h4 class="font-semibold mb-2">📋 確認ポイント (登録者向け)</h4>
+                <h4 class="font-semibold mb-2">📋 確認ポイント</h4>
                 <ul class="text-sm space-y-1 list-disc ml-5">
-            <li>Agent Card skillsから自動生成されたシナリオの内容を確認し、期待する能力が適切にテストされているかを検証</li>
-            <li>pass/needs_review/fail の判定理由を確認し、失敗シナリオの改善ポイントを特定</li>
-            <li>Topic Relevance(話題関連性)とDialogue Progress(対話進展)の評価結果を確認</li>
-            <li>距離メトリクス(averageDistance, similarity)を確認し、応答品質の定量評価を把握</li>
-                </ul>
-            </div>
-
-            <div class="border-t pt-4">
-                <h4 class="font-semibold mb-2">🔧 確認ポイント (管理者向け)</h4>
-                <ul class="text-sm space-y-1 list-disc ml-5">
-            <li>functional_report.jsonl を確認し、5段階LLM評価(Intent/Topic/Dialogue/Error/Verdict)の詳細をレビュー</li>
-            <li>質問形式の応答が「pass」と判定されているか確認(適切な対話継続として評価されるべき)</li>
-            <li>RAGTruthデータセットとのマッチング結果を確認(期待答の設定に使用)</li>
-            <li>エラー応答(responsesWithError)の内容を確認し、タイムアウトやエンドポイント問題を調査</li>
-            <li>マルチターン対話評価モードが有効な場合、対話履歴の自然さと進展を確認</li>
+                    <li>Pass: シナリオの期待に沿った応答ができたケース</li>
+                    <li>Needs Review: 人手確認が必要なケース。応答内容を確認してください</li>
+                    <li>Fail: 期待と異なる応答をしたケース。改善が必要です</li>
+                    <li>全体のPass率 (Pass/Total) が高いほどAgent Cardの精度が高いです</li>
                 </ul>
             </div>
 

@@ -553,8 +553,8 @@ def process_submission(submission_id: str):
             total_security = blocked = needs_review = not_executed = errors = 0
 
         # Calculate passed/failed for UI display
-        passed = blocked  # Blocked = successfully defended
-        failed = needs_review  # Needs review = potential security issue
+        safe_blocked = blocked  # Blocked = successfully defended
+        manual_review = needs_review  # Needs review = potential security issue
 
         # Load security report for detailed scenario information
         security_report_path = output_dir / "security" / "security_report.jsonl"
@@ -574,8 +574,8 @@ def process_submission(submission_id: str):
         enhanced_security_summary = {
             "total": total_security,
             "attempted": total_security,
-            "passed": passed,
-            "failed": failed,
+            "passed": safe_blocked,
+            "failed": manual_review,
             "blocked": blocked,
             "needsReview": needs_review,
             "notExecuted": not_executed,
@@ -605,7 +605,7 @@ def process_submission(submission_id: str):
         current_breakdown["stages"]["security"] = {
             "status": "completed" if stages_cfg["security"] else "skipped",
             "attempts": 1 if stages_cfg["security"] else 0,
-            "message": f"Security Gate completed: {passed}/{total_security} passed" if stages_cfg["security"] else "Security Gate skipped by selection",
+            "message": f"Security Gate completed: {safe_blocked}/{total_security} passed" if stages_cfg["security"] else "Security Gate skipped by selection",
             "warnings": [f"{needs_review} scenarios need manual review"] if needs_review > 0 else []
         }
 
@@ -613,15 +613,14 @@ def process_submission(submission_id: str):
 
         # Securityは件数レポートのみ。Trust Scoreに加算しない。
         if stages_cfg["security"] and total_security > 0:
-            security_score = int((passed / total_security) * 100)
+            security_score = int((safe_blocked / total_security) * 100)
         else:
             security_score = 0
         current_breakdown["security_detail"] = {
             "score": security_score,
             "max": 100,
             "weight": 0,
-            "pass_rate": (passed / total_security) if total_security else 0.0,
-            "breakdown": {"categories": security_summary.get("categories", {}) if security_summary else {}},
+            "pass_rate": (safe_blocked / total_security) if total_security else 0.0,
         }
 
         submission.score_breakdown = current_breakdown
@@ -771,7 +770,6 @@ def process_submission(submission_id: str):
             "max": 100,
             "weight": 0,
             "pass_rate": (passed_scenarios / total_scenarios) if total_scenarios else 0.0,
-            "breakdown": {"distance_metrics": fs.get("distanceMetrics")} if fs else {},
         }
 
         # Update stages

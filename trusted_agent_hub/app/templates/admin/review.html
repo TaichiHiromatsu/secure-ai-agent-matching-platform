@@ -148,20 +148,6 @@
             }
         }
 
-        function filterScenarios() {
-            const filter = document.getElementById('verdictFilter').value;
-            const rows = document.querySelectorAll('.scenario-row');
-
-            rows.forEach(row => {
-                const verdict = row.getAttribute('data-verdict');
-                if (filter === 'all' || verdict === filter) {
-                    row.style.display = '';
-                } else {
-                    row.style.display = 'none';
-                }
-            });
-        }
-
         function filterSecurityScenarios() {
             const filter = document.getElementById('securityVerdictFilter').value;
             const rows = document.querySelectorAll('.security-scenario-row');
@@ -174,6 +160,84 @@
                     row.style.display = 'none';
                 }
             });
+        }
+
+        // Pagination state
+        let failedScenariosShown = 10;
+        let scenariosShown = 10;
+
+        function loadMoreFailedScenarios() {
+            const items = document.querySelectorAll('.failed-scenario-item');
+            const btn = document.getElementById('loadMoreFailedBtn');
+            const countSpan = document.getElementById('failedRemainingCount');
+
+            let newShown = 0;
+            items.forEach(item => {
+                const index = parseInt(item.getAttribute('data-index'));
+                if (index > failedScenariosShown && index <= failedScenariosShown + 10) {
+                    item.style.display = '';
+                    newShown++;
+                }
+            });
+
+            failedScenariosShown += newShown;
+            const remaining = items.length - failedScenariosShown;
+
+            if (remaining <= 0) {
+                btn.style.display = 'none';
+            } else {
+                countSpan.textContent = remaining;
+            }
+        }
+
+        function loadMoreScenarios() {
+            const rows = document.querySelectorAll('.scenario-row');
+            const btn = document.getElementById('loadMoreScenariosBtn');
+            const countSpan = document.getElementById('scenariosRemainingCount');
+
+            let newShown = 0;
+            rows.forEach(row => {
+                const index = parseInt(row.getAttribute('data-index'));
+                if (index > scenariosShown && index <= scenariosShown + 10) {
+                    row.style.display = '';
+                    newShown++;
+                }
+            });
+
+            scenariosShown += newShown;
+            const remaining = rows.length - scenariosShown;
+
+            if (remaining <= 0) {
+                btn.style.display = 'none';
+            } else {
+                countSpan.textContent = remaining;
+            }
+        }
+
+        // Update filterScenarios to work with pagination
+        function filterScenarios() {
+            const filter = document.getElementById('verdictFilter').value;
+            const rows = document.querySelectorAll('.scenario-row');
+
+            rows.forEach(row => {
+                const verdict = row.getAttribute('data-verdict');
+                const index = parseInt(row.getAttribute('data-index'));
+
+                if (filter === 'all') {
+                    // Show based on pagination state
+                    row.style.display = index <= scenariosShown ? '' : 'none';
+                } else if (verdict === filter) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+
+            // Hide "load more" button when filtering
+            const btn = document.getElementById('loadMoreScenariosBtn');
+            if (btn) {
+                btn.style.display = filter === 'all' ? '' : 'none';
+            }
         }
 
         // Auto-fetch submission data every 5 seconds to check for updates
