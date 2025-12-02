@@ -856,31 +856,19 @@ def process_submission(submission_id: str):
             import asyncio
             sse_manager = get_sse_manager()
 
-            def websocket_callback(data: dict):
-                """Send real-time updates to WebSocket clients
+            async def sse_callback(data: dict):
+                """Send real-time updates to SSE clients (async version)
 
-                This is a synchronous wrapper that works within asyncio.run() context.
-                The CollaborativeJuryJudge._notify_websocket handles both sync and async callbacks.
+                This async callback is awaited by _notify_sse(), ensuring
+                SSE notifications are sent immediately when each event occurs.
                 """
-                print(f"[DEBUG websocket_callback] Called with data type: {data.get('type', 'unknown')}")
+                print(f"[DEBUG sse_callback] Called with data type: {data.get('type', 'unknown')}")
                 try:
-                    # Get the current event loop (should exist within asyncio.run() context)
-                    loop = asyncio.get_event_loop()
-                    print(f"[DEBUG websocket_callback] Got event loop: {loop}")
-                    # Validate/normalize payload once
                     payload = validate_event_dict(data)
-                    # Schedule the coroutine on the current loop (WebSocket + SSE)
-                    asyncio.ensure_future(sse_manager.send(submission_id, payload), loop=loop)
-                    print(f"[DEBUG websocket_callback] Scheduled SSE successfully")
-                except RuntimeError as e:
-                    # If no event loop, try creating a task in the running loop
-                    print(f"[DEBUG websocket_callback] WebSocket callback error: {e}")
-                    try:
-                        payload = validate_event_dict(data)
-                        asyncio.create_task(sse_manager.send(submission_id, payload))
-                        print(f"[DEBUG websocket_callback] Created SSE task successfully")
-                    except RuntimeError:
-                        print(f"[DEBUG websocket_callback] Could not schedule SSE notification: {data.get('type', 'unknown')}")
+                    await sse_manager.send(submission_id, payload)
+                    print(f"[DEBUG sse_callback] SSE sent successfully")
+                except Exception as e:
+                    print(f"[ERROR sse_callback] SSE notification failed: {e}")
 
             judge_summary = run_judge_panel(
                 agent_id=submission.agent_id,
@@ -893,7 +881,7 @@ def process_submission(submission_id: str):
                 max_questions=5,
                 security_gate_results=security_gate_results,
                 agent_card_accuracy=agent_card_accuracy,
-                websocket_callback=websocket_callback
+                sse_callback=sse_callback
             )
 
             wandb_logger.log_stage_summary("judge", judge_summary)

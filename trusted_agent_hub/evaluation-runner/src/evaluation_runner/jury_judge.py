@@ -65,7 +65,7 @@ def run_judge_panel(
     enable_google: bool = True,
     security_gate_results: Optional[Dict[str, Any]] = None,
     agent_card_accuracy: Optional[Dict[str, Any]] = None,
-    websocket_callback = None,
+    sse_callback = None,
 ) -> Dict[str, Any]:
     """
     Run Multi-Model Judge Panel evaluation - W&B Weaveでトレース
@@ -165,7 +165,7 @@ def run_judge_panel(
                 enable_google=enable_google,
                 security_gate_results=security_gate_results,
                 agent_card_accuracy=agent_card_accuracy,
-                websocket_callback=websocket_callback,
+                sse_callback=sse_callback,
             )
 
         params = MCTSParams()
@@ -325,7 +325,7 @@ def _run_collaborative_jury_evaluation(
     revision: str,
     security_gate_results: Optional[Dict[str, Any]] = None,
     agent_card_accuracy: Optional[Dict[str, Any]] = None,
-    websocket_callback = None,
+    sse_callback = None,
     enable_openai: bool = True,
     enable_anthropic: bool = True,
     enable_google: bool = True,
@@ -400,7 +400,7 @@ def _run_collaborative_jury_evaluation(
             scenarios=scenario_data,
             security_gate_results=security_gate_results,
             agent_card_accuracy=agent_card_accuracy,
-            websocket_callback=websocket_callback,
+            sse_callback=sse_callback,
         ))
 
         # 結果を処理
@@ -593,7 +593,7 @@ def _run_stage_multi_model_judge_panel(
     enable_google: bool = True,
     security_gate_results: Optional[Dict[str, Any]] = None,
     agent_card_accuracy: Optional[Dict[str, Any]] = None,
-    websocket_callback = None,
+    sse_callback = None,
 ) -> Dict[str, Any]:
     """Plan / Counter / Reconcile の3ステージで Multi-Model Judge を実行する - W&B Weaveでトレース"""
 
@@ -608,7 +608,7 @@ def _run_stage_multi_model_judge_panel(
             revision=revision,
             security_gate_results=security_gate_results,
             agent_card_accuracy=agent_card_accuracy,
-            websocket_callback=websocket_callback,
+            sse_callback=sse_callback,
             enable_openai=enable_openai,
             enable_anthropic=enable_anthropic,
             enable_google=enable_google,

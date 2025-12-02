@@ -391,7 +391,7 @@ class CollaborativeJuryJudge:
         execution,  # ExecutionResult
         security_gate_results: Optional[Dict[str, Any]] = None,
         agent_card_accuracy: Optional[Dict[str, Any]] = None,
-        websocket_callback: Optional[Callable] = None,
+        sse_callback: Optional[Callable] = None,
     ) -> CollaborativeEvaluationResult:
         """
         協調評価を実行
@@ -401,7 +401,7 @@ class CollaborativeJuryJudge:
             execution: エージェントの実行結果
             security_gate_results: Security Gateの結果
             agent_card_accuracy: Agent Card Accuracyの結果
-            websocket_callback: リアルタイム更新用のコールバック
+            sse_callback: リアルタイム更新用のコールバック
 
         Returns:
             CollaborativeEvaluationResult: 協調評価の結果
@@ -416,7 +416,7 @@ class CollaborativeJuryJudge:
         )
 
         # WebSocket通知: 評価開始
-        await self._notify_websocket(websocket_callback, {
+        await self._notify_sse(sse_callback, {
             "type": "evaluation_started",
             "phase": "initial",
             "jurors": self.jurors,
@@ -424,8 +424,8 @@ class CollaborativeJuryJudge:
         })
 
         # === Phase 1: 独立評価 ===
-        await self._notify_websocket(websocket_callback, {
-            "type": "phase_started",
+        await self._notify_sse(sse_callback, {
+            "type": "phase_change",
             "phase": "initial_evaluation",
             "phaseNumber": 1,
             "description": "独立評価",
@@ -433,7 +433,7 @@ class CollaborativeJuryJudge:
         })
 
         phase1_evaluations = await self._phase1_independent_evaluation(
-            question, execution, security_gate_results, agent_card_accuracy, websocket_callback
+            question, execution, security_gate_results, agent_card_accuracy, sse_callback
         )
         result.phase1_evaluations = phase1_evaluations
 
@@ -441,7 +441,7 @@ class CollaborativeJuryJudge:
         consensus = self._check_consensus(phase1_evaluations, round_number=0)
         result.phase1_consensus = consensus
 
-        await self._notify_websocket(websocket_callback, {
+        await self._notify_sse(sse_callback, {
             "type": "consensus_check",
             "round": 0,
             "consensus": consensus.consensus_status.value,
@@ -459,7 +459,7 @@ class CollaborativeJuryJudge:
             result.total_rounds = 0
             result.total_time_ms = (time.perf_counter() - start_time) * 1000
 
-            await self._notify_websocket(websocket_callback, {
+            await self._notify_sse(sse_callback, {
                 "type": "evaluation_completed",
                 "early_termination": True,
                 "reason": "phase1_consensus",
@@ -471,8 +471,8 @@ class CollaborativeJuryJudge:
             return result
 
         # === Phase 2: 協調ディスカッション ===
-        await self._notify_websocket(websocket_callback, {
-            "type": "phase_started",
+        await self._notify_sse(sse_callback, {
+            "type": "phase_change",
             "phase": "discussion",
             "phaseNumber": 2,
             "description": "ディスカッション",
@@ -480,7 +480,7 @@ class CollaborativeJuryJudge:
         })
 
         discussion_result = await self._phase2_collaborative_discussion(
-            question, execution, phase1_evaluations, websocket_callback
+            question, execution, phase1_evaluations, sse_callback
         )
         # 後方互換性のため、phase2_roundsは空リストとして保持
         result.phase2_rounds = []
@@ -501,7 +501,7 @@ class CollaborativeJuryJudge:
             result.termination_reason = "discussion_consensus"
             result.total_time_ms = (time.perf_counter() - start_time) * 1000
 
-            await self._notify_websocket(websocket_callback, {
+            await self._notify_sse(sse_callback, {
                 "type": "evaluation_completed",
                 "early_termination": True,
                 "reason": "discussion_consensus",
@@ -513,8 +513,8 @@ class CollaborativeJuryJudge:
             return result
 
         # === Phase 3: 最終合議 ===
-        await self._notify_websocket(websocket_callback, {
-            "type": "phase_started",
+        await self._notify_sse(sse_callback, {
+            "type": "phase_change",
             "phase": "final_judgment",
             "phaseNumber": 3,
             "description": "最終判定",
@@ -522,14 +522,14 @@ class CollaborativeJuryJudge:
         })
 
         final_judgment = await self._phase3_final_judgment(
-            question, execution, final_evaluations, result.phase2_rounds, websocket_callback
+            question, execution, final_evaluations, result.phase2_rounds, sse_callback
         )
         result.phase3_judgment = final_judgment
         result.final_verdict = final_judgment.final_verdict
         result.final_score = final_judgment.final_score
         result.total_time_ms = (time.perf_counter() - start_time) * 1000
 
-        await self._notify_websocket(websocket_callback, {
+        await self._notify_sse(sse_callback, {
             "type": "evaluation_completed",
             "verdict": result.final_verdict,
             "score": result.final_score,
@@ -545,7 +545,7 @@ class CollaborativeJuryJudge:
         execution,
         security_gate_results: Optional[Dict],
         agent_card_accuracy: Optional[Dict],
-        websocket_callback: Optional[Callable],
+        sse_callback: Optional[Callable],
     ) -> List[JurorEvaluation]:
         """Phase 1: 独立評価 - 各陪審員が独立に評価（役割別プロンプト付き）"""
 
@@ -630,7 +630,7 @@ class CollaborativeJuryJudge:
             evaluations.append(juror_eval)
 
             # WebSocket通知: 陪審員の評価完了（役割情報を追加）
-            await self._notify_websocket(websocket_callback, {
+            await self._notify_sse(sse_callback, {
                 "type": "juror_evaluation",
                 "phase": "initial",
                 "juror": mv.model,
@@ -765,7 +765,7 @@ class CollaborativeJuryJudge:
         question,
         execution,
         initial_evaluations: List[JurorEvaluation],
-        websocket_callback: Optional[Callable],
+        sse_callback: Optional[Callable],
     ) -> DiscussionResult:
         """Phase 2: 並列ラウンド議論
 
@@ -790,7 +790,7 @@ class CollaborativeJuryJudge:
             logger.info(f"[Phase 2] Round {current_round}: All jurors speaking in parallel")
 
             # WebSocket: discussion_start
-            await self._notify_websocket(websocket_callback, {
+            await self._notify_sse(sse_callback, {
                 "type": "discussion_start",
                 "round": current_round,
                 "speakerOrder": self.jurors,
@@ -804,7 +804,7 @@ class CollaborativeJuryJudge:
                 question=question,
                 execution=execution,
                 previous_rounds=previous_rounds,
-                websocket_callback=websocket_callback,
+                sse_callback=sse_callback,
             )
 
             # メッセージを記録
@@ -839,7 +839,7 @@ class CollaborativeJuryJudge:
             ))
 
             # WebSocket: consensus_check
-            await self._notify_websocket(websocket_callback, {
+            await self._notify_sse(sse_callback, {
                 "type": "consensus_check",
                 "round": current_round,
                 "consensusStatus": consensus.consensus_status.value,
@@ -1035,7 +1035,7 @@ Rationale: {my_eval.rationale if my_eval else ""}
         question,
         execution,
         previous_rounds: List[DiscussionRound],
-        websocket_callback: Optional[Callable],
+        sse_callback: Optional[Callable],
     ) -> List[JurorStatement]:
         """並列実行: 全3人のJurorが同時に共有会話履歴を見て発言を生成
 
@@ -1061,7 +1061,7 @@ Rationale: {my_eval.rationale if my_eval else ""}
                 current_evaluations=current_evaluations,
                 question=question,
                 execution=execution,
-                websocket_callback=websocket_callback,
+                sse_callback=sse_callback,
             )
             tasks.append(task)
 
@@ -1131,7 +1131,7 @@ Rationale: {my_eval.rationale if my_eval else ""}
         current_evaluations: List[JurorEvaluation],
         question,
         execution,
-        websocket_callback: Optional[Callable],
+        sse_callback: Optional[Callable],
     ) -> JurorStatement:
         """単一Jurorの発言を生成（並列実行用）
 
@@ -1224,7 +1224,7 @@ Rationale: {my_eval.rationale if my_eval else ""}
             })
 
         # WebSocket通知
-        await self._notify_websocket(websocket_callback, {
+        await self._notify_sse(sse_callback, {
             "type": "juror_statement",
             "round": round_num,
             "juror": juror_id,
@@ -1248,7 +1248,7 @@ Rationale: {my_eval.rationale if my_eval else ""}
         question,
         execution,
         previous_rounds: List[DiscussionRound],
-        websocket_callback: Optional[Callable],
+        sse_callback: Optional[Callable],
     ) -> JurorStatement:
         """陪審員の発言を生成"""
 
@@ -1312,7 +1312,7 @@ Rationale: {my_eval.rationale if my_eval else ""}
             })
 
         # WebSocket通知
-        await self._notify_websocket(websocket_callback, {
+        await self._notify_sse(sse_callback, {
             "type": "juror_statement",
             "round": round_num,
             "juror": juror_id,
@@ -1331,14 +1331,14 @@ Rationale: {my_eval.rationale if my_eval else ""}
         execution,
         final_evaluations: List[JurorEvaluation],
         discussion_rounds: List[DiscussionRound],
-        websocket_callback: Optional[Callable],
+        sse_callback: Optional[Callable],
     ) -> FinalJudgment:
         """Phase 3: 最終合議"""
 
         logger.info("🎯 Phase 3: Final judgment method = final_judge (forced)")
 
         return await self._final_judge_judgment(
-            question, execution, final_evaluations, discussion_rounds, websocket_callback
+            question, execution, final_evaluations, discussion_rounds, sse_callback
         )
 
     async def _final_judge_judgment(
@@ -1347,7 +1347,7 @@ Rationale: {my_eval.rationale if my_eval else ""}
         execution,
         final_evaluations: List[JurorEvaluation],
         discussion_rounds: List[DiscussionRound],
-        websocket_callback: Optional[Callable],
+        sse_callback: Optional[Callable],
         context: Optional[str] = None,
     ) -> FinalJudgment:
         """最終審査役による判断"""
@@ -1411,7 +1411,7 @@ You must be objective and not favor any specific juror's model.
         )
         result = await self.final_judge.evaluate_async(temp_question, final_execution)
 
-        await self._notify_websocket(websocket_callback, {
+        await self._notify_sse(sse_callback, {
             "type": "final_judge_decision",
             "model": self.final_judge_model,
             "verdict": result.verdict,
@@ -1781,42 +1781,42 @@ Consensus: {round.consensus_check.consensus_status.value if round.consensus_chec
 """
         return artifacts
 
-    async def _notify_websocket(
+    async def _notify_sse(
         self,
         callback: Optional[Callable],
         message: Dict[str, Any]
     ):
-        """WebSocket通知を送信"""
+        """SSE通知を送信"""
         import logging
         logger = logging.getLogger(__name__)
 
-        print(f"[DEBUG _notify_websocket] callback={callback is not None}, message_type={message.get('type', 'unknown')}")
+        print(f"[DEBUG _notify_sse] callback={callback is not None}, message_type={message.get('type', 'unknown')}")
 
         if callback:
             try:
-                print(f"[DEBUG _notify_websocket] Sending WebSocket notification: {message.get('type', 'unknown')}")
-                logger.info(f"Sending WebSocket notification: {message.get('type', 'unknown')}")
+                print(f"[DEBUG _notify_sse] Sending SSE notification: {message.get('type', 'unknown')}")
+                logger.info(f"Sending SSE notification: {message.get('type', 'unknown')}")
                 if asyncio.iscoroutinefunction(callback):
                     await callback(message)
-                    print(f"[DEBUG _notify_websocket] WebSocket notification sent successfully (async)")
-                    logger.info("WebSocket notification sent successfully (async)")
+                    print(f"[DEBUG _notify_sse] SSE notification sent successfully (async)")
+                    logger.info("SSE notification sent successfully (async)")
                 else:
                     callback(message)
-                    print(f"[DEBUG _notify_websocket] WebSocket notification sent successfully (sync)")
-                    logger.info("WebSocket notification sent successfully (sync)")
+                    print(f"[DEBUG _notify_sse] SSE notification sent successfully (sync)")
+                    logger.info("SSE notification sent successfully (sync)")
             except Exception as e:
-                print(f"[DEBUG _notify_websocket] WebSocket notification failed: {e}")
-                logger.error(f"WebSocket notification failed: {e}", exc_info=True)
+                print(f"[DEBUG _notify_sse] SSE notification failed: {e}")
+                logger.error(f"SSE notification failed: {e}", exc_info=True)
         else:
-            print(f"[DEBUG _notify_websocket] WebSocket callback is None, skipping notification")
-            logger.warning("WebSocket callback is None, skipping notification")
+            print(f"[DEBUG _notify_sse] SSE callback is None, skipping notification")
+            logger.warning("SSE callback is None, skipping notification")
 
     async def evaluate_collaborative_batch(
         self,
         scenarios: List[tuple],  # List of (QuestionSpec, ExecutionResult) tuples
         security_gate_results: Optional[Dict[str, Any]] = None,
         agent_card_accuracy: Optional[Dict[str, Any]] = None,
-        websocket_callback: Optional[Callable] = None,
+        sse_callback: Optional[Callable] = None,
     ) -> CollaborativeEvaluationResult:
         """
         複数シナリオを集約的に評価
@@ -1825,7 +1825,7 @@ Consensus: {round.consensus_check.consensus_status.value if round.consensus_chec
             scenarios: (QuestionSpec, ExecutionResult)のタプルのリスト
             security_gate_results: Security Gateの結果
             agent_card_accuracy: Agent Card Accuracyの結果
-            websocket_callback: リアルタイム更新用のコールバック
+            sse_callback: リアルタイム更新用のコールバック
 
         Returns:
             CollaborativeEvaluationResult: 集約評価の結果
@@ -1844,7 +1844,7 @@ Consensus: {round.consensus_check.consensus_status.value if round.consensus_chec
         )
 
         # WebSocket通知: 評価開始
-        await self._notify_websocket(websocket_callback, {
+        await self._notify_sse(sse_callback, {
             "type": "evaluation_started",
             "phase": "collective_evaluation",
             "jurors": self.jurors,
@@ -1861,14 +1861,16 @@ Consensus: {round.consensus_check.consensus_status.value if round.consensus_chec
         )
 
         # === Phase 1: 集約的独立評価 ===
-        await self._notify_websocket(websocket_callback, {
-            "type": "phase_started",
+        await self._notify_sse(sse_callback, {
+            "type": "phase_change",
             "phase": "collective_independent_evaluation",
+            "phaseNumber": 1,
+            "description": "独立評価",
             "timestamp": datetime.utcnow().isoformat(),
         })
 
         phase1_evaluations = await self._phase1_collective_evaluation(
-            scenarios, comparative_context, websocket_callback
+            scenarios, comparative_context, sse_callback
         )
         result.phase1_evaluations = phase1_evaluations
 
@@ -1881,9 +1883,11 @@ Consensus: {round.consensus_check.consensus_status.value if round.consensus_chec
             result.early_termination = True
             result.termination_reason = "phase1_consensus"
         else:
-            await self._notify_websocket(websocket_callback, {
-                "type": "phase_started",
+            await self._notify_sse(sse_callback, {
+                "type": "phase_change",
                 "phase": "collective_discussion",
+                "phaseNumber": 2,
+                "description": "ディスカッション",
                 "timestamp": datetime.utcnow().isoformat(),
             })
 
@@ -1891,15 +1895,17 @@ Consensus: {round.consensus_check.consensus_status.value if round.consensus_chec
                 scenarios,
                 phase1_evaluations,
                 comparative_context,
-                websocket_callback
+                sse_callback
             )
             result.phase2_rounds = discussion_rounds
             result.total_rounds = len(discussion_rounds)
 
         # === Phase 3: 最終判断（final_judge に固定） ===
-        await self._notify_websocket(websocket_callback, {
-            "type": "phase_started",
+        await self._notify_sse(sse_callback, {
+            "type": "phase_change",
             "phase": "collective_final_judgment",
+            "phaseNumber": 3,
+            "description": "最終判定",
             "timestamp": datetime.utcnow().isoformat(),
         })
 
@@ -1909,7 +1915,7 @@ Consensus: {round.consensus_check.consensus_status.value if round.consensus_chec
             execution=None,
             final_evaluations=phase1_evaluations,
             discussion_rounds=result.phase2_rounds,
-            websocket_callback=websocket_callback,
+            sse_callback=sse_callback,
             context=comparative_context,
         )
         result.phase3_judgment = final_judgment
@@ -1950,7 +1956,7 @@ Consensus: {round.consensus_check.consensus_status.value if round.consensus_chec
         result.total_time_ms = (time.perf_counter() - start_time) * 1000
 
         # WebSocket通知: 評価完了
-        await self._notify_websocket(websocket_callback, {
+        await self._notify_sse(sse_callback, {
             "type": "evaluation_completed",
             "finalVerdict": result.final_verdict,
             "finalScore": result.final_score,
@@ -2012,7 +2018,7 @@ Consensus: {round.consensus_check.consensus_status.value if round.consensus_chec
         self,
         scenarios: List[tuple],
         comparative_context: str,
-        websocket_callback: Optional[Callable]
+        sse_callback: Optional[Callable]
     ) -> List[JurorEvaluation]:
         """Phase 1: 陪審員が集約的に独立評価"""
 
@@ -2029,7 +2035,7 @@ Consensus: {round.consensus_check.consensus_status.value if round.consensus_chec
 
         # WebSocket通知: 各陪審員の評価
         for ev in evaluations:
-            await self._notify_websocket(websocket_callback, {
+            await self._notify_sse(sse_callback, {
                 "type": "juror_evaluation",
                 "phase": "collective_independent",
                 "juror": ev.juror_id,
@@ -2037,6 +2043,11 @@ Consensus: {round.consensus_check.consensus_status.value if round.consensus_chec
                 "score": ev.overall_score,
                 "confidence": ev.confidence,
                 "rationale": ev.rationale[:200],
+                # AISI 4軸スコア
+                "taskCompletion": ev.security_score,
+                "toolUsage": ev.compliance_score,
+                "autonomy": ev.autonomy_score,
+                "safety": ev.safety_score,
                 "timestamp": datetime.utcnow().isoformat(),
             })
 
@@ -2175,7 +2186,7 @@ Additional fields for collaborative evaluation:
         scenarios: List[tuple],
         phase1_evaluations: List[JurorEvaluation],
         comparative_context: str,
-        websocket_callback: Optional[Callable]
+        sse_callback: Optional[Callable]
     ) -> List[DiscussionRound]:
         """Phase 2: 集約的議論（全シナリオを横断した協調評価）
 
@@ -2192,7 +2203,7 @@ Additional fields for collaborative evaluation:
         stagnant_jurors: Set[str] = set()  # 停滞中の陪審員
 
         for round_num in range(1, self.max_discussion_turns + 1):
-            await self._notify_websocket(websocket_callback, {
+            await self._notify_sse(sse_callback, {
                 "type": "round_started",
                 "round": round_num,
                 "max_rounds": self.max_discussion_turns,
@@ -2208,7 +2219,7 @@ Additional fields for collaborative evaluation:
             # 停滞中の陪審員はスキップされる
             statements = await self._generate_collective_parallel_statements(
                 round_num, current_evaluations, comparative_context,
-                scenarios, rounds, websocket_callback,
+                scenarios, rounds, sse_callback,
                 stagnant_jurors=stagnant_jurors,
                 previous_positions=previous_positions,
             )
@@ -2236,7 +2247,7 @@ Additional fields for collaborative evaluation:
             consensus = self._check_consensus(current_evaluations, round_num)
             round_data.consensus_check = consensus
 
-            await self._notify_websocket(websocket_callback, {
+            await self._notify_sse(sse_callback, {
                 "type": "round_completed",
                 "round": round_num,
                 "consensus": consensus.consensus_status.value,
@@ -2277,7 +2288,7 @@ Additional fields for collaborative evaluation:
         comparative_context: str,
         scenarios: List[tuple],
         previous_rounds: List[DiscussionRound],
-        websocket_callback: Optional[Callable],
+        sse_callback: Optional[Callable],
         stagnant_jurors: Optional[Set[str]] = None,
         previous_positions: Optional[Dict[str, str]] = None,
     ) -> List[JurorStatement]:
@@ -2333,16 +2344,22 @@ Additional fields for collaborative evaluation:
                 current_evaluations=current_evaluations,
                 comparative_context=comparative_context,
                 scenarios=scenarios,
-                websocket_callback=websocket_callback,
+                sse_callback=sse_callback,
             )
             tasks.append(task)
             task_juror_indices.append(juror_idx)
 
-        # 並列実行（停滞していない陪審員のみ）
+        # 並列実行（停滞していない陪審員のみ）- as_completedでリアルタイム送信
         generated_statements = []
         if tasks:
-            results = await asyncio.gather(*tasks)
-            for idx, result in zip(task_juror_indices, results):
+            # juror_idからインデックスへのマッピングを作成
+            juror_to_idx = {self.jurors[idx]: idx for idx in task_juror_indices}
+            # as_completedを使用して、完了したタスクから順次処理
+            # これにより各陪審員の発言が完了次第SSEが即座に送信される
+            for coro in asyncio.as_completed(tasks):
+                result = await coro
+                # resultのjuror_idから対応するインデックスを特定
+                idx = juror_to_idx.get(result.juror_id, 0)
                 generated_statements.append((idx, result))
 
         # 元の順序を維持してマージ
@@ -2397,7 +2414,7 @@ Additional fields for collaborative evaluation:
         current_evaluations: List[JurorEvaluation],
         comparative_context: str,
         scenarios: List[tuple],
-        websocket_callback: Optional[Callable],
+        sse_callback: Optional[Callable],
     ) -> JurorStatement:
         """集約評価用: 単一Jurorの発言を生成（並列実行用）"""
 
@@ -2476,11 +2493,11 @@ Round {round_num}として、他のJurorの評価と比較し、あなたの専�
                 updated_evaluation=updated_eval if updated_eval != my_eval else None,
             )
 
-            await self._notify_websocket(websocket_callback, {
-                "type": "statement_generated",
+            await self._notify_sse(sse_callback, {
+                "type": "juror_statement",
                 "juror": juror_id,
                 "round": round_num,
-                "statement": response_text[:200],
+                "statement": response_text,
                 "timestamp": datetime.utcnow().isoformat(),
             })
 
@@ -2502,7 +2519,7 @@ Round {round_num}として、他のJurorの評価と比較し、あなたの専�
         phase1_evaluations: List[JurorEvaluation],
         discussion_rounds: List[DiscussionRound],
         comparative_context: str,
-        websocket_callback: Optional[Callable]
+        sse_callback: Optional[Callable]
     ) -> FinalJudgment:
         """Phase 3: 集約的最終判断 (final_judge に委譲)"""
 
@@ -2511,6 +2528,6 @@ Round {round_num}として、他のJurorの評価と比較し、あなたの専�
             execution=None,
             final_evaluations=phase1_evaluations,
             discussion_rounds=discussion_rounds,
-            websocket_callback=websocket_callback,
+            sse_callback=sse_callback,
             context=comparative_context,
         )
