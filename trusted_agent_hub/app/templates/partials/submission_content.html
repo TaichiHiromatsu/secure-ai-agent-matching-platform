@@ -1330,18 +1330,45 @@
      */
     function typeText(container, text, speed = 15) {
         return new Promise((resolve) => {
+            // Guard: 空またはundefinedの場合は即座に完了
+            if (!text || text.length === 0) {
+                resolve();
+                return;
+            }
+
             container.classList.add('typing');
+            const scrollContainer = container.closest('.magi-chat-log');
             let i = 0;
-            const interval = setInterval(() => {
+
+            // requestAnimationFrameベースの実装（setIntervalより信頼性が高い）
+            let lastTime = 0;
+            function animate(currentTime) {
+                if (!lastTime) lastTime = currentTime;
+                const elapsed = currentTime - lastTime;
+
+                // speed ms経過するごとに1文字追加
+                if (elapsed >= speed) {
+                    if (i < text.length) {
+                        container.textContent += text[i];
+                        i++;
+                        lastTime = currentTime;
+
+                        // スクロールを最下部に維持
+                        if (scrollContainer) {
+                            scrollContainer.scrollTop = scrollContainer.scrollHeight;
+                        }
+                    }
+                }
+
                 if (i < text.length) {
-                    container.textContent += text[i];
-                    i++;
+                    requestAnimationFrame(animate);
                 } else {
-                    clearInterval(interval);
                     container.classList.remove('typing');
                     resolve();
                 }
-            }, speed);
+            }
+
+            requestAnimationFrame(animate);
         });
     }
 
@@ -1363,9 +1390,14 @@
      * メッセージをキューに追加し、処理を開始
      */
     function queueMessage(unit, message, options = {}) {
+        console.log(`[TypeAnimation] 📥 queueMessage called for ${unit}, queue length before: ${messageQueues[unit].length}, isProcessing: ${isProcessing[unit]}`);
+        console.log(`[TypeAnimation] 📥 Message preview: "${(message || '').substring(0, 50)}..."`);
         messageQueues[unit].push({ message, options });
         if (!isProcessing[unit]) {
+            console.log(`[TypeAnimation] 🚀 Starting processQueue for ${unit}`);
             processQueue(unit);
+        } else {
+            console.log(`[TypeAnimation] ⏳ ${unit} is already processing, message added to queue`);
         }
     }
 
@@ -1373,12 +1405,16 @@
      * キューを順次処理
      */
     async function processQueue(unit) {
+        console.log(`[TypeAnimation] 🔄 processQueue started for ${unit}`);
         isProcessing[unit] = true;
         while (messageQueues[unit].length > 0) {
             const { message, options } = messageQueues[unit].shift();
+            console.log(`[TypeAnimation] ✍️ Processing message for ${unit}, remaining in queue: ${messageQueues[unit].length}`);
             await displayMessageWithTyping(unit, message, options);
+            console.log(`[TypeAnimation] ✅ Finished typing for ${unit}`);
         }
         isProcessing[unit] = false;
+        console.log(`[TypeAnimation] 🏁 processQueue finished for ${unit}`);
     }
 
     /**
