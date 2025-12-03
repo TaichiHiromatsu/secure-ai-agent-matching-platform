@@ -125,7 +125,7 @@ dmyp.json
 .ipynb_checkpoints
 
 # Artifacts (generated files from mediation agent)
-secure-mediation-agent/artifacts/
+secure_mediation_agent/artifacts/
 artifacts/
 artifacts/plans/
 

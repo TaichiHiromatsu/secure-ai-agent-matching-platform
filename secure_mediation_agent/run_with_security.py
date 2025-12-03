@@ -88,7 +88,7 @@ def main():
     app = create_app(
         agent=secure_mediator,
         runner=runner,
-        app_name="secure-mediation-agent",
+        app_name="secure_mediation_agent",
     )
 
     uvicorn.run(

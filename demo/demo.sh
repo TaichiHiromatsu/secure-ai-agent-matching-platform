@@ -14,10 +14,10 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Load environment variables
-if [ -f "secure-mediation-agent/.env" ]; then
-    export $(cat secure-mediation-agent/.env | grep -v '^#' | xargs)
+if [ -f "secure_mediation_agent/.env" ]; then
+    export $(cat secure_mediation_agent/.env | grep -v '^#' | xargs)
 else
-    echo -e "${RED}❌ Error: .env file not found in secure-mediation-agent/.env${NC}"
+    echo -e "${RED}❌ Error: .env file not found in secure_mediation_agent/.env${NC}"
     echo "Please create .env file with GOOGLE_API_KEY"
     exit 1
 fi
@@ -113,11 +113,11 @@ echo -e "${BLUE}🛡️  Starting Secure Mediation Agent (Web UI)...${NC}"
 echo ""
 echo -e "${GREEN}🌐 Starting Web UI on http://localhost:8000${NC}"
 echo -e "${YELLOW}📝 This will allow reviewers to trace execution in the web interface${NC}"
-echo -e "${YELLOW}🔒 A2A Security Judge implementation available in secure-mediation-agent/security/${NC}"
+echo -e "${YELLOW}🔒 A2A Security Judge implementation available in secure_mediation_agent/security/${NC}"
 sleep 2
 
 # Start with standard ADK web (Plugin integration requires ADK version upgrade)
-# Start from project root so secure-mediation-agent folder appears in the list
+# Start from project root so secure_mediation_agent folder appears in the list
 uv run adk web --port 8000 --reload > /tmp/mediation-agent.log 2>&1 &
 MEDIATION_PID=$!
 sleep 5
@@ -170,7 +170,7 @@ echo ""
 echo -e "${YELLOW}📝 How to Use:${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "1. ブラウザが開いたら、左上の「Select an agent」をクリック"
-echo "2. 「secure-mediation-agent」を選択"
+echo "2. 「secure_mediation_agent」を選択"
 echo "3. 以下の例をコピーして入力してください:"
 echo ""
 echo "沖縄旅行の予約をお願いします。"

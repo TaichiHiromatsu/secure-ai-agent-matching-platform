@@ -258,7 +258,7 @@ sequenceDiagram
 
 ```
 secure-ai-agent-matching-platform/
-├── secure-mediation-agent/           # 🔒 セキュア仲介エージェント (中核)
+├── secure_mediation_agent/           # 🔒 セキュア仲介エージェント (中核)
 │   ├── agent.py                      # メイン仲介エージェント
 │   ├── models.py                     # データモデル (A2A準拠)
 │   ├── agent-card.json               # A2Aエージェントカード
@@ -337,7 +337,7 @@ uv sync
 
 # 4. 環境変数を設定
 # ⚠️ Geniac Prize審査員の方: 別途共有しているGemini API Keyをご利用ください
-echo "GOOGLE_API_KEY=your-gemini-api-key" > secure-mediation-agent/.env
+echo "GOOGLE_API_KEY=your-gemini-api-key" > secure_mediation_agent/.env
 
 # 5. デモスクリプトで全エージェントを起動（必ず ./ を付ける）
 ./demo/demo.sh

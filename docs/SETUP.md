@@ -99,7 +99,7 @@ ls -la
 
 **期待される出力**:
 ```
-secure-mediation-agent/
+secure_mediation_agent/
 external-agents/
 demo/
 docs/
@@ -119,13 +119,13 @@ README.md
 ### 2.3 環境変数の設定
 
 ```bash
-# .envファイルを作成（secure-mediation-agent配下に）
-cat > secure-mediation-agent/.env << EOF
+# .envファイルを作成（secure_mediation_agent配下に）
+cat > secure_mediation_agent/.env << EOF
 GOOGLE_API_KEY=your-actual-api-key-here
 EOF
 
 # 確認
-cat secure-mediation-agent/.env
+cat secure_mediation_agent/.env
 ```
 
 **⚠️ Geniac Prize審査員の方**: `your-actual-api-key-here` を別途共有しているGemini API Keyに置き換えてください。
@@ -219,7 +219,7 @@ uv run adk api_server --a2a --port 8004 external-agents/trusted-agents/car-renta
 #### ターミナル4: Mediation Agent Web UI（ポート 8000）
 
 ```bash
-uv run adk web secure-mediation-agent --port 8000
+uv run adk web secure_mediation_agent --port 8000
 ```
 
 **注意**: 各エージェントの起動には20-30秒かかる場合があります。

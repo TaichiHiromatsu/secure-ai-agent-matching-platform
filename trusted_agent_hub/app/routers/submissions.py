@@ -538,7 +538,7 @@ def process_submission(submission_id: str):
             print(f"Invalid or missing serviceUrl/url in Agent Card for submission {submission_id}")
             return
 
-        # Note: In Dockerfile.cloudrun environment, all services run in a single container
+        # Note: In Dockerfile environment, all services run in a single container
         # and can communicate via 127.0.0.1, so no hostname normalization is needed.
 
         # --- 1. Security Gate ---
@@ -1118,7 +1118,7 @@ async def create_submission(
     db: Session = Depends(get_db)
 ):
     # Fetch Agent Card
-    # Note: In Dockerfile.cloudrun environment, all services run in a single container
+    # Note: In Dockerfile environment, all services run in a single container
     # and can communicate via 127.0.0.1, so no hostname normalization is needed.
     agent_card_url = submission.agent_card_url
 
@@ -1131,7 +1131,7 @@ async def create_submission(
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to fetch Agent Card: {str(e)}")
 
-    # Note: In Dockerfile.cloudrun environment, ADK uses --host 127.0.0.1
+    # Note: In Dockerfile environment, ADK uses --host 127.0.0.1
     # so the url field in agent card is already accessible. No normalization needed.
 
     # Extract agent_id from Agent Card - A2A Protocol uses "name" field as the primary identifier

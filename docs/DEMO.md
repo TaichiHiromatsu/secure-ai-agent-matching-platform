@@ -420,7 +420,7 @@ curl http://localhost:8002/a2a/car_rental_agent/.well-known/agent-card.json
 **解決策**: コードの確認
 ```bash
 # 異常検知エージェントのパターンを確認
-grep -r "ignore.*previous" secure-mediation-agent/subagents/
+grep -r "ignore.*previous" secure_mediation_agent/subagents/
 ```
 
 ---

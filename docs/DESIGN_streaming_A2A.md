@@ -65,8 +65,8 @@ safety_settings_relaxed = [
 - ブロック理由は category/probability を保持し、ダッシュボードでフィルタリング可能に。
 
 ## 7. 変更対象ファイル（実装時の目安）
-- `secure-mediation-agent/subagents/orchestration_agent.py` : `stream`/`on_chunk` 追加、safety プリセット適用。
-- `secure-mediation-agent/agent.py` および各 subagent: `GenerateContentConfig` を共通プリセット参照に変更。
+- `secure_mediation_agent/subagents/orchestration_agent.py` : `stream`/`on_chunk` 追加、safety プリセット適用。
+- `secure_mediation_agent/agent.py` および各 subagent: `GenerateContentConfig` を共通プリセット参照に変更。
 - `external-agents/trusted-agents/*`（デモ用）: 同プリセットを適用し挙動を合わせる。
 - UI クライアント（Jury Judge ビュー）: SSE/WS クライアントとチャットタイムライン実装、トースト/インジケーター追加。
 

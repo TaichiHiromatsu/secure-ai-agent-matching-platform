@@ -11,7 +11,7 @@ export GOOGLE_API_KEY="your-api-key"
 ### ターミナル1: 仲介エージェント（ポート 8001）
 ```bash
 cd /Users/taichihiromatsu/Development/secure-ai-agent-matching-platform
-adk serve secure-mediation-agent/agent.py --port 8001
+adk serve secure_mediation_agent/agent.py --port 8001
 ```
 
 エージェントカード: http://localhost:8000/.well-known/agent-card.json

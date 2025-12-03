@@ -37,7 +37,7 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 cd "$PROJECT_ROOT"
 
 echo -e "${GREEN}Building Docker image...${NC}"
-docker build -t "${IMAGE_NAME}:latest" -f deploy/Dockerfile.cloudrun .
+docker build -t "${IMAGE_NAME}:latest" -f deploy/Dockerfile .
 
 echo -e "${GREEN}Pushing to Google Container Registry...${NC}"
 docker push "${IMAGE_NAME}:latest"

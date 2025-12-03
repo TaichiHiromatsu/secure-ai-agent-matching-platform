@@ -105,7 +105,7 @@ IMAGE_NAME="secure-platform:latest"
 
 # Build Docker image
 echo -e "${YELLOW}Building Docker image...${NC}"
-docker build -t "${IMAGE_NAME}" -f deploy/Dockerfile.cloudrun . --quiet
+docker build -t "${IMAGE_NAME}" -f deploy/Dockerfile . --quiet
 
 # Stop existing container if running
 docker stop secure-platform 2>/dev/null || true
@@ -154,7 +154,7 @@ if [ "$STORE_ONLY" = false ]; then
     # ============================================
     echo -e "${BLUE}[3/4] Starting Secure Mediation Agent (with ADK Web)...${NC}"
 
-    cd secure-mediation-agent
+    cd secure_mediation_agent
     nohup "$PROJECT_ROOT/.venv/bin/adk" web . --port 8000 --reload > "$LOG_DIR/secure_mediation_agent.log" 2>&1 &
     MEDIATION_PID=$!
     echo $MEDIATION_PID > "$PID_DIR/secure_mediation_agent.pid"

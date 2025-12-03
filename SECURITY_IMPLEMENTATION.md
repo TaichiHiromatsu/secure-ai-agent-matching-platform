@@ -8,7 +8,7 @@ Secure AI Agent Matching PlatformにA2A間接的プロンプトインジェク�
 
 ### 1. セキュリティモジュール
 ```
-secure-mediation-agent/security/
+secure_mediation_agent/security/
 ├── __init__.py                # モジュールエクスポート
 ├── custom_judge.py             # カスタムJudgeエージェント実装 ⭐
 └── README.md                   # 詳細ドキュメント
@@ -16,7 +16,7 @@ secure-mediation-agent/security/
 
 ### 2. ADK Pluginフレームワーク
 ```
-secure-mediation-agent/safety_plugins/
+secure_mediation_agent/safety_plugins/
 ├── base_plugin.py              # プラグインベースクラス
 ├── plugins/
 │   └── agent_as_a_judge.py    # LlmAsAJudgeプラグイン
@@ -26,7 +26,7 @@ secure-mediation-agent/safety_plugins/
 
 ### 3. 起動スクリプト
 ```
-secure-mediation-agent/run_with_security.py  # セキュリティ有効化Runner
+secure_mediation_agent/run_with_security.py  # セキュリティ有効化Runner
 demo/demo.sh                                   # 更新済み: Judgeプラグイン統合
 ```
 
@@ -34,7 +34,7 @@ demo/demo.sh                                   # 更新済み: Judgeプラグイ
 
 ### 独自のセキュリティ判定ロジック
 
-**[secure-mediation-agent/security/custom_judge.py](secure-mediation-agent/security/custom_judge.py:19-220)**で実装:
+**[secure_mediation_agent/security/custom_judge.py](secure_mediation_agent/security/custom_judge.py:19-220)**で実装:
 
 1. **A2A間接的プロンプトインジェクション検知**
    - 外部エージェント応答に埋め込まれた不正な指示を検出
@@ -173,8 +173,8 @@ Trust Score: 0.2
 ## 📖 詳細ドキュメント
 
 詳細は以下を参照:
-- [Security Module README](secure-mediation-agent/security/README.md)
-- [カスタムJudge実装](secure-mediation-agent/security/custom_judge.py)
+- [Security Module README](secure_mediation_agent/security/README.md)
+- [カスタムJudge実装](secure_mediation_agent/security/custom_judge.py)
 
 ## 🐛 トラブルシューティング
 

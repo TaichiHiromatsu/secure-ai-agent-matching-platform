@@ -270,7 +270,7 @@ class AnomalyDetectionResult:
 
 ```
 secure-ai-agent-matching-platform/
-├── secure-mediation-agent/
+├── secure_mediation_agent/
 │   ├── __init__.py
 │   ├── agent.py                    # メイン仲介エージェント
 │   ├── models.py                   # データモデル定義

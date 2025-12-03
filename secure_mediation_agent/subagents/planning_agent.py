@@ -43,7 +43,7 @@ async def save_plan_as_artifact(
     """
     # Convert to absolute path relative to project root
     if not os.path.isabs(output_dir):
-        # Get the project root directory (parent of secure-mediation-agent)
+        # Get the project root directory (parent of secure_mediation_agent)
         current_dir = Path(__file__).parent.parent.parent
         output_dir = current_dir / output_dir
     else:

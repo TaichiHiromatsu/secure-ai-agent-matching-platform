@@ -1,5 +1,5 @@
 # Multi-service container for Cloud Run
-# Combines: secure-mediation-agent, trusted_agent_hub, external-agents
+# Combines: secure_mediation_agent, trusted_agent_hub, external-agents
 # Uses Nginx as reverse proxy, supervisord for process management
 
 FROM python:3.12-slim
@@ -46,7 +46,7 @@ COPY trusted_agent_hub/data/agents/registered-agents.json /app/data/agents/
 # ============================================
 # Secure Mediation Agent & External Agents
 # ============================================
-COPY secure-mediation-agent ./secure-mediation-agent/secure-mediation-agent
+COPY secure_mediation_agent ./secure_mediation_agent/secure_mediation_agent
 COPY user-agent ./user-agent
 COPY external-agents ./external-agents
 

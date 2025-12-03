@@ -21,7 +21,7 @@ uv sync
 
 # 3. 環境変数を設定
 # ⚠️ Geniac Prize審査員の方: 別途共有しているGemini API Keyをご利用ください
-echo "GOOGLE_API_KEY=your-api-key" > secure-mediation-agent/.env
+echo "GOOGLE_API_KEY=your-api-key" > secure_mediation_agent/.env
 
 # 4. デモを実行
 ./demo/demo.sh
@@ -148,14 +148,14 @@ pwd
 ### Step 3: Web UI (http://localhost:8000) でエージェントを選択してデモプロンプトを入力
 
 #### 3-1. エージェントの選択
-ブラウザでWeb UIが開いたら、まず**secure-mediation-agent**を選択してください：
+ブラウザでWeb UIが開いたら、まず**secure_mediation_agent**を選択してください：
 
-Web UI左側のエージェント一覧から「**secure-mediation-agent**」を選択
+Web UI左側のエージェント一覧から「**secure_mediation_agent**」を選択
 
 
 ![エージェント選択画面](../docs/images/select-agent.png)
 
-**⚠️ 重要:** secure-mediation-agent が選択されていないと、セキュリティチェックが実行されません。
+**⚠️ 重要:** secure_mediation_agent が選択されていないと、セキュリティチェックが実行されません。
 
 #### 3-2. デモプロンプトの入力
 
@@ -231,10 +231,10 @@ lsof -i :8002
 ### 環境変数が読み込まれない
 ```bash
 # .envファイルが存在するか確認
-ls -la secure-mediation-agent/.env
+ls -la secure_mediation_agent/.env
 
 # GOOGLE_API_KEYが設定されているか確認
-cat secure-mediation-agent/.env | grep GOOGLE_API_KEY
+cat secure_mediation_agent/.env | grep GOOGLE_API_KEY
 ```
 
 ### エージェントが起動しない

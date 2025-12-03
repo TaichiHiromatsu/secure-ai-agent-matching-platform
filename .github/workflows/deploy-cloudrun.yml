@@ -46,7 +46,7 @@ jobs:
           docker build \
             -t ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }} \
             -t ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:latest \
-            -f deploy/Dockerfile.cloudrun \
+            -f deploy/Dockerfile \
             .
 
       - name: Push Docker image

@@ -86,7 +86,7 @@ graph TB
 
 ### 1. メイン仲介エージェント
 
-**ファイル**: `secure-mediation-agent/agent.py`
+**ファイル**: `secure_mediation_agent/agent.py`
 
 **役割**: 全サブエージェントの調整とユーザーリクエストの処理
 
@@ -115,7 +115,7 @@ root_agent = Agent(
 
 ### 2. Matcher（マッチングサブエージェント）
 
-**ファイル**: `secure-mediation-agent/subagents/matching_agent.py`
+**ファイル**: `secure_mediation_agent/subagents/matching_agent.py`
 
 **役割**: 信頼性スコアを加味したエージェント選定
 
@@ -141,7 +141,7 @@ new_trust_score = α * calculated_score + (1 - α) * old_trust_score
 
 ### 3. Planner（プランニングサブエージェント）
 
-**ファイル**: `secure-mediation-agent/subagents/planning_agent.py`
+**ファイル**: `secure_mediation_agent/subagents/planning_agent.py`
 
 **役割**: 実行プラン作成とMarkdownアーティファクト保存
 
@@ -166,7 +166,7 @@ new_trust_score = α * calculated_score + (1 - α) * old_trust_score
 
 ### 4. Orchestrator（オーケストレーションサブエージェント）
 
-**ファイル**: `secure-mediation-agent/subagents/orchestration_agent.py`
+**ファイル**: `secure_mediation_agent/subagents/orchestration_agent.py`
 
 **役割**: プランの順次実行とA2A通信管理
 
@@ -197,7 +197,7 @@ flowchart TD
 
 ### 5. Anomaly Detector（異常検知サブエージェント）
 
-**ファイル**: `secure-mediation-agent/subagents/anomaly_detection_agent.py`
+**ファイル**: `secure_mediation_agent/subagents/anomaly_detection_agent.py`
 
 **役割**: リアルタイム異常検知
 
@@ -237,7 +237,7 @@ def detect_suspicious_behavior(agent_output, agent_trust_score):
 
 ### 6. Final Anomaly Detector（最終異常検知サブエージェント）
 
-**ファイル**: `secure-mediation-agent/subagents/final_anomaly_detection_agent.py`
+**ファイル**: `secure_mediation_agent/subagents/final_anomaly_detection_agent.py`
 
 **役割**: 最終検証と安全性評価
 
