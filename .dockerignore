@@ -5,7 +5,10 @@
 
 # Python
 .venv
+**/.venv
+**/venv
 __pycache__
+**/__pycache__
 *.pyc
 *.pyo
 *.pyd
@@ -65,4 +68,6 @@ temp
 # third_party を明示的にビルドコンテキストに含める
 !third_party/
 
-/app/jury-judge-worker/.venv/
+# Explicitly exclude all venvs in subdirectories
+trusted_agent_hub/**/.venv
+trusted_agent_hub/**/venv
