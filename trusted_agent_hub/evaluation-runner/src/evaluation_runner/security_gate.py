@@ -1100,7 +1100,7 @@ def run_security_gate(
     (output_dir / "security_summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
     return summary
 
-  selected = list(sample_prompts(prompts, attempts=attempts, seed=f"{agent_id}:{revision}"))
+  selected = list(sample_prompts(prompts, attempts=attempts, seed=f"{agent_id}:{revision}:{uuid.uuid4().hex}"))
   context_terms = build_context_terms(agent_card)
 
   # SSE: 開始イベント送信

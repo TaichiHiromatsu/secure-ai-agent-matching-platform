@@ -863,7 +863,7 @@ def process_submission(submission_id: str):
             asyncio.run(notify_score_update(submission_id, {
                 "functional_summary": enhanced_functional_summary
             }))
-            asyncio.run(notify_stage_update(submission_id, "functional", "completed"))
+            asyncio.run(notify_stage_update(submission_id, "agent_card_accuracy", "completed"))
         except RuntimeError as e:
             print(f"[WebSocket] Could not send Functional Accuracy completion notification: {e}")
 
@@ -1103,6 +1103,19 @@ def process_submission(submission_id: str):
         print(f"Error processing submission {submission_id}: {e}")
         import traceback
         traceback.print_exc()
+
+        # 現在実行中のステージを failed に更新
+        try:
+            current_breakdown = dict(submission.score_breakdown) if submission.score_breakdown else {}
+            if "stages" in current_breakdown:
+                for stage_key, stage_data in current_breakdown["stages"].items():
+                    if isinstance(stage_data, dict) and stage_data.get("status") == "running":
+                        stage_data["status"] = "failed"
+                        stage_data["message"] = f"Stage failed: {str(e)}"
+                submission.score_breakdown = current_breakdown
+        except Exception as inner_e:
+            print(f"Failed to update stage status: {inner_e}")
+
         submission.state = "failed"
         submission.updated_at = datetime.utcnow()
         db.commit()
