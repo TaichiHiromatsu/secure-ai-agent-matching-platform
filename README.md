@@ -297,7 +297,7 @@ secure-ai-agent-matching-platform/
 │   │   ├── ARCHITECTURE.md           # アーキテクチャ詳細
 │   │   ├── SPECIFICATION.md          # 詳細仕様書
 │   │   └── SECURITY_IMPLEMENTATION.md # セキュリティ実装
-│   └── trusted_agent_hub_design/     # Trusted Agent Hub設計
+│   └── trusted_agent_store_design/   # Trusted Agent Store設計
 │
 └── README.md                         # このファイル
 ```
@@ -407,7 +407,7 @@ echo "GOOGLE_API_KEY=your-gemini-api-key" > secure_mediation_agent/.env
 | [SPECIFICATION.md](docs/secure_mediation_agent_design/SPECIFICATION.md) | 技術仕様書（実装詳細） |
 | [SECURITY_IMPLEMENTATION.md](docs/secure_mediation_agent_design/SECURITY_IMPLEMENTATION.md) | セキュリティ実装詳細 |
 | [DEMO.md](docs/demo/DEMO.md) | デモシナリオと期待結果 |
-| [trusted_agent_hub_design/](docs/trusted_agent_hub_design/) | Trusted Agent Hub設計ドキュメント |
+| [trusted_agent_store_design/](docs/trusted_agent_store_design/) | Trusted Agent Store設計ドキュメント |
 
 ---
 
