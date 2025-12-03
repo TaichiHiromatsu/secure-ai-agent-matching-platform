@@ -16,7 +16,7 @@
 
 import json
 from datetime import datetime
-from typing import Any, Optional, Callable, Awaitable
+from typing import Any
 import re
 
 from google.adk import Agent
@@ -100,9 +100,6 @@ async def invoke_a2a_agent(
     planned_agent: str = "",
     trust_score: float = 1.0,
     plan_id: str = "",
-    *,
-    stream: bool = False,
-    on_chunk: Optional[Callable[[dict[str, Any]], Awaitable[None]]] = None,
 ) -> str:
     """Invoke an A2A agent with security context using ADK's RemoteA2aAgent.
 
@@ -129,6 +126,11 @@ async def invoke_a2a_agent(
 
     Returns:
         JSON string with agent response (may include security_blocked flag).
+
+    Note:
+        Streaming functionality has been removed to ensure compatibility with
+        ADK's automatic function calling. The function signature must use only
+        simple types that can be parsed by the ADK.
     """
     from google.adk.agents.remote_a2a_agent import RemoteA2aAgent
     from google.adk import Runner
@@ -214,13 +216,6 @@ Input data:
                     sanitized = _sanitize_text(event.content)
                     response_parts.append(sanitized)
                     event_record["text"] = sanitized
-                    if stream and on_chunk:
-                        for chunk in _chunk_text(sanitized, chunk_size=900):
-                            await on_chunk({
-                                "type": "message_chunk",
-                                "role": getattr(event.content, "role", "model") if hasattr(event.content, "role") else "model",
-                                "content": chunk,
-                            })
                 else:
                     # Handle Content object with parts
                     parts_text = []
@@ -229,13 +224,6 @@ Input data:
                             sanitized = _sanitize_text(part.text)
                             response_parts.append(sanitized)
                             parts_text.append(sanitized)
-                            if stream and on_chunk:
-                                for chunk in _chunk_text(sanitized, chunk_size=900):
-                                    await on_chunk({
-                                        "type": "message_chunk",
-                                        "role": event.content.role if hasattr(event.content, 'role') else "model",
-                                        "content": chunk,
-                                    })
 
                     event_record["text"] = "\n".join(parts_text)
                     event_record["role"] = event.content.role if hasattr(event.content, 'role') else "model"
@@ -253,11 +241,6 @@ Input data:
                         ]
                         tool_calls.extend(event_record["function_calls"])
                         logger.info(f"📞 Tool calls detected: {[fc['name'] for fc in event_record['function_calls']]}")
-                        if stream and on_chunk:
-                            await on_chunk({
-                                "type": "tool_call",
-                                "calls": event_record["function_calls"],
-                            })
                 except Exception as e:
                     logger.debug(f"No function calls in this event: {e}")
 
@@ -274,11 +257,6 @@ Input data:
                         ]
                         tool_responses.extend(event_record["function_responses"])
                         logger.info(f"📥 Tool responses detected: {[fr['name'] for fr in event_record['function_responses']]}")
-                        if stream and on_chunk:
-                            await on_chunk({
-                                "type": "tool_response",
-                                "responses": event_record["function_responses"],
-                            })
                 except Exception as e:
                     logger.debug(f"No function responses in this event: {e}")
 
@@ -367,24 +345,6 @@ def _sanitize_text(text: str) -> str:
     text = re.sub(r"[A-Za-z0-9+/]{60,}={0,2}", "<data>", text)
     text = re.sub(r"\\n{3,}", "\\n\\n", text)
     return text
-
-
-def _chunk_text(text: str, chunk_size: int = 900):
-    """Yield text in roughly chunk_size characters, splitting on sentence boundaries when possible."""
-    if len(text) <= chunk_size:
-        yield text
-        return
-    sentences = re.split(r"(?<=[。.!?])\\s+", text)
-    buf = ""
-    for s in sentences:
-        if len(buf) + len(s) + 1 <= chunk_size:
-            buf = f"{buf} {s}".strip()
-        else:
-            if buf:
-                yield buf
-            buf = s
-    if buf:
-        yield buf
 
 
 async def check_step_dependencies(
