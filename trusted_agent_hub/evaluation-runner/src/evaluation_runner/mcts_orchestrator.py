@@ -22,7 +22,7 @@ from typing import Callable, Dict, List, Any
 @dataclass
 class MCTSParams:
     # 一つのシナリオを何回ロールアウト（再評価）するか。直列で実行されるので増やすとリクエスト数が線形に増える。
-    max_rollouts: int = int(os.getenv("JUDGE_MCTS_MAX_ROLLOUTS", "3"))
+    max_rollouts: int = int(os.getenv("JUDGE_MCTS_MAX_ROLLOUTS", "1"))
     # UCB1 の探索係数。大きいほど未探索パスを選びやすい。
     ucb_c: float = float(os.getenv("JUDGE_MCTS_UCB_C", "1.4"))
     # Minority veto 用の閾値（例: 0.3 なら30%以上で veto 扱い）。

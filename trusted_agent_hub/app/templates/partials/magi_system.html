@@ -136,10 +136,14 @@
                 <!-- MAGI Logo (Center) -->
                 <div class="magi-logo">MAGI</div>
 
-                <!-- Connectors from MAGI to bottom units -->
-                <div class="magi-connectors-split">
-                    <div class="magi-connector-branch magi-connector-left"></div>
-                    <div class="magi-connector-branch magi-connector-right"></div>
+                <!-- Connectors from MAGI to bottom units (45° diagonal lines) -->
+                <div class="magi-connectors-diagonal">
+                    <svg class="magi-diagonal-line" viewBox="0 0 200 50" preserveAspectRatio="none">
+                        <!-- 左斜め線（MAGIからCASPERへ） -->
+                        <line x1="100" y1="0" x2="30" y2="50" stroke="#ffa500" stroke-width="4"/>
+                        <!-- 右斜め線（MAGIからMELCHIORへ） -->
+                        <line x1="100" y1="0" x2="170" y2="50" stroke="#ffa500" stroke-width="4"/>
+                    </svg>
                 </div>
 
                 <!-- Bottom Row: CASPER-3 and MELCHIOR-1 -->
@@ -190,7 +194,7 @@
             <div class="magi-right-column">
                 <!-- FINAL JUDGE Chat (水色枠 - Phase 3まで非表示) -->
                 <div class="magi-chat-box magi-chat-cyan magi-final-judge-chat" id="final-judge-chat" style="{% if not (show_historical and collective.found and collective.found.finalJudgment) %}display: none;{% endif %}">
-                    <div class="magi-chat-header">FINAL JUDGE</div>
+                    <div class="magi-chat-header">MAGI FINAL JUDGE</div>
                     <div class="magi-chat-content" id="final-judge-content">
                         {% if final_judgment.found and final_judgment.found.rationale %}
                         <div class="magi-chat-message">{{ final_judgment.found.rationale }}</div>
@@ -404,28 +408,28 @@
         padding: 25px 20px;
     }
 
-    /* CASPER - 横長四角形の右上の角を斜めにカット */
+    /* CASPER - 横長、右上角を緩やかにカット（10%） */
     .magi-casper {
-        clip-path: polygon(0% 0%, 85% 0%, 100% 20%, 100% 100%, 0% 100%);
-        min-width: 180px;
-        min-height: 120px;
-        padding: 15px 20px;
+        clip-path: polygon(0% 0%, 90% 0%, 100% 10%, 100% 100%, 0% 100%);
+        min-width: 280px;
+        min-height: 70px;
+        padding: 10px 20px;
     }
 
-    /* MELCHIOR - 横長四角形の左上の角を斜めにカット */
+    /* MELCHIOR - 横長、左上角を緩やかにカット（10%） */
     .magi-melchior {
-        clip-path: polygon(15% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 20%);
-        min-width: 180px;
-        min-height: 120px;
-        padding: 15px 20px;
+        clip-path: polygon(10% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 10%);
+        min-width: 280px;
+        min-height: 70px;
+        padding: 10px 20px;
     }
 
     /* ===== Verdict-based Unit Colors ===== */
-    /* PASS判定 - 水色維持 + グロウ */
+    /* PASS判定 - 緑色 */
     .magi-unit.verdict-pass {
-        background: linear-gradient(180deg, #00acc1 0%, #006064 100%);
-        border-color: #00e5ff;
-        box-shadow: 0 0 20px rgba(0, 229, 255, 0.5);
+        background: linear-gradient(180deg, #2e7d32 0%, #1b5e20 100%);
+        border-color: #4caf50;
+        box-shadow: 0 0 20px rgba(76, 175, 80, 0.5);
     }
 
     /* FAIL判定 - 赤に変化 */
@@ -538,24 +542,28 @@
         letter-spacing: 6px;
     }
 
-    /* Split Connectors */
-    .magi-connectors-split {
-        display: flex;
-        justify-content: center;
-        gap: 80px;
+    /* Diagonal Connectors (45° lines) */
+    .magi-connectors-diagonal {
+        width: 100%;
+        max-width: 300px;
+        height: 50px;
     }
-    .magi-connector-branch {
-        width: 4px;
-        height: 25px;
-        background: linear-gradient(180deg, #ffa500, #ff6600);
-        box-shadow: 0 0 8px rgba(255, 165, 0, 0.6);
+    .magi-diagonal-line {
+        width: 100%;
+        height: 100%;
+    }
+    .magi-diagonal-line line {
+        filter: drop-shadow(0 0 4px rgba(255, 165, 0, 0.6));
     }
 
     /* ===== Bottom Units Row ===== */
     .magi-bottom-units {
         display: flex;
         justify-content: center;
-        gap: 40px;
+        gap: 30px;
+        margin-top: auto;
+        width: 100%;
+        padding-bottom: 0;
     }
 
     /* ===== 右列 ===== */
@@ -674,7 +682,7 @@
             align-items: center;
             gap: 24px;
         }
-        .magi-connectors-split {
+        .magi-connectors-diagonal {
             display: none;
         }
     }

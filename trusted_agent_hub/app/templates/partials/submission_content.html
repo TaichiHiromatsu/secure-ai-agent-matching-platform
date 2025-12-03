@@ -758,6 +758,9 @@
         const juryStream = new JuryJudgeStream(submissionId, { basePath: urlPrefix });
         console.log('[DEBUG] JuryJudgeStream instance created:', juryStream);
 
+        // MCTS複数ロールアウト時の重複防止フラグ
+        let finalJudgmentReceived = false;
+
     // ==== Typing Animation System for Streaming-like Display ====
 
     /**
@@ -2344,20 +2347,17 @@
         const scoresEl = document.getElementById(`${unit}-scores`);
 
         if (unitEl) {
-            // Remove evaluating state and old verdict classes
-            unitEl.classList.remove('evaluating', 'verdict-pending', 'verdict-pass', 'verdict-fail', 'verdict-review');
+            // Remove evaluating state
+            unitEl.classList.remove('evaluating', 'verdict-pending');
             unitEl.classList.add('vote-confirmed');
-
-            // Add verdict class for dynamic coloring (updated colors)
+            // 各Jurorの個別verdictに基づいて即座に色を変更
+            unitEl.classList.remove('verdict-pass', 'verdict-fail', 'verdict-review');
             if (data.verdict === 'safe_pass') {
                 unitEl.classList.add('verdict-pass');
-                unitEl.style.setProperty('--glow-color', '#00e5ff');  // 水色
             } else if (data.verdict === 'unsafe_fail') {
                 unitEl.classList.add('verdict-fail');
-                unitEl.style.setProperty('--glow-color', '#ff5252');  // 赤
-            } else {
+            } else if (data.verdict === 'needs_review') {
                 unitEl.classList.add('verdict-review');
-                unitEl.style.setProperty('--glow-color', '#ff9800');  // オレンジ
             }
         }
 
@@ -2421,23 +2421,18 @@
                 messageEl.className = 'magi-chat-message typing';
                 chatContent.appendChild(messageEl);
 
-                // Typing animation with smooth scroll
+                // Typing animation with chat box internal scroll
                 let charIndex = 0;
                 const rationale = data.rationale;
                 const typingInterval = setInterval(() => {
                     if (charIndex < rationale.length) {
                         messageEl.textContent = rationale.substring(0, charIndex + 1);
                         charIndex++;
-                        // Smooth scroll to bottom
-                        chatContent.scrollTo({
-                            top: chatContent.scrollHeight,
-                            behavior: 'smooth'
-                        });
+                        // チャットボックス内部のみスクロール（ページ全体は動かさない）
+                        chatContent.scrollTop = chatContent.scrollHeight;
                     } else {
                         messageEl.classList.remove('typing');
                         clearInterval(typingInterval);
-                        // Final scroll to ensure visibility
-                        messageEl.scrollIntoView({ behavior: 'smooth', block: 'end' });
                     }
                 }, 15);
             }
@@ -2477,23 +2472,18 @@
             }
             chatContent.appendChild(messageEl);
 
-            // Typing animation with smooth scroll
+            // Typing animation with chat box internal scroll
             let charIndex = 0;
             const statement = data.statement;
             const typingInterval = setInterval(() => {
                 if (charIndex < statement.length) {
                     messageEl.textContent = statement.substring(0, charIndex + 1);
                     charIndex++;
-                    // Smooth scroll to bottom
-                    chatContent.scrollTo({
-                        top: chatContent.scrollHeight,
-                        behavior: 'smooth'
-                    });
+                    // チャットボックス内部のみスクロール（ページ全体は動かさない）
+                    chatContent.scrollTop = chatContent.scrollHeight;
                 } else {
                     messageEl.classList.remove('typing');
                     clearInterval(typingInterval);
-                    // Final scroll to ensure visibility
-                    messageEl.scrollIntoView({ behavior: 'smooth', block: 'end' });
                 }
             }, 15);
 
@@ -2523,6 +2513,13 @@
     // Final judgment handler (Phase 3) - MAGI System (Evangelion Triangular Layout)
     juryStream.on('final_judgment', (data) => {
         console.log('[DEBUG] ⚖️ final_judgment event handler called with data:', data);
+
+        // MCTS複数ロールアウト時の重複防止：2回目以降はスキップ
+        if (finalJudgmentReceived) {
+            console.log('[DEBUG] ⚖️ final_judgment already received, skipping duplicate');
+            return;
+        }
+        finalJudgmentReceived = true;
 
         // Toast notification
         const trustScore = data.trustScore || data.finalScore || 0;
@@ -2572,56 +2569,53 @@
             finalJudgeChat.style.display = 'flex';
         }
 
+        // 各カードは既にjuror_evaluationで個別verdictに基づいて色が設定済み
+        // final_judgmentでは全体統一せず、各Jurorの最終verdictを維持
+
         // Update FINAL JUDGE section content with typing animation
+        // rationale（最終ジャッジの評価理由）を優先表示
         const finalJudgeContent = document.getElementById('final-judge-content');
         if (finalJudgeContent) {
-            const rationale = data.rationale || data.finalRationale || '';
+            // データから評価理由を取得（複数のキー名に対応）
+            const finalJudgeResponse = data.rationale || data.finalJudgeRationale || data.finalRationale || '';
+            console.log('[DEBUG] FINAL JUDGE rationale:', finalJudgeResponse);
+            console.log('[DEBUG] FINAL JUDGE data keys:', Object.keys(data));
 
             // Remove placeholder if exists
             const placeholder = finalJudgeContent.querySelector('.magi-chat-placeholder');
             if (placeholder) placeholder.remove();
 
-            if (rationale) {
+            if (finalJudgeResponse) {
                 // Add rationale message with typing animation
                 const messageEl = document.createElement('div');
                 messageEl.className = 'magi-chat-message typing';
                 finalJudgeContent.appendChild(messageEl);
 
-                // Typing animation
+                // Typing animation（最終ジャッジのみスクロール許可）
                 let charIndex = 0;
                 const typingInterval = setInterval(() => {
-                    if (charIndex < rationale.length) {
-                        messageEl.textContent = rationale.substring(0, charIndex + 1);
+                    if (charIndex < finalJudgeResponse.length) {
+                        messageEl.textContent = finalJudgeResponse.substring(0, charIndex + 1);
                         charIndex++;
-                        // Smooth scroll to bottom
-                        finalJudgeContent.scrollTo({
-                            top: finalJudgeContent.scrollHeight,
-                            behavior: 'smooth'
-                        });
+                        // 最終ジャッジのみチャットボックス内スクロール許可
+                        finalJudgeContent.scrollTop = finalJudgeContent.scrollHeight;
                     } else {
                         messageEl.classList.remove('typing');
                         clearInterval(typingInterval);
                     }
-                }, 15);
+                }, 10);  // 10msで高速表示
             } else {
+                // rationaleがない場合はサマリーを表示
                 const summaryText = `Trust Score: ${Math.floor(trustScore)}点 / 判定: ${verdict === 'safe_pass' ? '可決' : (verdict === 'unsafe_fail' ? '否決' : '要確認')}`;
                 const messageEl = document.createElement('div');
                 messageEl.className = 'magi-chat-message';
                 messageEl.textContent = summaryText;
                 finalJudgeContent.appendChild(messageEl);
+                console.log('[DEBUG] FINAL JUDGE: No rationale found, showing summary');
             }
         }
 
-        // 議論ログのスクロール位置を保存・復元
-        const discussionLog = document.getElementById('magi-discussion-content');
-        const discussionScrollTop = discussionLog ? discussionLog.scrollTop : 0;
-
-        requestAnimationFrame(() => {
-            if (discussionLog) {
-                discussionLog.scrollTop = discussionScrollTop;
-            }
-            window.scrollTo(0, pageScrollTop);
-        });
+        // ページスクロール復元処理は削除（チョロチョロ動く問題の解消）
     });
 
             // Evaluation complete handler
