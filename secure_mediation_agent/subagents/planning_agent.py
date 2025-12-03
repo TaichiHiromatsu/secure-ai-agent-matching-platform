@@ -28,7 +28,7 @@ async def save_plan_as_artifact(
     plan_id: str,
     client_request: str,
     plan_content: str,
-    output_dir: str = "artifacts/plans",
+    output_dir: str = "secure_mediation_agent/artifacts/plans",
 ) -> str:
     """Save execution plan as a markdown artifact.
 

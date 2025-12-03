@@ -22,7 +22,7 @@ from pathlib import Path
 
 async def load_plan_from_artifact(
     plan_id: str,
-    artifacts_dir: str = "artifacts/plans",
+    artifacts_dir: str = "secure_mediation_agent/artifacts/plans",
 ) -> str:
     """Load a plan from the artifacts directory.
 
@@ -156,7 +156,7 @@ async def parse_plan_for_step(
 
 async def load_all_conversations(
     plan_id: str,
-    conversations_dir: str = "artifacts/conversations",
+    conversations_dir: str = "secure_mediation_agent/artifacts/conversations",
 ) -> str:
     """Load all conversation histories for a given plan_id.
 
@@ -171,8 +171,8 @@ async def load_all_conversations(
     logger = logging.getLogger(__name__)
 
     # Fix common incorrect paths (LLM sometimes passes wrong paths)
-    if conversations_dir in ["conversations/", "conversations"]:
-        conversations_dir = "artifacts/conversations"
+    if conversations_dir in ["conversations/", "conversations", "artifacts/conversations"]:
+        conversations_dir = "secure_mediation_agent/artifacts/conversations"
         logger.info(f"🔧 Corrected conversations_dir to: {conversations_dir}")
 
     # Convert to absolute path relative to project root

@@ -444,10 +444,10 @@ Use the provided tools:
 When you receive a plan_id, you MUST:
 1. Use `load_all_conversations(plan_id)` to retrieve all agent interactions
    **IMPORTANT**: Do NOT specify the conversations_dir parameter - use the default value.
-   The conversations are stored in "artifacts/conversations/" (the default).
+   The conversations are stored in "secure_mediation_agent/artifacts/conversations/" (the default).
 2. Use `load_plan_from_artifact(plan_id)` to get the original plan
    **IMPORTANT**: Do NOT specify the artifacts_dir parameter - use the default value.
-   The plans are stored in "artifacts/plans/" (the default).
+   The plans are stored in "secure_mediation_agent/artifacts/plans/" (the default).
 3. Analyze FULL multi-turn conversations including:
    - All text exchanges between orchestrator and external agents
    - Tool calls made by external agents

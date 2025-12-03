@@ -314,8 +314,8 @@ Input data:
             try:
                 from pathlib import Path
 
-                # Create conversations directory
-                conversations_dir = Path(__file__).parent.parent.parent / "artifacts" / "conversations" / plan_id
+                # Create conversations directory (inside secure_mediation_agent/)
+                conversations_dir = Path(__file__).parent.parent / "artifacts" / "conversations" / plan_id
                 conversations_dir.mkdir(parents=True, exist_ok=True)
 
                 # Create filename with timestamp
