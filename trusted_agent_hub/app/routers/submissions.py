@@ -354,12 +354,30 @@ def process_submission(submission_id: str):
         submission.updated_at = datetime.utcnow()
         db.commit()
 
+        # --- SSE callback setup (used by all stages) ---
+        from app.routers.sse import get_sse_manager
+        from app.schemas.jury_stream import validate_event_dict
+        sse_manager = get_sse_manager()
+
+        def sse_callback(data: dict):
+            """Send real-time updates to SSE clients (sync version using thread-safe send)"""
+            print(f"[DEBUG sse_callback] Called with data type: {data.get('type', 'unknown')}")
+            try:
+                payload = validate_event_dict(data)
+                sse_manager.send_sync(submission_id, payload)
+                print(f"[DEBUG sse_callback] SSE sent successfully")
+            except Exception as e:
+                print(f"[ERROR sse_callback] SSE notification failed: {e}")
+
         # --- 0. PreCheck ---
         if stages_cfg["precheck"]:
             print(f"Running PreCheck for submission {submission_id}")
 
             # Notify WebSocket: PreCheck stage started
             asyncio.run(notify_stage_update(submission_id, "precheck", "running"))
+
+            # SSE: PreCheck開始
+            sse_manager.send_sync(submission_id, {"type": "precheck_started"})
 
             precheck_summary = run_precheck(submission)
 
@@ -378,6 +396,14 @@ def process_submission(submission_id: str):
                 }
                 submission.updated_at = datetime.utcnow()
                 db.commit()
+
+                # SSE: PreCheck完了（失敗）
+                sse_manager.send_sync(submission_id, {
+                    "type": "precheck_completed",
+                    "passed": False,
+                    "warnings": precheck_summary.get("warnings", []),
+                    "errors": precheck_summary.get("errors", [])
+                })
 
                 # Notify WebSocket: PreCheck stage failed
                 asyncio.run(notify_stage_update(submission_id, "precheck", "failed"))
@@ -401,6 +427,14 @@ def process_submission(submission_id: str):
                 "warnings": precheck_summary.get("warnings", [])
             }
             submission.score_breakdown = current_breakdown
+
+            # SSE: PreCheck完了（成功）
+            sse_manager.send_sync(submission_id, {
+                "type": "precheck_completed",
+                "passed": True,
+                "warnings": precheck_summary.get("warnings", []),
+                "errors": []
+            })
 
             # Notify WebSocket: PreCheck stage completed
             asyncio.run(notify_stage_update(submission_id, "precheck", "completed"))
@@ -519,7 +553,8 @@ def process_submission(submission_id: str):
                     dry_run=False,
                     agent_card=submission.card_document,
                     session_id=submission.id,
-                    user_id="security-gate"
+                    user_id="security-gate",
+                    sse_callback=sse_callback
                 )
                 wandb_logger.log_stage_summary("security", security_summary)
                 wandb_logger.save_artifact("security", output_dir / "security" / "security_report.jsonl", name="security-report")
@@ -677,7 +712,8 @@ def process_submission(submission_id: str):
                 user_id="functional-accuracy",
                 use_multiturn=os.getenv("FUNCTIONAL_USE_MULTITURN", "true").lower() == "true",
                 max_turns=int(os.getenv("FUNCTIONAL_MAX_TURNS", "5")),
-                use_adk_generator=os.getenv("FUNCTIONAL_USE_ADK_GENERATOR", "false").lower() == "true"
+                use_adk_generator=os.getenv("FUNCTIONAL_USE_ADK_GENERATOR", "false").lower() == "true",
+                sse_callback=sse_callback
             )
 
             wandb_logger.log_stage_summary("functional", functional_summary)
@@ -850,25 +886,7 @@ def process_submission(submission_id: str):
             else:
                 agent_card_accuracy = None
 
-            # Create WebSocket callback for real-time updates
-            from app.routers.sse import get_sse_manager
-            from app.schemas.jury_stream import validate_event_dict
-            import asyncio
-            sse_manager = get_sse_manager()
-
-            async def sse_callback(data: dict):
-                """Send real-time updates to SSE clients (async version)
-
-                This async callback is awaited by _notify_sse(), ensuring
-                SSE notifications are sent immediately when each event occurs.
-                """
-                print(f"[DEBUG sse_callback] Called with data type: {data.get('type', 'unknown')}")
-                try:
-                    payload = validate_event_dict(data)
-                    await sse_manager.send(submission_id, payload)
-                    print(f"[DEBUG sse_callback] SSE sent successfully")
-                except Exception as e:
-                    print(f"[ERROR sse_callback] SSE notification failed: {e}")
+            # SSE callback is already defined above and shared across all stages
 
             judge_summary = run_judge_panel(
                 agent_id=submission.agent_id,

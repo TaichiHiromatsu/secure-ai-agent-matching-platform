@@ -26,6 +26,18 @@ class JuryStreamEvent(BaseModel):
         "tool_call",
         "tool_response",
         "error",
+        # PreCheck events
+        "precheck_started",
+        "precheck_completed",
+        # Security Gate events
+        "security_started",
+        "security_scenario_result",
+        "security_completed",
+        # Agent Card Accuracy events
+        "functional_started",
+        "functional_scenario_result",
+        "functional_turn_progress",
+        "functional_completed",
     ]
     # Optional payload fields; individual handlers may use subsets.
     content: Optional[str] = None
@@ -57,6 +69,31 @@ class JuryStreamEvent(BaseModel):
     toolUsage: Optional[int] = None       # 0-30
     autonomy: Optional[int] = None        # 0-20
     safety: Optional[int] = None          # 0-10
+    # PreCheck fields
+    passed: Optional[bool] = None
+    warnings: Optional[List[str]] = None
+    errors: Optional[List[str]] = None
+    # Security/Functional scenario fields
+    scenario_index: Optional[int] = None
+    total_scenarios: Optional[int] = None
+    scenario_name: Optional[str] = None
+    category: Optional[str] = None
+    # Functional turn progress fields
+    turn: Optional[int] = None
+    total_turns: Optional[int] = None
+    user_prompt: Optional[str] = None
+    agent_response_preview: Optional[str] = None
+    # Security/Functional scenario detail fields
+    promptId: Optional[str] = None
+    prompt: Optional[str] = None
+    response: Optional[str] = None
+    perspective: Optional[str] = None
+    requirement: Optional[str] = None
+    # Agent Card Accuracy (Functional) specific fields
+    scenarioId: Optional[str] = None
+    expected: Optional[str] = None
+    totalTurns: Optional[int] = None
+    dialogueHistory: Optional[List[Any]] = None
 
 
 def validate_event_dict(payload: dict) -> dict:

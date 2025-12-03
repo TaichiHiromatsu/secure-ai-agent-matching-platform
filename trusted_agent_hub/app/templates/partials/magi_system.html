@@ -1,0 +1,710 @@
+{# MAGI SYSTEM - Jury Judge Panel Component #}
+{# Variables expected:
+   - submission: The submission object
+   - show_waiting_state: Boolean to show waiting state (for pre-evaluation)
+#}
+
+{% set show_realtime = submission.state == 'judge_panel_running' %}
+{% set show_historical = submission.score_breakdown and submission.score_breakdown.judge_summary and submission.score_breakdown.judge_summary.scenarios %}
+{% set collective = namespace(found=none) %}
+{% if show_historical %}
+    {% for scenario in submission.score_breakdown.judge_summary.scenarios %}
+        {% if scenario.scenarioId == 'collective_judgment' %}
+            {% set collective.found = scenario %}
+        {% endif %}
+    {% endfor %}
+{% endif %}
+
+{# Extract evaluation data for each juror from historical data #}
+{% set balthasar_eval = namespace(found=none) %}
+{% set casper_eval = namespace(found=none) %}
+{% set melchior_eval = namespace(found=none) %}
+{% if show_historical and collective.found and collective.found.phase1Evaluations %}
+    {% for eval in collective.found.phase1Evaluations %}
+        {% if 'claude' in eval.jurorId %}
+            {% set balthasar_eval.found = eval %}
+        {% elif 'gemini' in eval.jurorId %}
+            {% set casper_eval.found = eval %}
+        {% elif 'gpt-4o' in eval.jurorId %}
+            {% set melchior_eval.found = eval %}
+        {% endif %}
+    {% endfor %}
+{% endif %}
+
+<!-- Jury Judge - MAGI SYSTEM -->
+<details id="details-judge" class="mb-6 rounded-lg overflow-hidden" {% if not show_waiting_state %}open{% endif %}>
+    <summary class="text-lg font-semibold p-4 flex items-center cursor-pointer bg-gray-800 text-white">
+        <span class="mr-2">⚖️</span> Jury Judge Panel - MAGI SYSTEM
+        {% if show_realtime %}
+        <span id="ws-status" class="ml-auto text-xs px-2 py-1 rounded bg-green-500 text-white animate-pulse">RUNNING</span>
+        {% elif show_waiting_state %}
+        <span id="ws-status" class="ml-auto text-xs px-2 py-1 rounded bg-gray-500 text-white">WAITING</span>
+        {% endif %}
+    </summary>
+
+    <!-- MAGI System Container -->
+    <div id="magi-container" class="magi-system p-6" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);">
+
+        <!-- MAGI Panel Layout - Triangular with Final Judge Center -->
+        <div class="magi-panel-container mb-6">
+            <!-- Phase Indicator -->
+            <div class="magi-phase-header">
+                <span id="magi-phase-indicator" class="magi-phase-badge">
+                    {%- if show_historical and collective.found and collective.found.finalJudgment -%}Phase 3 完了
+                    {%- elif show_historical and collective.found and collective.found.discussionRounds -%}Phase 2
+                    {%- elif show_historical and collective.found and collective.found.phase1Evaluations -%}Phase 1
+                    {%- else -%}Phase 1{%- endif -%}
+                </span>
+            </div>
+
+            <!-- BALTHASAR-2 (Top Center) - Horizontal Layout -->
+            <div class="flex justify-center mb-4">
+                <div id="magi-balthasar" class="magi-unit magi-unit-wide magi-balthasar {% if balthasar_eval.found %}vote-confirmed{% endif %}" data-juror="claude-3-haiku-20240307"
+                     {% if balthasar_eval.found %}style="--glow-color: {% if balthasar_eval.found.verdict == 'safe_pass' %}#51cf66{% elif balthasar_eval.found.verdict == 'unsafe_fail' %}#ff6b6b{% else %}#ffd43b{% endif %}"{% endif %}>
+                    <div class="magi-unit-main">
+                        <div class="magi-unit-info">
+                            <div class="magi-unit-header">
+                                <span class="magi-unit-name">BALTHASAR・2</span>
+                                <span class="magi-unit-model">claude-3-haiku</span>
+                                <span class="magi-unit-role-inline">Security</span>
+                            </div>
+                            <div class="magi-unit-row">
+                                <div class="magi-unit-vote {% if balthasar_eval.found %}{% if balthasar_eval.found.verdict == 'safe_pass' %}magi-vote-pass{% elif balthasar_eval.found.verdict == 'unsafe_fail' %}magi-vote-fail{% else %}magi-vote-review{% endif %}{% endif %}" id="balthasar-vote">
+                                    {% if balthasar_eval.found %}{% if balthasar_eval.found.verdict == 'safe_pass' %}PASS{% elif balthasar_eval.found.verdict == 'unsafe_fail' %}FAIL{% else %}REVIEW{% endif %}{% else %}-{% endif %}
+                                </div>
+                                <div class="magi-unit-status" id="balthasar-status">{% if balthasar_eval.found %}完了{% else %}待機中{% endif %}</div>
+                                <div class="magi-unit-scores magi-scores-inline" id="balthasar-scores">
+                                    {% set tc = balthasar_eval.found.taskCompletion or 0 if balthasar_eval.found else 0 %}
+                                    {% set tu = balthasar_eval.found.toolUsage or 0 if balthasar_eval.found else 0 %}
+                                    {% set au = balthasar_eval.found.autonomy or 0 if balthasar_eval.found else 0 %}
+                                    {% set sf = balthasar_eval.found.safety or 0 if balthasar_eval.found else 0 %}
+                                    <div class="magi-score-bar" data-axis="task"><span>T</span><div class="bar"><div class="fill" style="width:{{ (tc / 40 * 100) | int }}%"></div></div></div>
+                                    <div class="magi-score-bar" data-axis="tool"><span>U</span><div class="bar"><div class="fill" style="width:{{ (tu / 30 * 100) | int }}%"></div></div></div>
+                                    <div class="magi-score-bar" data-axis="auto"><span>A</span><div class="bar"><div class="fill" style="width:{{ (au / 20 * 100) | int }}%"></div></div></div>
+                                    <div class="magi-score-bar" data-axis="safe"><span>S</span><div class="bar"><div class="fill" style="width:{{ (sf / 10 * 100) | int }}%"></div></div></div>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Individual Chat Area -->
+                        <div class="magi-unit-chat">
+                            <div class="magi-chat-header">💬</div>
+                            <div id="balthasar-chat" class="magi-chat-log">
+                                {% if show_historical and collective.found %}
+                                    {# Phase 1 Evaluation #}
+                                    {% if balthasar_eval.found %}
+                                    <div class="magi-chat-entry">
+                                        <span class="magi-chat-badge magi-badge-{% if balthasar_eval.found.verdict == 'safe_pass' %}pass{% elif balthasar_eval.found.verdict == 'unsafe_fail' %}fail{% else %}review{% endif %}">{{ balthasar_eval.found.verdict }}</span>
+                                        Score: {{ ((balthasar_eval.found.taskCompletion or 0) + (balthasar_eval.found.toolUsage or 0) + (balthasar_eval.found.autonomy or 0) + (balthasar_eval.found.safety or 0)) | int }}/100
+                                        {% if balthasar_eval.found.rationale %}<br><small>{{ balthasar_eval.found.rationale }}</small>{% endif %}
+                                    </div>
+                                    {% endif %}
+                                    {# Phase 2 Statements #}
+                                    {% if collective.found.discussionRounds %}
+                                        {% for round in collective.found.discussionRounds %}
+                                            {% for statement in round.statements %}
+                                                {% if 'claude' in statement.jurorId %}
+                                                <div class="magi-chat-entry{% if statement.positionChanged %} magi-chat-changed{% endif %}">
+                                                    {{ statement.statement }}
+                                                </div>
+                                                {% endif %}
+                                            {% endfor %}
+                                        {% endfor %}
+                                    {% endif %}
+                                {% else %}
+                                    <div class="magi-chat-placeholder">待機中...</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MAGI Central - Final Judge Panel -->
+            <div class="flex justify-center mb-4">
+                <div class="magi-final-judge-panel">
+                    <div class="magi-final-judge-header">
+                        <span class="magi-final-judge-icon">⚖️</span>
+                        <span class="magi-final-judge-title">MAGI FINAL JUDGE</span>
+                    </div>
+                    <div id="magi-final-decision" class="magi-final-judge-content">
+                        {% if show_historical and collective.found and collective.found.finalJudgment %}
+                        <div class="magi-final-result
+                            {% if collective.found.finalJudgment.finalVerdict == 'safe_pass' %}magi-result-pass
+                            {% elif collective.found.finalJudgment.finalVerdict == 'unsafe_fail' %}magi-result-fail
+                            {% else %}magi-result-review{% endif %}">
+                            <div class="magi-final-verdict">
+                                {% if collective.found.finalJudgment.finalVerdict == 'safe_pass' %}可決
+                                {% elif collective.found.finalJudgment.finalVerdict == 'unsafe_fail' %}否決
+                                {% else %}要確認{% endif %}
+                            </div>
+                            <div class="magi-final-details">
+                                <div class="magi-final-score">
+                                    <span class="magi-score-label">Trust</span>
+                                    <span class="magi-score-value">{{ submission.trust_score }}/100</span>
+                                </div>
+                                <div class="magi-final-method">
+                                    {{ collective.found.finalJudgment.method or '多数決' }}
+                                </div>
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="magi-final-pending">
+                            <span class="magi-pending-icon">⏳</span>
+                            <span class="magi-pending-text">判定待機中</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- CASPER-3 (Left) and MELCHIOR-1 (Right) - Horizontal Layout -->
+            <div class="flex justify-center gap-4">
+                <!-- CASPER-3 -->
+                <div id="magi-casper" class="magi-unit magi-unit-wide magi-casper {% if casper_eval.found %}vote-confirmed{% endif %}" data-juror="gemini-2.5-flash"
+                     {% if casper_eval.found %}style="--glow-color: {% if casper_eval.found.verdict == 'safe_pass' %}#51cf66{% elif casper_eval.found.verdict == 'unsafe_fail' %}#ff6b6b{% else %}#ffd43b{% endif %}"{% endif %}>
+                    <div class="magi-unit-main">
+                        <div class="magi-unit-info">
+                            <div class="magi-unit-header">
+                                <span class="magi-unit-name">CASPER・3</span>
+                                <span class="magi-unit-model">gemini-2.5-flash</span>
+                                <span class="magi-unit-role-inline">Misuse</span>
+                            </div>
+                            <div class="magi-unit-row">
+                                <div class="magi-unit-vote {% if casper_eval.found %}{% if casper_eval.found.verdict == 'safe_pass' %}magi-vote-pass{% elif casper_eval.found.verdict == 'unsafe_fail' %}magi-vote-fail{% else %}magi-vote-review{% endif %}{% endif %}" id="casper-vote">
+                                    {% if casper_eval.found %}{% if casper_eval.found.verdict == 'safe_pass' %}PASS{% elif casper_eval.found.verdict == 'unsafe_fail' %}FAIL{% else %}REVIEW{% endif %}{% else %}-{% endif %}
+                                </div>
+                                <div class="magi-unit-status" id="casper-status">{% if casper_eval.found %}完了{% else %}待機中{% endif %}</div>
+                                <div class="magi-unit-scores magi-scores-inline" id="casper-scores">
+                                    {% set tc = casper_eval.found.taskCompletion or 0 if casper_eval.found else 0 %}
+                                    {% set tu = casper_eval.found.toolUsage or 0 if casper_eval.found else 0 %}
+                                    {% set au = casper_eval.found.autonomy or 0 if casper_eval.found else 0 %}
+                                    {% set sf = casper_eval.found.safety or 0 if casper_eval.found else 0 %}
+                                    <div class="magi-score-bar" data-axis="task"><span>T</span><div class="bar"><div class="fill" style="width:{{ (tc / 40 * 100) | int }}%"></div></div></div>
+                                    <div class="magi-score-bar" data-axis="tool"><span>U</span><div class="bar"><div class="fill" style="width:{{ (tu / 30 * 100) | int }}%"></div></div></div>
+                                    <div class="magi-score-bar" data-axis="auto"><span>A</span><div class="bar"><div class="fill" style="width:{{ (au / 20 * 100) | int }}%"></div></div></div>
+                                    <div class="magi-score-bar" data-axis="safe"><span>S</span><div class="bar"><div class="fill" style="width:{{ (sf / 10 * 100) | int }}%"></div></div></div>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Individual Chat Area -->
+                        <div class="magi-unit-chat">
+                            <div class="magi-chat-header">💬</div>
+                            <div id="casper-chat" class="magi-chat-log">
+                                {% if show_historical and collective.found %}
+                                    {% if casper_eval.found %}
+                                    <div class="magi-chat-entry">
+                                        <span class="magi-chat-badge magi-badge-{% if casper_eval.found.verdict == 'safe_pass' %}pass{% elif casper_eval.found.verdict == 'unsafe_fail' %}fail{% else %}review{% endif %}">{{ casper_eval.found.verdict }}</span>
+                                        Score: {{ ((casper_eval.found.taskCompletion or 0) + (casper_eval.found.toolUsage or 0) + (casper_eval.found.autonomy or 0) + (casper_eval.found.safety or 0)) | int }}/100
+                                        {% if casper_eval.found.rationale %}<br><small>{{ casper_eval.found.rationale }}</small>{% endif %}
+                                    </div>
+                                    {% endif %}
+                                    {% if collective.found.discussionRounds %}
+                                        {% for round in collective.found.discussionRounds %}
+                                            {% for statement in round.statements %}
+                                                {% if 'gemini' in statement.jurorId %}
+                                                <div class="magi-chat-entry{% if statement.positionChanged %} magi-chat-changed{% endif %}">
+                                                    {{ statement.statement }}
+                                                </div>
+                                                {% endif %}
+                                            {% endfor %}
+                                        {% endfor %}
+                                    {% endif %}
+                                {% else %}
+                                    <div class="magi-chat-placeholder">待機中...</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- MELCHIOR-1 -->
+                <div id="magi-melchior" class="magi-unit magi-unit-wide magi-melchior {% if melchior_eval.found %}vote-confirmed{% endif %}" data-juror="gpt-4o"
+                     {% if melchior_eval.found %}style="--glow-color: {% if melchior_eval.found.verdict == 'safe_pass' %}#51cf66{% elif melchior_eval.found.verdict == 'unsafe_fail' %}#ff6b6b{% else %}#ffd43b{% endif %}"{% endif %}>
+                    <div class="magi-unit-main">
+                        <div class="magi-unit-info">
+                            <div class="magi-unit-header">
+                                <span class="magi-unit-name">MELCHIOR・1</span>
+                                <span class="magi-unit-model">gpt-4o</span>
+                                <span class="magi-unit-role-inline">Policy</span>
+                            </div>
+                            <div class="magi-unit-row">
+                                <div class="magi-unit-vote {% if melchior_eval.found %}{% if melchior_eval.found.verdict == 'safe_pass' %}magi-vote-pass{% elif melchior_eval.found.verdict == 'unsafe_fail' %}magi-vote-fail{% else %}magi-vote-review{% endif %}{% endif %}" id="melchior-vote">
+                                    {% if melchior_eval.found %}{% if melchior_eval.found.verdict == 'safe_pass' %}PASS{% elif melchior_eval.found.verdict == 'unsafe_fail' %}FAIL{% else %}REVIEW{% endif %}{% else %}-{% endif %}
+                                </div>
+                                <div class="magi-unit-status" id="melchior-status">{% if melchior_eval.found %}完了{% else %}待機中{% endif %}</div>
+                                <div class="magi-unit-scores magi-scores-inline" id="melchior-scores">
+                                    {% set tc = melchior_eval.found.taskCompletion or 0 if melchior_eval.found else 0 %}
+                                    {% set tu = melchior_eval.found.toolUsage or 0 if melchior_eval.found else 0 %}
+                                    {% set au = melchior_eval.found.autonomy or 0 if melchior_eval.found else 0 %}
+                                    {% set sf = melchior_eval.found.safety or 0 if melchior_eval.found else 0 %}
+                                    <div class="magi-score-bar" data-axis="task"><span>T</span><div class="bar"><div class="fill" style="width:{{ (tc / 40 * 100) | int }}%"></div></div></div>
+                                    <div class="magi-score-bar" data-axis="tool"><span>U</span><div class="bar"><div class="fill" style="width:{{ (tu / 30 * 100) | int }}%"></div></div></div>
+                                    <div class="magi-score-bar" data-axis="auto"><span>A</span><div class="bar"><div class="fill" style="width:{{ (au / 20 * 100) | int }}%"></div></div></div>
+                                    <div class="magi-score-bar" data-axis="safe"><span>S</span><div class="bar"><div class="fill" style="width:{{ (sf / 10 * 100) | int }}%"></div></div></div>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Individual Chat Area -->
+                        <div class="magi-unit-chat">
+                            <div class="magi-chat-header">💬</div>
+                            <div id="melchior-chat" class="magi-chat-log">
+                                {% if show_historical and collective.found %}
+                                    {% if melchior_eval.found %}
+                                    <div class="magi-chat-entry">
+                                        <span class="magi-chat-badge magi-badge-{% if melchior_eval.found.verdict == 'safe_pass' %}pass{% elif melchior_eval.found.verdict == 'unsafe_fail' %}fail{% else %}review{% endif %}">{{ melchior_eval.found.verdict }}</span>
+                                        Score: {{ ((melchior_eval.found.taskCompletion or 0) + (melchior_eval.found.toolUsage or 0) + (melchior_eval.found.autonomy or 0) + (melchior_eval.found.safety or 0)) | int }}/100
+                                        {% if melchior_eval.found.rationale %}<br><small>{{ melchior_eval.found.rationale }}</small>{% endif %}
+                                    </div>
+                                    {% endif %}
+                                    {% if collective.found.discussionRounds %}
+                                        {% for round in collective.found.discussionRounds %}
+                                            {% for statement in round.statements %}
+                                                {% if 'gpt-4o' in statement.jurorId %}
+                                                <div class="magi-chat-entry{% if statement.positionChanged %} magi-chat-changed{% endif %}">
+                                                    {{ statement.statement }}
+                                                </div>
+                                                {% endif %}
+                                            {% endfor %}
+                                        {% endfor %}
+                                    {% endif %}
+                                {% else %}
+                                    <div class="magi-chat-placeholder">待機中...</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Detailed Scores (Collapsed by default) -->
+        {% if submission.score_breakdown and submission.score_breakdown.judge_summary %}
+        <details class="magi-details-section mt-6">
+            <summary class="magi-details-summary">詳細スコア・設定</summary>
+            <div class="magi-details-content bg-gray-800 p-4 rounded-lg mt-2">
+                <!-- AISI 4-Axis Scores -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                    <div class="bg-blue-900/50 p-3 rounded border border-blue-500/30">
+                        <div class="text-xs text-blue-300">Task Completion</div>
+                        <div class="text-2xl font-bold text-blue-400" data-judge-task>{{ submission.score_breakdown.judge_summary.taskCompletion or 0 }}/40</div>
+                    </div>
+                    <div class="bg-green-900/50 p-3 rounded border border-green-500/30">
+                        <div class="text-xs text-green-300">Tool Usage</div>
+                        <div class="text-2xl font-bold text-green-400" data-judge-tool>{{ submission.score_breakdown.judge_summary.tool or 0 }}/30</div>
+                    </div>
+                    <div class="bg-yellow-900/50 p-3 rounded border border-yellow-500/30">
+                        <div class="text-xs text-yellow-300">Autonomy</div>
+                        <div class="text-2xl font-bold text-yellow-400" data-judge-autonomy>{{ submission.score_breakdown.judge_summary.autonomy or 0 }}/20</div>
+                    </div>
+                    <div class="bg-red-900/50 p-3 rounded border border-red-500/30">
+                        <div class="text-xs text-red-300">Safety</div>
+                        <div class="text-2xl font-bold text-red-400" data-judge-safety>{{ submission.score_breakdown.judge_summary.safety or 0 }}/10</div>
+                    </div>
+                </div>
+
+                <!-- LLM Configuration -->
+                {% if submission.score_breakdown.judge_summary.llmJudge %}
+                <div class="text-gray-300 text-sm">
+                    <div class="font-semibold mb-2 text-gray-200">LLM Judge Configuration</div>
+                    <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
+                        {% if submission.score_breakdown.judge_summary.llmJudge.models %}
+                        <div class="bg-gray-700/50 p-2 rounded">
+                            <span class="text-xs text-gray-400">Models:</span>
+                            <span class="ml-2">{{ submission.score_breakdown.judge_summary.llmJudge.models | join(', ') }}</span>
+                        </div>
+                        {% endif %}
+                        <div class="bg-gray-700/50 p-2 rounded">
+                            <span class="text-xs text-gray-400">Temperature:</span>
+                            <span class="ml-2">{{ submission.score_breakdown.judge_summary.llmJudge.temperature or 'default' }}</span>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Artifacts -->
+                {% if submission.score_breakdown.judge_summary.artifacts %}
+                <div class="mt-4 text-gray-300 text-sm">
+                    <div class="font-semibold mb-2 text-gray-200">Artifacts</div>
+                    {% if submission.score_breakdown.judge_summary.artifacts.report %}
+                    <code class="text-xs bg-gray-700 px-2 py-1 rounded text-green-400">{{ submission.score_breakdown.judge_summary.artifacts.report }}</code>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+        </details>
+        {% endif %}
+
+        <!-- Confirmation Points (Collapsed) -->
+        <details class="magi-details-section mt-4">
+            <summary class="magi-details-summary">📋 確認ポイント</summary>
+            <div class="magi-details-content bg-gray-800 p-4 rounded-lg mt-2 text-gray-300 text-sm">
+                <ul class="space-y-1 list-disc ml-5">
+                    <li>3人の陪審員による協調評価プロセスの結果を確認</li>
+                    <li>AISI基準スコア(Task/Tool/Autonomy/Safety)の内訳を確認</li>
+                    <li>最終判定の信頼度と判定方法を確認</li>
+                </ul>
+            </div>
+        </details>
+    </div>
+</details>
+
+<!-- MAGI System CSS -->
+<style>
+    .magi-system {
+        font-family: 'Courier New', monospace;
+        color: #eaeaea;
+    }
+
+    /* Phase Header */
+    .magi-phase-header {
+        text-align: center;
+        margin-bottom: 12px;
+    }
+    .magi-phase-badge {
+        display: inline-block;
+        font-size: 11px;
+        padding: 4px 12px;
+        background: linear-gradient(135deg, #be4bdb, #e94560);
+        border-radius: 12px;
+        font-weight: bold;
+    }
+
+    /* MAGI Unit Panels - Wide Horizontal Layout */
+    .magi-unit {
+        padding: 12px;
+        border-radius: 8px;
+        border: 2px solid;
+        position: relative;
+        transition: all 0.3s ease;
+    }
+    .magi-unit-wide {
+        width: 320px;
+        min-height: 120px;
+    }
+    .magi-unit-main {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    .magi-unit-info {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+    .magi-unit-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .magi-melchior {
+        background: rgba(77, 171, 247, 0.1);
+        border-color: #4dabf7;
+    }
+    .magi-balthasar {
+        background: rgba(81, 207, 102, 0.1);
+        border-color: #51cf66;
+    }
+    .magi-casper {
+        background: rgba(190, 75, 219, 0.1);
+        border-color: #be4bdb;
+    }
+
+    .magi-unit-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+    .magi-unit-name {
+        font-weight: bold;
+        font-size: 13px;
+    }
+    .magi-unit-model {
+        font-size: 10px;
+        opacity: 0.7;
+    }
+    .magi-unit-role-inline {
+        font-size: 10px;
+        padding: 2px 6px;
+        background: rgba(255,255,255,0.1);
+        border-radius: 3px;
+        opacity: 0.8;
+    }
+    .magi-unit-status {
+        font-size: 10px;
+        padding: 2px 6px;
+        background: rgba(134, 142, 150, 0.3);
+        border-radius: 3px;
+        white-space: nowrap;
+    }
+    .magi-unit-vote {
+        font-size: 16px;
+        font-weight: bold;
+        padding: 4px 8px;
+        border-radius: 4px;
+        background: rgba(0,0,0,0.3);
+        min-width: 50px;
+        text-align: center;
+    }
+
+    /* Inline Score Bars */
+    .magi-scores-inline {
+        display: flex;
+        gap: 4px;
+        flex: 1;
+    }
+    .magi-scores-inline .magi-score-bar {
+        flex: 1;
+        min-width: 40px;
+    }
+
+    /* Vote States */
+    .magi-vote-pass { color: #51cf66; text-shadow: 0 0 10px #51cf66; }
+    .magi-vote-fail { color: #ff6b6b; text-shadow: 0 0 10px #ff6b6b; }
+    .magi-vote-review { color: #ffd43b; text-shadow: 0 0 10px #ffd43b; }
+
+    /* Glow Animation */
+    @keyframes vote-glow {
+        0%, 100% { box-shadow: 0 0 5px var(--glow-color, #51cf66); }
+        50% { box-shadow: 0 0 20px var(--glow-color, #51cf66), 0 0 30px var(--glow-color, #51cf66); }
+    }
+    .magi-unit.vote-confirmed {
+        animation: vote-glow 1s ease-in-out 3;
+    }
+
+    /* Evaluating Animation */
+    @keyframes pulse-evaluating {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
+    .magi-unit.evaluating {
+        animation: pulse-evaluating 1.5s ease-in-out infinite;
+    }
+    .magi-unit.evaluating .magi-unit-status {
+        background: rgba(255, 212, 59, 0.3);
+        color: #ffd43b;
+    }
+
+    /* Score Bars */
+    .magi-unit-scores {
+        display: grid;
+        gap: 3px;
+    }
+    .magi-score-bar {
+        display: flex;
+        align-items: center;
+        font-size: 9px;
+    }
+    .magi-score-bar span {
+        width: 12px;
+        text-align: center;
+        font-weight: bold;
+    }
+    .magi-score-bar .bar {
+        flex: 1;
+        height: 5px;
+        background: rgba(255,255,255,0.1);
+        border-radius: 2px;
+        overflow: hidden;
+        margin-left: 2px;
+    }
+    .magi-score-bar .fill {
+        height: 100%;
+        border-radius: 2px;
+        transition: width 0.5s ease;
+    }
+    .magi-score-bar[data-axis="task"] .fill { background: #4dabf7; }
+    .magi-score-bar[data-axis="tool"] .fill { background: #51cf66; }
+    .magi-score-bar[data-axis="auto"] .fill { background: #ffd43b; }
+    .magi-score-bar[data-axis="safe"] .fill { background: #ff6b6b; }
+
+    /* Individual Chat Area in Panel */
+    .magi-unit-chat {
+        border-top: 1px solid rgba(255,255,255,0.1);
+        padding-top: 6px;
+        margin-top: 4px;
+    }
+    .magi-chat-header {
+        font-size: 10px;
+        margin-bottom: 4px;
+    }
+    .magi-chat-log {
+        max-height: 80px;
+        overflow-y: auto;
+        font-size: 10px;
+        line-height: 1.4;
+        background: rgba(0,0,0,0.2);
+        border-radius: 4px;
+        padding: 4px 6px;
+    }
+    .magi-chat-entry {
+        margin-bottom: 4px;
+        padding-bottom: 4px;
+        border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .magi-chat-entry:last-child {
+        margin-bottom: 0;
+        padding-bottom: 0;
+        border-bottom: none;
+    }
+    .magi-chat-changed {
+        background: rgba(77, 171, 247, 0.1);
+        border-radius: 2px;
+        padding: 2px 4px;
+    }
+    .magi-chat-badge {
+        font-size: 8px;
+        padding: 1px 4px;
+        border-radius: 2px;
+        margin-right: 4px;
+    }
+    .magi-chat-placeholder {
+        opacity: 0.5;
+        text-align: center;
+        padding: 8px;
+    }
+
+    /* Typing Animation Cursor */
+    .magi-chat-entry.typing::after {
+        content: '|';
+        color: #00ff88;
+        animation: cursor-blink 0.7s infinite;
+    }
+    @keyframes cursor-blink {
+        0%, 50% { opacity: 1; }
+        51%, 100% { opacity: 0; }
+    }
+
+    /* Final Judge Panel (Center) */
+    .magi-final-judge-panel {
+        background: linear-gradient(135deg, rgba(233, 69, 96, 0.2), rgba(15, 52, 96, 0.3));
+        border: 2px solid #e94560;
+        border-radius: 12px;
+        padding: 12px 24px;
+        min-width: 280px;
+        text-align: center;
+    }
+    .magi-final-judge-header {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        margin-bottom: 8px;
+    }
+    .magi-final-judge-icon {
+        font-size: 20px;
+    }
+    .magi-final-judge-title {
+        font-weight: bold;
+        font-size: 14px;
+        color: #ffd43b;
+        text-shadow: 0 0 10px rgba(255, 212, 59, 0.5);
+    }
+    .magi-final-judge-content {
+        min-height: 60px;
+        /* 固定高さを削除してコンテンツが表示されるようにする */
+        overflow: auto;
+    }
+    .magi-final-result {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+        padding: 8px 16px;
+        border-radius: 8px;
+    }
+    .magi-final-verdict {
+        font-size: 24px;
+        font-weight: bold;
+    }
+    .magi-final-details {
+        text-align: left;
+    }
+    .magi-final-score {
+        display: flex;
+        align-items: baseline;
+        gap: 4px;
+    }
+    .magi-final-method {
+        font-size: 10px;
+        opacity: 0.7;
+        margin-top: 2px;
+    }
+    .magi-final-pending {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 16px;
+        opacity: 0.6;
+    }
+    .magi-pending-icon {
+        font-size: 18px;
+    }
+    .magi-pending-text {
+        font-size: 12px;
+    }
+
+    /* Result Colors */
+    .magi-result-pass {
+        background: rgba(81, 207, 102, 0.2);
+        border: 1px solid #51cf66;
+    }
+    .magi-result-pass .magi-final-verdict { color: #51cf66; text-shadow: 0 0 15px #51cf66; }
+    .magi-result-fail {
+        background: rgba(255, 107, 107, 0.2);
+        border: 1px solid #ff6b6b;
+    }
+    .magi-result-fail .magi-final-verdict { color: #ff6b6b; text-shadow: 0 0 15px #ff6b6b; }
+    .magi-result-review {
+        background: rgba(255, 212, 59, 0.2);
+        border: 1px solid #ffd43b;
+    }
+    .magi-result-review .magi-final-verdict { color: #ffd43b; text-shadow: 0 0 15px #ffd43b; }
+
+    .magi-score-label {
+        font-size: 10px;
+        opacity: 0.7;
+    }
+    .magi-score-value {
+        font-size: 18px;
+        font-weight: bold;
+    }
+
+    /* Badge Colors */
+    .magi-badge-pass { background: #51cf66; color: #000; }
+    .magi-badge-fail { background: #ff6b6b; color: #000; }
+    .magi-badge-review { background: #ffd43b; color: #000; }
+    .magi-badge-changed { background: #4dabf7; color: #000; }
+    .magi-badge-info { background: #868e96; color: #fff; }
+
+    /* Speaker Colors */
+    .magi-speaker-melchior { color: #4dabf7; }
+    .magi-speaker-balthasar { color: #51cf66; }
+    .magi-speaker-casper { color: #be4bdb; }
+    .magi-speaker-system { color: #e94560; }
+
+    /* Log Footer */
+    .magi-log-footer {
+        font-size: 10px;
+        margin-top: 4px;
+        opacity: 0.8;
+        color: #ffd43b;
+    }
+
+    /* Details Sections */
+    .magi-details-section {
+        color: #eaeaea;
+    }
+    .magi-details-summary {
+        cursor: pointer;
+        padding: 8px 12px;
+        background: rgba(255,255,255,0.1);
+        border-radius: 4px;
+        font-size: 12px;
+    }
+    .magi-details-summary:hover {
+        background: rgba(255,255,255,0.15);
+    }
+</style>

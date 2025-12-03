@@ -1,3 +1,6 @@
+import asyncio
+import os
+
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -6,7 +9,6 @@ from .database import engine, Base
 from .routers import submissions, reviews, ui, agents, orgs, sse
 from app.services.agent_registry import load_agents
 from app.services.org_registry import load_orgs
-import os
 
 # Base directory for static files and templates
 # Defaults to Docker structure, can be overridden via environment variable
@@ -41,6 +43,14 @@ app.include_router(agents.api_router)
 app.include_router(orgs.router)
 app.include_router(orgs.api_router)
 app.include_router(sse.router)         # SSE for real-time jury judge updates
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize SSE manager with the main event loop."""
+    sse_manager = sse.get_sse_manager()
+    sse_manager.set_main_loop(asyncio.get_running_loop())
+
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):

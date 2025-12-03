@@ -126,12 +126,13 @@
     <h2 class="text-xl font-semibold mb-4">Automated Review Steps</h2>
     {% if submission.score_breakdown %}
     <!-- PreCheck -->
-    <details id="details-precheck" class="mb-6 bg-gray-50 p-4 rounded-lg">
+    <details id="details-precheck" class="mb-6 bg-gray-50 p-4 rounded-lg" open>
         <summary class="text-lg font-semibold mb-2 flex items-center cursor-pointer">
             <span class="mr-2">🧾</span> PreCheck
         </summary>
+        <!-- ストリーミングコンテンツエリア（SSE受信時に動的に書き換わる） -->
+        <div id="precheck-content" class="ml-7 space-y-2 mt-2">
         {% if submission.score_breakdown.precheck_summary %}
-        <div class="ml-7 space-y-2 mt-2">
             <p class="text-sm text-gray-700">
                 <span class="font-semibold">Status:</span>
                 <span class="{% if submission.score_breakdown.precheck_summary.passed %}text-green-600{% else %}text-red-600{% endif %}">
@@ -158,18 +159,19 @@
                 {% endfor %}
             </ul>
             {% endif %}
-        </div>
         {% else %}
-        <p class="ml-7 text-sm text-gray-500">PreCheck not yet executed</p>
+            <p class="text-sm text-gray-500">待機中...</p>
         {% endif %}
+        </div>
     </details>
     <!-- Security Gate -->
-    <details id="details-security" class="mb-6 bg-gray-50 p-4 rounded-lg">
+    <details id="details-security" class="mb-6 bg-gray-50 p-4 rounded-lg" open>
         <summary class="text-lg font-semibold mb-2 flex items-center cursor-pointer">
             <span class="mr-2">🛡️</span> Security Gate
         </summary>
+        <!-- ストリーミングコンテンツエリア（SSE受信時に動的に書き換わる） -->
+        <div id="security-content" class="ml-7 space-y-4 mt-2">
         {% if submission.score_breakdown.security_summary %}
-        <div class="ml-7 space-y-4 mt-2">
             <!-- Basic Counts -->
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div class="bg-white p-3 rounded border">
@@ -328,12 +330,13 @@
         {% endif %}
     </details>
     <!-- Agent Card Accuracy -->
-    <details id="details-functional" class="mb-6 bg-gray-50 p-4 rounded-lg">
+    <details id="details-functional" class="mb-6 bg-gray-50 p-4 rounded-lg" open>
         <summary class="text-lg font-semibold mb-2 flex items-center cursor-pointer">
             <span class="mr-2">📋</span> Agent Card Accuracy
         </summary>
+        <!-- ストリーミングコンテンツエリア（SSE受信時に動的に書き換わる） -->
+        <div id="functional-content" class="ml-7 space-y-4 mt-2">
         {% if submission.score_breakdown.functional_summary %}
-        <div class="ml-7 space-y-4 mt-2">
             <!-- Basic Counts -->
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div class="bg-white p-3 rounded border">
@@ -415,7 +418,11 @@
                 </div>
                 <div class="text-xs mb-2">
                     <strong>Response:</strong>
-                    <pre class="mt-1 whitespace-pre-wrap bg-gray-50 p-2 rounded">{{ scenario.response or 'N/A' }}</pre>
+                    {% if scenario.responseStatus == 'error' and scenario.responseError %}
+                    <pre class="mt-1 whitespace-pre-wrap bg-red-50 p-2 rounded text-red-700">[エラー] {{ scenario.responseError }}</pre>
+                    {% else %}
+                    <pre class="mt-1 whitespace-pre-wrap bg-gray-50 p-2 rounded">{{ scenario.response or '(応答なし)' }}</pre>
+                    {% endif %}
                 </div>
                 {% endif %}
 
@@ -563,711 +570,12 @@
                 </div>
             </div>
             {% endif %}
-        </div>
         {% else %}
-        <p class="ml-7 text-sm text-gray-500">No functional test results available</p>
+        <p class="text-sm text-gray-500">待機中...</p>
         {% endif %}
-    </details>
-    <!-- Jury Judge - MAGI SYSTEM -->
-    <details id="details-judge" class="mb-6 rounded-lg overflow-hidden" open>
-        <summary class="text-lg font-semibold p-4 flex items-center cursor-pointer bg-gray-800 text-white">
-            <span class="mr-2">⚖️</span> Jury Judge Panel - MAGI SYSTEM
-            {% if submission.state == 'judge_panel_running' %}
-            <span id="ws-status" class="ml-auto text-xs px-2 py-1 rounded bg-green-500 text-white animate-pulse">RUNNING</span>
-            {% endif %}
-        </summary>
-
-        <!-- MAGI System Container -->
-        <div id="magi-container" class="magi-system p-6" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);">
-
-            {# Extract data for both realtime and historical display #}
-            {% set show_realtime = submission.state == 'judge_panel_running' %}
-            {% set show_historical = submission.score_breakdown.judge_summary and submission.score_breakdown.judge_summary.scenarios %}
-            {% set collective = namespace(found=none) %}
-            {% if show_historical %}
-                {% for scenario in submission.score_breakdown.judge_summary.scenarios %}
-                    {% if scenario.scenarioId == 'collective_judgment' %}
-                        {% set collective.found = scenario %}
-                    {% endif %}
-                {% endfor %}
-            {% endif %}
-
-            {# Extract evaluation data for each juror from historical data #}
-            {% set balthasar_eval = namespace(found=none) %}
-            {% set casper_eval = namespace(found=none) %}
-            {% set melchior_eval = namespace(found=none) %}
-            {% if show_historical and collective.found and collective.found.phase1Evaluations %}
-                {% for eval in collective.found.phase1Evaluations %}
-                    {% if 'claude' in eval.jurorId %}
-                        {% set balthasar_eval.found = eval %}
-                    {% elif 'gemini' in eval.jurorId %}
-                        {% set casper_eval.found = eval %}
-                    {% elif 'gpt-4o' in eval.jurorId %}
-                        {% set melchior_eval.found = eval %}
-                    {% endif %}
-                {% endfor %}
-            {% endif %}
-
-            <!-- MAGI Panel Layout - Triangular with Final Judge Center -->
-            <div class="magi-panel-container mb-6">
-                <!-- Phase Indicator -->
-                <div class="magi-phase-header">
-                    <span id="magi-phase-indicator" class="magi-phase-badge">
-                        {%- if show_historical and collective.found and collective.found.finalJudgment -%}Phase 3 完了
-                        {%- elif show_historical and collective.found and collective.found.discussionRounds -%}Phase 2
-                        {%- elif show_historical and collective.found and collective.found.phase1Evaluations -%}Phase 1
-                        {%- else -%}Phase 1{%- endif -%}
-                    </span>
-                </div>
-
-                <!-- BALTHASAR-2 (Top Center) - Horizontal Layout -->
-                <div class="flex justify-center mb-4">
-                    <div id="magi-balthasar" class="magi-unit magi-unit-wide magi-balthasar {% if balthasar_eval.found %}vote-confirmed{% endif %}" data-juror="claude-3-haiku-20240307"
-                         {% if balthasar_eval.found %}style="--glow-color: {% if balthasar_eval.found.verdict == 'safe_pass' %}#51cf66{% elif balthasar_eval.found.verdict == 'unsafe_fail' %}#ff6b6b{% else %}#ffd43b{% endif %}"{% endif %}>
-                        <div class="magi-unit-main">
-                            <div class="magi-unit-info">
-                                <div class="magi-unit-header">
-                                    <span class="magi-unit-name">BALTHASAR・2</span>
-                                    <span class="magi-unit-model">claude-3-haiku</span>
-                                    <span class="magi-unit-role-inline">Security</span>
-                                </div>
-                                <div class="magi-unit-row">
-                                    <div class="magi-unit-vote {% if balthasar_eval.found %}{% if balthasar_eval.found.verdict == 'safe_pass' %}magi-vote-pass{% elif balthasar_eval.found.verdict == 'unsafe_fail' %}magi-vote-fail{% else %}magi-vote-review{% endif %}{% endif %}" id="balthasar-vote">
-                                        {% if balthasar_eval.found %}{% if balthasar_eval.found.verdict == 'safe_pass' %}PASS{% elif balthasar_eval.found.verdict == 'unsafe_fail' %}FAIL{% else %}REVIEW{% endif %}{% else %}-{% endif %}
-                                    </div>
-                                    <div class="magi-unit-status" id="balthasar-status">{% if balthasar_eval.found %}完了{% else %}待機中{% endif %}</div>
-                                    <div class="magi-unit-scores magi-scores-inline" id="balthasar-scores">
-                                        {% set tc = balthasar_eval.found.taskCompletion or 0 if balthasar_eval.found else 0 %}
-                                        {% set tu = balthasar_eval.found.toolUsage or 0 if balthasar_eval.found else 0 %}
-                                        {% set au = balthasar_eval.found.autonomy or 0 if balthasar_eval.found else 0 %}
-                                        {% set sf = balthasar_eval.found.safety or 0 if balthasar_eval.found else 0 %}
-                                        <div class="magi-score-bar" data-axis="task"><span>T</span><div class="bar"><div class="fill" style="width:{{ (tc / 40 * 100) | int }}%"></div></div></div>
-                                        <div class="magi-score-bar" data-axis="tool"><span>U</span><div class="bar"><div class="fill" style="width:{{ (tu / 30 * 100) | int }}%"></div></div></div>
-                                        <div class="magi-score-bar" data-axis="auto"><span>A</span><div class="bar"><div class="fill" style="width:{{ (au / 20 * 100) | int }}%"></div></div></div>
-                                        <div class="magi-score-bar" data-axis="safe"><span>S</span><div class="bar"><div class="fill" style="width:{{ (sf / 10 * 100) | int }}%"></div></div></div>
-                                    </div>
-                                </div>
-                            </div>
-                            <!-- Individual Chat Area -->
-                            <div class="magi-unit-chat">
-                                <div class="magi-chat-header">💬</div>
-                                <div id="balthasar-chat" class="magi-chat-log">
-                                    {% if show_historical and collective.found %}
-                                        {# Phase 1 Evaluation #}
-                                        {% if balthasar_eval.found %}
-                                        <div class="magi-chat-entry">
-                                            <span class="magi-chat-badge magi-badge-{% if balthasar_eval.found.verdict == 'safe_pass' %}pass{% elif balthasar_eval.found.verdict == 'unsafe_fail' %}fail{% else %}review{% endif %}">{{ balthasar_eval.found.verdict }}</span>
-                                            Score: {{ ((balthasar_eval.found.taskCompletion or 0) + (balthasar_eval.found.toolUsage or 0) + (balthasar_eval.found.autonomy or 0) + (balthasar_eval.found.safety or 0)) | int }}/100
-                                            {% if balthasar_eval.found.rationale %}<br><small>{{ balthasar_eval.found.rationale }}</small>{% endif %}
-                                        </div>
-                                        {% endif %}
-                                        {# Phase 2 Statements #}
-                                        {% if collective.found.discussionRounds %}
-                                            {% for round in collective.found.discussionRounds %}
-                                                {% for statement in round.statements %}
-                                                    {% if 'claude' in statement.jurorId %}
-                                                    <div class="magi-chat-entry{% if statement.positionChanged %} magi-chat-changed{% endif %}">
-                                                        {{ statement.statement }}
-                                                    </div>
-                                                    {% endif %}
-                                                {% endfor %}
-                                            {% endfor %}
-                                        {% endif %}
-                                    {% else %}
-                                        <div class="magi-chat-placeholder">待機中...</div>
-                                    {% endif %}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- MAGI Central - Final Judge Panel -->
-                <div class="flex justify-center mb-4">
-                    <div class="magi-final-judge-panel">
-                        <div class="magi-final-judge-header">
-                            <span class="magi-final-judge-icon">⚖️</span>
-                            <span class="magi-final-judge-title">MAGI FINAL JUDGE</span>
-                        </div>
-                        <div id="magi-final-decision" class="magi-final-judge-content">
-                            {% if show_historical and collective.found and collective.found.finalJudgment %}
-                            <div class="magi-final-result
-                                {% if collective.found.finalJudgment.finalVerdict == 'safe_pass' %}magi-result-pass
-                                {% elif collective.found.finalJudgment.finalVerdict == 'unsafe_fail' %}magi-result-fail
-                                {% else %}magi-result-review{% endif %}">
-                                <div class="magi-final-verdict">
-                                    {% if collective.found.finalJudgment.finalVerdict == 'safe_pass' %}可決
-                                    {% elif collective.found.finalJudgment.finalVerdict == 'unsafe_fail' %}否決
-                                    {% else %}要確認{% endif %}
-                                </div>
-                                <div class="magi-final-details">
-                                    <div class="magi-final-score">
-                                        <span class="magi-score-label">Trust</span>
-                                        <span class="magi-score-value">{{ submission.trust_score }}/100</span>
-                                    </div>
-                                    <div class="magi-final-method">
-                                        {{ collective.found.finalJudgment.method or '多数決' }}
-                                    </div>
-                                </div>
-                            </div>
-                            {% else %}
-                            <div class="magi-final-pending">
-                                <span class="magi-pending-icon">⏳</span>
-                                <span class="magi-pending-text">判定待機中</span>
-                            </div>
-                            {% endif %}
-                        </div>
-                    </div>
-                </div>
-
-                <!-- CASPER-3 (Left) and MELCHIOR-1 (Right) - Horizontal Layout -->
-                <div class="flex justify-center gap-4">
-                    <!-- CASPER-3 -->
-                    <div id="magi-casper" class="magi-unit magi-unit-wide magi-casper {% if casper_eval.found %}vote-confirmed{% endif %}" data-juror="gemini-2.5-flash"
-                         {% if casper_eval.found %}style="--glow-color: {% if casper_eval.found.verdict == 'safe_pass' %}#51cf66{% elif casper_eval.found.verdict == 'unsafe_fail' %}#ff6b6b{% else %}#ffd43b{% endif %}"{% endif %}>
-                        <div class="magi-unit-main">
-                            <div class="magi-unit-info">
-                                <div class="magi-unit-header">
-                                    <span class="magi-unit-name">CASPER・3</span>
-                                    <span class="magi-unit-model">gemini-2.5-flash</span>
-                                    <span class="magi-unit-role-inline">Misuse</span>
-                                </div>
-                                <div class="magi-unit-row">
-                                    <div class="magi-unit-vote {% if casper_eval.found %}{% if casper_eval.found.verdict == 'safe_pass' %}magi-vote-pass{% elif casper_eval.found.verdict == 'unsafe_fail' %}magi-vote-fail{% else %}magi-vote-review{% endif %}{% endif %}" id="casper-vote">
-                                        {% if casper_eval.found %}{% if casper_eval.found.verdict == 'safe_pass' %}PASS{% elif casper_eval.found.verdict == 'unsafe_fail' %}FAIL{% else %}REVIEW{% endif %}{% else %}-{% endif %}
-                                    </div>
-                                    <div class="magi-unit-status" id="casper-status">{% if casper_eval.found %}完了{% else %}待機中{% endif %}</div>
-                                    <div class="magi-unit-scores magi-scores-inline" id="casper-scores">
-                                        {% set tc = casper_eval.found.taskCompletion or 0 if casper_eval.found else 0 %}
-                                        {% set tu = casper_eval.found.toolUsage or 0 if casper_eval.found else 0 %}
-                                        {% set au = casper_eval.found.autonomy or 0 if casper_eval.found else 0 %}
-                                        {% set sf = casper_eval.found.safety or 0 if casper_eval.found else 0 %}
-                                        <div class="magi-score-bar" data-axis="task"><span>T</span><div class="bar"><div class="fill" style="width:{{ (tc / 40 * 100) | int }}%"></div></div></div>
-                                        <div class="magi-score-bar" data-axis="tool"><span>U</span><div class="bar"><div class="fill" style="width:{{ (tu / 30 * 100) | int }}%"></div></div></div>
-                                        <div class="magi-score-bar" data-axis="auto"><span>A</span><div class="bar"><div class="fill" style="width:{{ (au / 20 * 100) | int }}%"></div></div></div>
-                                        <div class="magi-score-bar" data-axis="safe"><span>S</span><div class="bar"><div class="fill" style="width:{{ (sf / 10 * 100) | int }}%"></div></div></div>
-                                    </div>
-                                </div>
-                            </div>
-                            <!-- Individual Chat Area -->
-                            <div class="magi-unit-chat">
-                                <div class="magi-chat-header">💬</div>
-                                <div id="casper-chat" class="magi-chat-log">
-                                    {% if show_historical and collective.found %}
-                                        {% if casper_eval.found %}
-                                        <div class="magi-chat-entry">
-                                            <span class="magi-chat-badge magi-badge-{% if casper_eval.found.verdict == 'safe_pass' %}pass{% elif casper_eval.found.verdict == 'unsafe_fail' %}fail{% else %}review{% endif %}">{{ casper_eval.found.verdict }}</span>
-                                            Score: {{ ((casper_eval.found.taskCompletion or 0) + (casper_eval.found.toolUsage or 0) + (casper_eval.found.autonomy or 0) + (casper_eval.found.safety or 0)) | int }}/100
-                                            {% if casper_eval.found.rationale %}<br><small>{{ casper_eval.found.rationale }}</small>{% endif %}
-                                        </div>
-                                        {% endif %}
-                                        {% if collective.found.discussionRounds %}
-                                            {% for round in collective.found.discussionRounds %}
-                                                {% for statement in round.statements %}
-                                                    {% if 'gemini' in statement.jurorId %}
-                                                    <div class="magi-chat-entry{% if statement.positionChanged %} magi-chat-changed{% endif %}">
-                                                        {{ statement.statement }}
-                                                    </div>
-                                                    {% endif %}
-                                                {% endfor %}
-                                            {% endfor %}
-                                        {% endif %}
-                                    {% else %}
-                                        <div class="magi-chat-placeholder">待機中...</div>
-                                    {% endif %}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- MELCHIOR-1 -->
-                    <div id="magi-melchior" class="magi-unit magi-unit-wide magi-melchior {% if melchior_eval.found %}vote-confirmed{% endif %}" data-juror="gpt-4o"
-                         {% if melchior_eval.found %}style="--glow-color: {% if melchior_eval.found.verdict == 'safe_pass' %}#51cf66{% elif melchior_eval.found.verdict == 'unsafe_fail' %}#ff6b6b{% else %}#ffd43b{% endif %}"{% endif %}>
-                        <div class="magi-unit-main">
-                            <div class="magi-unit-info">
-                                <div class="magi-unit-header">
-                                    <span class="magi-unit-name">MELCHIOR・1</span>
-                                    <span class="magi-unit-model">gpt-4o</span>
-                                    <span class="magi-unit-role-inline">Policy</span>
-                                </div>
-                                <div class="magi-unit-row">
-                                    <div class="magi-unit-vote {% if melchior_eval.found %}{% if melchior_eval.found.verdict == 'safe_pass' %}magi-vote-pass{% elif melchior_eval.found.verdict == 'unsafe_fail' %}magi-vote-fail{% else %}magi-vote-review{% endif %}{% endif %}" id="melchior-vote">
-                                        {% if melchior_eval.found %}{% if melchior_eval.found.verdict == 'safe_pass' %}PASS{% elif melchior_eval.found.verdict == 'unsafe_fail' %}FAIL{% else %}REVIEW{% endif %}{% else %}-{% endif %}
-                                    </div>
-                                    <div class="magi-unit-status" id="melchior-status">{% if melchior_eval.found %}完了{% else %}待機中{% endif %}</div>
-                                    <div class="magi-unit-scores magi-scores-inline" id="melchior-scores">
-                                        {% set tc = melchior_eval.found.taskCompletion or 0 if melchior_eval.found else 0 %}
-                                        {% set tu = melchior_eval.found.toolUsage or 0 if melchior_eval.found else 0 %}
-                                        {% set au = melchior_eval.found.autonomy or 0 if melchior_eval.found else 0 %}
-                                        {% set sf = melchior_eval.found.safety or 0 if melchior_eval.found else 0 %}
-                                        <div class="magi-score-bar" data-axis="task"><span>T</span><div class="bar"><div class="fill" style="width:{{ (tc / 40 * 100) | int }}%"></div></div></div>
-                                        <div class="magi-score-bar" data-axis="tool"><span>U</span><div class="bar"><div class="fill" style="width:{{ (tu / 30 * 100) | int }}%"></div></div></div>
-                                        <div class="magi-score-bar" data-axis="auto"><span>A</span><div class="bar"><div class="fill" style="width:{{ (au / 20 * 100) | int }}%"></div></div></div>
-                                        <div class="magi-score-bar" data-axis="safe"><span>S</span><div class="bar"><div class="fill" style="width:{{ (sf / 10 * 100) | int }}%"></div></div></div>
-                                    </div>
-                                </div>
-                            </div>
-                            <!-- Individual Chat Area -->
-                            <div class="magi-unit-chat">
-                                <div class="magi-chat-header">💬</div>
-                                <div id="melchior-chat" class="magi-chat-log">
-                                    {% if show_historical and collective.found %}
-                                        {% if melchior_eval.found %}
-                                        <div class="magi-chat-entry">
-                                            <span class="magi-chat-badge magi-badge-{% if melchior_eval.found.verdict == 'safe_pass' %}pass{% elif melchior_eval.found.verdict == 'unsafe_fail' %}fail{% else %}review{% endif %}">{{ melchior_eval.found.verdict }}</span>
-                                            Score: {{ ((melchior_eval.found.taskCompletion or 0) + (melchior_eval.found.toolUsage or 0) + (melchior_eval.found.autonomy or 0) + (melchior_eval.found.safety or 0)) | int }}/100
-                                            {% if melchior_eval.found.rationale %}<br><small>{{ melchior_eval.found.rationale }}</small>{% endif %}
-                                        </div>
-                                        {% endif %}
-                                        {% if collective.found.discussionRounds %}
-                                            {% for round in collective.found.discussionRounds %}
-                                                {% for statement in round.statements %}
-                                                    {% if 'gpt-4o' in statement.jurorId %}
-                                                    <div class="magi-chat-entry{% if statement.positionChanged %} magi-chat-changed{% endif %}">
-                                                        {{ statement.statement }}
-                                                    </div>
-                                                    {% endif %}
-                                                {% endfor %}
-                                            {% endfor %}
-                                        {% endif %}
-                                    {% else %}
-                                        <div class="magi-chat-placeholder">待機中...</div>
-                                    {% endif %}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Detailed Scores (Collapsed by default) -->
-            {% if submission.score_breakdown.judge_summary %}
-            <details class="magi-details-section mt-6">
-                <summary class="magi-details-summary">詳細スコア・設定</summary>
-                <div class="magi-details-content bg-gray-800 p-4 rounded-lg mt-2">
-                    <!-- AISI 4-Axis Scores -->
-                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                        <div class="bg-blue-900/50 p-3 rounded border border-blue-500/30">
-                            <div class="text-xs text-blue-300">Task Completion</div>
-                            <div class="text-2xl font-bold text-blue-400" data-judge-task>{{ submission.score_breakdown.judge_summary.taskCompletion or 0 }}/40</div>
-                        </div>
-                        <div class="bg-green-900/50 p-3 rounded border border-green-500/30">
-                            <div class="text-xs text-green-300">Tool Usage</div>
-                            <div class="text-2xl font-bold text-green-400" data-judge-tool>{{ submission.score_breakdown.judge_summary.tool or 0 }}/30</div>
-                        </div>
-                        <div class="bg-yellow-900/50 p-3 rounded border border-yellow-500/30">
-                            <div class="text-xs text-yellow-300">Autonomy</div>
-                            <div class="text-2xl font-bold text-yellow-400" data-judge-autonomy>{{ submission.score_breakdown.judge_summary.autonomy or 0 }}/20</div>
-                        </div>
-                        <div class="bg-red-900/50 p-3 rounded border border-red-500/30">
-                            <div class="text-xs text-red-300">Safety</div>
-                            <div class="text-2xl font-bold text-red-400" data-judge-safety>{{ submission.score_breakdown.judge_summary.safety or 0 }}/10</div>
-                        </div>
-                    </div>
-
-                    <!-- LLM Configuration -->
-                    {% if submission.score_breakdown.judge_summary.llmJudge %}
-                    <div class="text-gray-300 text-sm">
-                        <div class="font-semibold mb-2 text-gray-200">LLM Judge Configuration</div>
-                        <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
-                            {% if submission.score_breakdown.judge_summary.llmJudge.models %}
-                            <div class="bg-gray-700/50 p-2 rounded">
-                                <span class="text-xs text-gray-400">Models:</span>
-                                <span class="ml-2">{{ submission.score_breakdown.judge_summary.llmJudge.models | join(', ') }}</span>
-                            </div>
-                            {% endif %}
-                            <div class="bg-gray-700/50 p-2 rounded">
-                                <span class="text-xs text-gray-400">Temperature:</span>
-                                <span class="ml-2">{{ submission.score_breakdown.judge_summary.llmJudge.temperature or 'default' }}</span>
-                            </div>
-                        </div>
-                    </div>
-                    {% endif %}
-
-                    <!-- Artifacts -->
-                    {% if submission.score_breakdown.judge_summary.artifacts %}
-                    <div class="mt-4 text-gray-300 text-sm">
-                        <div class="font-semibold mb-2 text-gray-200">Artifacts</div>
-                        {% if submission.score_breakdown.judge_summary.artifacts.report %}
-                        <code class="text-xs bg-gray-700 px-2 py-1 rounded text-green-400">{{ submission.score_breakdown.judge_summary.artifacts.report }}</code>
-                        {% endif %}
-                    </div>
-                    {% endif %}
-                </div>
-            </details>
-            {% endif %}
-
-            <!-- Confirmation Points (Collapsed) -->
-            <details class="magi-details-section mt-4">
-                <summary class="magi-details-summary">📋 確認ポイント</summary>
-                <div class="magi-details-content bg-gray-800 p-4 rounded-lg mt-2 text-gray-300 text-sm">
-                    <ul class="space-y-1 list-disc ml-5">
-                        <li>3人の陪審員による協調評価プロセスの結果を確認</li>
-                        <li>AISI基準スコア(Task/Tool/Autonomy/Safety)の内訳を確認</li>
-                        <li>最終判定の信頼度と判定方法を確認</li>
-                    </ul>
-                </div>
-            </details>
         </div>
-
-        <!-- MAGI System CSS -->
-        <style>
-            .magi-system {
-                font-family: 'Courier New', monospace;
-                color: #eaeaea;
-            }
-
-            /* Phase Header */
-            .magi-phase-header {
-                text-align: center;
-                margin-bottom: 12px;
-            }
-            .magi-phase-badge {
-                display: inline-block;
-                font-size: 11px;
-                padding: 4px 12px;
-                background: linear-gradient(135deg, #be4bdb, #e94560);
-                border-radius: 12px;
-                font-weight: bold;
-            }
-
-            /* MAGI Unit Panels - Wide Horizontal Layout */
-            .magi-unit {
-                padding: 12px;
-                border-radius: 8px;
-                border: 2px solid;
-                position: relative;
-                transition: all 0.3s ease;
-            }
-            .magi-unit-wide {
-                width: 320px;
-                min-height: 120px;
-            }
-            .magi-unit-main {
-                display: flex;
-                flex-direction: column;
-                gap: 8px;
-            }
-            .magi-unit-info {
-                display: flex;
-                flex-direction: column;
-                gap: 4px;
-            }
-            .magi-unit-row {
-                display: flex;
-                align-items: center;
-                gap: 8px;
-            }
-
-            .magi-melchior {
-                background: rgba(77, 171, 247, 0.1);
-                border-color: #4dabf7;
-            }
-            .magi-balthasar {
-                background: rgba(81, 207, 102, 0.1);
-                border-color: #51cf66;
-            }
-            .magi-casper {
-                background: rgba(190, 75, 219, 0.1);
-                border-color: #be4bdb;
-            }
-
-            .magi-unit-header {
-                display: flex;
-                align-items: center;
-                gap: 8px;
-                flex-wrap: wrap;
-            }
-            .magi-unit-name {
-                font-weight: bold;
-                font-size: 13px;
-            }
-            .magi-unit-model {
-                font-size: 10px;
-                opacity: 0.7;
-            }
-            .magi-unit-role-inline {
-                font-size: 10px;
-                padding: 2px 6px;
-                background: rgba(255,255,255,0.1);
-                border-radius: 3px;
-                opacity: 0.8;
-            }
-            .magi-unit-status {
-                font-size: 10px;
-                padding: 2px 6px;
-                background: rgba(134, 142, 150, 0.3);
-                border-radius: 3px;
-                white-space: nowrap;
-            }
-            .magi-unit-vote {
-                font-size: 16px;
-                font-weight: bold;
-                padding: 4px 8px;
-                border-radius: 4px;
-                background: rgba(0,0,0,0.3);
-                min-width: 50px;
-                text-align: center;
-            }
-
-            /* Inline Score Bars */
-            .magi-scores-inline {
-                display: flex;
-                gap: 4px;
-                flex: 1;
-            }
-            .magi-scores-inline .magi-score-bar {
-                flex: 1;
-                min-width: 40px;
-            }
-
-            /* Vote States */
-            .magi-vote-pass { color: #51cf66; text-shadow: 0 0 10px #51cf66; }
-            .magi-vote-fail { color: #ff6b6b; text-shadow: 0 0 10px #ff6b6b; }
-            .magi-vote-review { color: #ffd43b; text-shadow: 0 0 10px #ffd43b; }
-
-            /* Glow Animation */
-            @keyframes vote-glow {
-                0%, 100% { box-shadow: 0 0 5px var(--glow-color, #51cf66); }
-                50% { box-shadow: 0 0 20px var(--glow-color, #51cf66), 0 0 30px var(--glow-color, #51cf66); }
-            }
-            .magi-unit.vote-confirmed {
-                animation: vote-glow 1s ease-in-out 3;
-            }
-
-            /* Evaluating Animation */
-            @keyframes pulse-evaluating {
-                0%, 100% { opacity: 1; }
-                50% { opacity: 0.5; }
-            }
-            .magi-unit.evaluating {
-                animation: pulse-evaluating 1.5s ease-in-out infinite;
-            }
-            .magi-unit.evaluating .magi-unit-status {
-                background: rgba(255, 212, 59, 0.3);
-                color: #ffd43b;
-            }
-
-            /* Score Bars */
-            .magi-unit-scores {
-                display: grid;
-                gap: 3px;
-            }
-            .magi-score-bar {
-                display: flex;
-                align-items: center;
-                font-size: 9px;
-            }
-            .magi-score-bar span {
-                width: 12px;
-                text-align: center;
-                font-weight: bold;
-            }
-            .magi-score-bar .bar {
-                flex: 1;
-                height: 5px;
-                background: rgba(255,255,255,0.1);
-                border-radius: 2px;
-                overflow: hidden;
-                margin-left: 2px;
-            }
-            .magi-score-bar .fill {
-                height: 100%;
-                border-radius: 2px;
-                transition: width 0.5s ease;
-            }
-            .magi-score-bar[data-axis="task"] .fill { background: #4dabf7; }
-            .magi-score-bar[data-axis="tool"] .fill { background: #51cf66; }
-            .magi-score-bar[data-axis="auto"] .fill { background: #ffd43b; }
-            .magi-score-bar[data-axis="safe"] .fill { background: #ff6b6b; }
-
-            /* Individual Chat Area in Panel */
-            .magi-unit-chat {
-                border-top: 1px solid rgba(255,255,255,0.1);
-                padding-top: 6px;
-                margin-top: 4px;
-            }
-            .magi-chat-header {
-                font-size: 10px;
-                margin-bottom: 4px;
-            }
-            .magi-chat-log {
-                max-height: 80px;
-                overflow-y: auto;
-                font-size: 10px;
-                line-height: 1.4;
-                background: rgba(0,0,0,0.2);
-                border-radius: 4px;
-                padding: 4px 6px;
-            }
-            .magi-chat-entry {
-                margin-bottom: 4px;
-                padding-bottom: 4px;
-                border-bottom: 1px solid rgba(255,255,255,0.05);
-            }
-            .magi-chat-entry:last-child {
-                margin-bottom: 0;
-                padding-bottom: 0;
-                border-bottom: none;
-            }
-            .magi-chat-changed {
-                background: rgba(77, 171, 247, 0.1);
-                border-radius: 2px;
-                padding: 2px 4px;
-            }
-            .magi-chat-badge {
-                font-size: 8px;
-                padding: 1px 4px;
-                border-radius: 2px;
-                margin-right: 4px;
-            }
-            .magi-chat-placeholder {
-                opacity: 0.5;
-                text-align: center;
-                padding: 8px;
-            }
-
-            /* Typing Animation Cursor */
-            .magi-chat-entry.typing::after {
-                content: '|';
-                color: #00ff88;
-                animation: cursor-blink 0.7s infinite;
-            }
-            @keyframes cursor-blink {
-                0%, 50% { opacity: 1; }
-                51%, 100% { opacity: 0; }
-            }
-
-            /* Final Judge Panel (Center) */
-            .magi-final-judge-panel {
-                background: linear-gradient(135deg, rgba(233, 69, 96, 0.2), rgba(15, 52, 96, 0.3));
-                border: 2px solid #e94560;
-                border-radius: 12px;
-                padding: 12px 24px;
-                min-width: 280px;
-                text-align: center;
-            }
-            .magi-final-judge-header {
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                gap: 8px;
-                margin-bottom: 8px;
-            }
-            .magi-final-judge-icon {
-                font-size: 20px;
-            }
-            .magi-final-judge-title {
-                font-weight: bold;
-                font-size: 14px;
-                color: #ffd43b;
-                text-shadow: 0 0 10px rgba(255, 212, 59, 0.5);
-            }
-            .magi-final-judge-content {
-                min-height: 60px;
-            }
-            .magi-final-result {
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                gap: 16px;
-                padding: 8px 16px;
-                border-radius: 8px;
-            }
-            .magi-final-verdict {
-                font-size: 24px;
-                font-weight: bold;
-            }
-            .magi-final-details {
-                text-align: left;
-            }
-            .magi-final-score {
-                display: flex;
-                align-items: baseline;
-                gap: 4px;
-            }
-            .magi-final-method {
-                font-size: 10px;
-                opacity: 0.7;
-                margin-top: 2px;
-            }
-            .magi-final-pending {
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                gap: 8px;
-                padding: 16px;
-                opacity: 0.6;
-            }
-            .magi-pending-icon {
-                font-size: 18px;
-            }
-            .magi-pending-text {
-                font-size: 12px;
-            }
-
-            /* Result Colors */
-            .magi-result-pass {
-                background: rgba(81, 207, 102, 0.2);
-                border: 1px solid #51cf66;
-            }
-            .magi-result-pass .magi-final-verdict { color: #51cf66; text-shadow: 0 0 15px #51cf66; }
-            .magi-result-fail {
-                background: rgba(255, 107, 107, 0.2);
-                border: 1px solid #ff6b6b;
-            }
-            .magi-result-fail .magi-final-verdict { color: #ff6b6b; text-shadow: 0 0 15px #ff6b6b; }
-            .magi-result-review {
-                background: rgba(255, 212, 59, 0.2);
-                border: 1px solid #ffd43b;
-            }
-            .magi-result-review .magi-final-verdict { color: #ffd43b; text-shadow: 0 0 15px #ffd43b; }
-
-            .magi-score-label {
-                font-size: 10px;
-                opacity: 0.7;
-            }
-            .magi-score-value {
-                font-size: 18px;
-                font-weight: bold;
-            }
-
-            /* Badge Colors */
-            .magi-badge-pass { background: #51cf66; color: #000; }
-            .magi-badge-fail { background: #ff6b6b; color: #000; }
-            .magi-badge-review { background: #ffd43b; color: #000; }
-            .magi-badge-changed { background: #4dabf7; color: #000; }
-            .magi-badge-info { background: #868e96; color: #fff; }
-
-            /* Speaker Colors */
-            .magi-speaker-melchior { color: #4dabf7; }
-            .magi-speaker-balthasar { color: #51cf66; }
-            .magi-speaker-casper { color: #be4bdb; }
-            .magi-speaker-system { color: #e94560; }
-
-            /* Log Footer */
-            .magi-log-footer {
-                font-size: 10px;
-                margin-top: 4px;
-                opacity: 0.8;
-                color: #ffd43b;
-            }
-
-            /* Details Sections */
-            .magi-details-section {
-                color: #eaeaea;
-            }
-            .magi-details-summary {
-                cursor: pointer;
-                padding: 8px 12px;
-                background: rgba(255,255,255,0.1);
-                border-radius: 4px;
-                font-size: 12px;
-            }
-            .magi-details-summary:hover {
-                background: rgba(255,255,255,0.15);
-            }
-        </style>
+    </details>
+    {% include 'partials/magi_system.html' with context %}
 
         {% if submission.state != 'judge_panel_running' and not submission.score_breakdown.judge_summary %}
         <p class="p-4 text-sm text-gray-400 text-center">No judge panel results available</p>
@@ -1300,7 +608,59 @@
         {% endif %}
     </details>
     {% else %}
-    <p class="text-gray-500">Automated review is in progress or not yet started...</p>
+    <!-- 評価未開始時も空のセクションを表示（SSEで動的に更新される） -->
+    <!-- PreCheck -->
+    <details id="details-precheck" class="mb-6 bg-gray-50 p-4 rounded-lg">
+        <summary class="text-lg font-semibold mb-2 flex items-center cursor-pointer">
+            <span class="mr-2">🧾</span> PreCheck
+        </summary>
+        <div id="precheck-content" class="ml-7 space-y-2 mt-2">
+            <p class="text-sm text-gray-400">Waiting for evaluation...</p>
+        </div>
+    </details>
+
+    <!-- Security Gate -->
+    <details id="details-security" class="mb-6 bg-gray-50 p-4 rounded-lg">
+        <summary class="text-lg font-semibold mb-2 flex items-center cursor-pointer">
+            <span class="mr-2">🛡️</span> Security Gate
+        </summary>
+        <div id="security-content" class="ml-7 space-y-2 mt-2">
+            <p class="text-sm text-gray-400">Waiting for evaluation...</p>
+        </div>
+    </details>
+
+    <!-- Agent Card Accuracy -->
+    <details id="details-functional" class="mb-6 bg-gray-50 p-4 rounded-lg">
+        <summary class="text-lg font-semibold mb-2 flex items-center cursor-pointer">
+            <span class="mr-2">🧪</span> Agent Card Accuracy
+        </summary>
+        <div id="functional-content" class="ml-7 space-y-2 mt-2">
+            <p class="text-sm text-gray-400">Waiting for evaluation...</p>
+        </div>
+    </details>
+
+    {% set show_waiting_state = true %}
+    {% include 'partials/magi_system.html' with context %}
+
+    <!-- Human Review -->
+    <details id="details-human-review" class="mb-6 bg-gray-50 p-4 rounded-lg">
+        <summary class="text-lg font-semibold mb-2 flex items-center cursor-pointer">
+            <span class="mr-2">🙋</span> Human Review
+        </summary>
+        <div id="human-review-content" class="ml-7 space-y-2 mt-2">
+            <p class="text-sm text-gray-400">Waiting for automated review to complete...</p>
+        </div>
+    </details>
+
+    <!-- Publish -->
+    <details id="details-publish" class="mb-6 bg-gray-50 p-4 rounded-lg">
+        <summary class="text-lg font-semibold mb-2 flex items-center cursor-pointer">
+            <span class="mr-2">🚀</span> Publish
+        </summary>
+        <div id="publish-content" class="ml-7 space-y-2 mt-2">
+            <p class="text-sm text-gray-400">Not yet published</p>
+        </div>
+    </details>
     {% endif %}
 </div>
 
@@ -1521,6 +881,1062 @@
         }
     }
 
+    // ==== Section Streaming Renderer for PreCheck/Security/Functional ====
+
+    /**
+     * セクション全体をストリーミング表示するレンダラー
+     * - ラベルも値も全て1文字ずつタイピング
+     * - HTMLタグは即座に適用、テキストのみタイピング
+     */
+    class SectionStreamRenderer {
+        constructor(containerSelector, options = {}) {
+            this.container = document.querySelector(containerSelector);
+            this.speed = options.speed || 15; // ms per character
+            this.queue = [];
+            this.isTyping = false;
+        }
+
+        // セクションを開いてスクロール
+        openSection() {
+            const details = this.container?.closest('details');
+            if (details && !details.open) {
+                details.open = true;
+            }
+            details?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        // コンテンツをクリア
+        clear() {
+            if (this.container) {
+                this.container.innerHTML = '';
+            }
+            // キューも空にする
+            this.queue = [];
+        }
+
+        // 即時表示（タイピングなし）
+        setContent(html) {
+            if (this.container) {
+                this.container.innerHTML = html;
+            }
+        }
+
+        // テキストをキューに追加してストリーミング表示
+        async streamLine(html, options = {}) {
+            return new Promise(resolve => {
+                this.queue.push({ html, options, resolve });
+                this.processQueue();
+            });
+        }
+
+        async processQueue() {
+            if (this.isTyping || this.queue.length === 0) return;
+            this.isTyping = true;
+
+            const { html, options, resolve } = this.queue.shift();
+            await this.renderWithTyping(html, options);
+            resolve();
+
+            this.isTyping = false;
+            this.processQueue();
+        }
+
+        // HTMLをパースしてテキスト部分のみタイピング
+        async renderWithTyping(html, options = {}) {
+            const wrapper = document.createElement('div');
+            wrapper.className = options.className || '';
+
+            // HTMLをパース
+            const template = document.createElement('template');
+            template.innerHTML = html;
+
+            // コンテナに追加
+            this.container.appendChild(wrapper);
+
+            // タイピングアニメーションで表示
+            await this.typeHTML(wrapper, template.content, options.speed || this.speed);
+        }
+
+        // HTML構造を保持しながらテキストをタイピング
+        async typeHTML(container, fragment, speed) {
+            for (const node of fragment.childNodes) {
+                if (node.nodeType === Node.TEXT_NODE) {
+                    // テキストノードは1文字ずつ
+                    await this.typeTextNode(container, node.textContent, speed);
+                } else if (node.nodeType === Node.ELEMENT_NODE) {
+                    // 要素ノードは構造を作成してから中身をタイピング
+                    const el = document.createElement(node.tagName);
+                    // 属性をコピー
+                    for (const attr of node.attributes) {
+                        el.setAttribute(attr.name, attr.value);
+                    }
+                    container.appendChild(el);
+                    // 子ノードを再帰的に処理
+                    await this.typeHTML(el, node, speed);
+                }
+            }
+        }
+
+        async typeTextNode(container, text, speed) {
+            for (const char of text) {
+                container.appendChild(document.createTextNode(char));
+                await this.delay(speed);
+            }
+        }
+
+        delay(ms) {
+            return new Promise(r => setTimeout(r, ms));
+        }
+    }
+
+    // Initialize stream renderers for each section
+    const precheckRenderer = new SectionStreamRenderer('#precheck-content');
+    const securityRenderer = new SectionStreamRenderer('#security-content');
+    const functionalRenderer = new SectionStreamRenderer('#functional-content');
+
+    // State management for progressive display
+    let securityState = { total: 0, blocked: 0, needsReview: 0, errors: 0 };
+    let functionalState = { total: 0, passed: 0, failed: 0, needsReview: 0, currentScenario: 0, currentTurn: 0, currentTotalTurns: 0 };
+
+    // ==== PreCheck Event Handlers ====
+    juryStream.on('precheck_started', async () => {
+        console.log('[Streaming] precheck_started received');
+        precheckRenderer.openSection();
+        precheckRenderer.clear();
+
+        // 「Status:」ラベルからストリーミング開始
+        await precheckRenderer.streamLine(
+            '<p class="text-sm text-gray-700"><span class="font-semibold">Status:</span> <span class="text-blue-600">検証中...</span></p>'
+        );
+    });
+
+    juryStream.on('precheck_completed', async (data) => {
+        console.log('[Streaming] precheck_completed received:', data);
+        precheckRenderer.clear();
+
+        // Status行をストリーミング
+        const statusClass = data.passed ? 'text-green-600' : 'text-red-600';
+        const statusText = data.passed ? 'Passed ✓' : 'Failed ✗';
+        await precheckRenderer.streamLine(
+            `<p class="text-sm text-gray-700"><span class="font-semibold">Status:</span> <span class="${statusClass}">${statusText}</span></p>`
+        );
+
+        // Warnings があれば表示
+        if (data.warnings && data.warnings.length > 0) {
+            await precheckRenderer.streamLine(
+                '<p class="text-sm text-yellow-600 mt-2"><span class="font-semibold">Warnings:</span></p>'
+            );
+            for (const warning of data.warnings) {
+                await precheckRenderer.streamLine(
+                    `<p class="text-xs text-yellow-600 ml-4">• ${warning}</p>`
+                );
+            }
+        }
+
+        // Errors があれば表示
+        if (data.errors && data.errors.length > 0) {
+            await precheckRenderer.streamLine(
+                '<p class="text-sm text-red-600 mt-2"><span class="font-semibold">Errors:</span></p>'
+            );
+            for (const error of data.errors) {
+                await precheckRenderer.streamLine(
+                    `<p class="text-xs text-red-600 ml-4">• ${error}</p>`
+                );
+            }
+        }
+    });
+
+    // ==== Security Gate Event Handlers ====
+    // シナリオ結果を蓄積
+    let securityScenarios = [];
+
+    juryStream.on('security_started', async (data) => {
+        console.log('[Streaming] security_started received:', data);
+        securityRenderer.openSection();
+        securityScenarios = [];  // リセット
+        securityState = { total: data.total_scenarios || 0, blocked: 0, needsReview: 0, errors: 0, pending: 0 };
+        // 初期レイアウト（フル構造）をストリーミング表示
+        await renderSecuritySectionStreaming();
+    });
+
+    juryStream.on('security_scenario_result', async (data) => {
+        console.log('[Streaming] security_scenario_result received:', data);
+
+        // カテゴリに応じてカウンター更新
+        if (data.category === 'pending') {
+            securityState.pending++;
+        } else {
+            if (securityState.pending > 0 && data.verdict !== 'blocked' && data.verdict !== 'error') {
+                securityState.pending--;
+            }
+            if (data.verdict === 'blocked') securityState.blocked++;
+            else if (data.verdict === 'needs_review') securityState.needsReview++;
+            else if (data.verdict === 'error') securityState.errors++;
+        }
+
+        // シナリオを蓄積
+        securityScenarios.push(data);
+
+        // UIを増分更新
+        updateSecurityCounts();
+        updateSecurityProgress();
+        await appendSecurityScenarioToTable(data);
+        if (data.verdict === 'needs_review' || data.verdict === 'error') {
+            await appendSecurityNeedsReviewScenario(data);
+        }
+    });
+
+    juryStream.on('security_completed', async (data) => {
+        console.log('[Streaming] security_completed received:', data);
+        // 完了状態に更新（ストリーミング表示）
+        const progressEl = document.getElementById('security-progress');
+        if (progressEl) {
+            progressEl.innerHTML = '';
+            progressEl.className = 'text-sm text-green-600 font-semibold';
+            await typeTextInElement(progressEl, '✅ 完了', 30);
+        }
+        // 評価待ち表示を消す
+        const pendingEl = document.getElementById('security-pending');
+        if (pendingEl) pendingEl.style.display = 'none';
+
+        // 「要確認シナリオ」が空の場合は「該当なし」に変更（ストリーミング表示）
+        const noIssuesEl = document.getElementById('security-no-issues');
+        if (noIssuesEl) {
+            noIssuesEl.textContent = '';
+            noIssuesEl.className = 'text-sm text-green-600';
+            await typeTextInElement(noIssuesEl, '✅ 該当なし（全てブロック済み）', 20);
+        }
+    });
+
+    async function renderSecuritySectionStreaming() {
+        // コンテナをクリア
+        securityRenderer.clear();
+
+        // 1. 基本カウントをストリーミング
+        await securityRenderer.streamLine(`
+            <div id="security-counts" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                <div class="bg-white p-3 rounded border">
+                    <div class="text-xs text-gray-500">Total Tests</div>
+                    <div class="text-2xl font-bold" id="security-total">${securityState.total}</div>
+                </div>
+                <div class="bg-green-50 p-3 rounded border border-green-200">
+                    <div class="text-xs text-gray-500">Blocked (Safe)</div>
+                    <div class="text-2xl font-bold text-green-600" id="security-blocked">${securityState.blocked}</div>
+                </div>
+                <div class="bg-yellow-50 p-3 rounded border border-yellow-200">
+                    <div class="text-xs text-gray-500">Needs Review</div>
+                    <div class="text-2xl font-bold text-yellow-600" id="security-needs-review-count">${securityState.needsReview}</div>
+                </div>
+                <div class="bg-red-50 p-3 rounded border border-red-200">
+                    <div class="text-xs text-gray-500">Errors</div>
+                    <div class="text-2xl font-bold text-red-600" id="security-errors">${securityState.errors}</div>
+                </div>
+            </div>
+        `, { speed: 3 });  // カウントは速めに
+
+        // 2. 進捗表示をストリーミング
+        await securityRenderer.streamLine(`
+            <p id="security-pending" class="text-sm text-blue-600 mb-2" style="display:none;">📝 評価待ち: <span id="security-pending-count">0</span>件</p>
+            <p id="security-progress" class="text-sm text-gray-500 mb-4">🔄 実行中... (0/${securityState.total})</p>
+        `, { speed: 10 });
+
+        // 3. 要確認シナリオセクションをストリーミング
+        await securityRenderer.streamLine(`
+            <div class="border-t pt-4">
+                <h4 class="font-semibold mb-2">⚠️ 要確認シナリオ（Needs Review/Error）</h4>
+                <div id="security-needs-review-list" class="space-y-3">
+                    <p class="text-sm text-gray-400" id="security-no-issues">評価中...</p>
+                </div>
+            </div>
+        `, { speed: 8 });
+
+        // 4. テーブルセクションをストリーミング
+        await securityRenderer.streamLine(`
+            <div class="border-t pt-4 mt-4">
+                <h4 class="font-semibold mb-2">📝 全セキュリティテスト一覧</h4>
+                <div class="max-h-80 overflow-auto border rounded">
+                    <table class="w-full text-xs border-collapse">
+                        <thead class="bg-gray-100 sticky top-0">
+                            <tr>
+                                <th class="text-left p-2 border-b">Prompt ID</th>
+                                <th class="text-left p-2 border-b">Prompt</th>
+                                <th class="text-left p-2 border-b">Response</th>
+                                <th class="text-left p-2 border-b">Verdict</th>
+                            </tr>
+                        </thead>
+                        <tbody id="security-table-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        `, { speed: 5 });
+
+        // 5. 確認ポイントをストリーミング
+        await securityRenderer.streamLine(`
+            <div class="border-t pt-4 mt-4">
+                <h4 class="font-semibold mb-2">📋 確認ポイント</h4>
+                <ul class="text-sm space-y-1 list-disc ml-5">
+                    <li><strong>Blocked (Safe)</strong>: セキュリティ攻撃プロンプトを適切にブロックしたケース</li>
+                    <li><strong>Needs Review</strong>: 人手確認が必要なケース。「要確認シナリオ」で詳細を確認してください</li>
+                    <li>全体のブロック率 (Blocked/Total) が高いほどセキュリティ対策が有効です</li>
+                </ul>
+            </div>
+        `, { speed: 8 });
+    }
+
+    function renderSecuritySectionFull() {
+        // 初期レイアウト（フル構造）- 即時表示用（非ストリーミング）
+        securityRenderer.setContent(`
+            <!-- 基本カウント -->
+            <div id="security-counts" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                <div class="bg-white p-3 rounded border">
+                    <div class="text-xs text-gray-500">Total Tests</div>
+                    <div class="text-2xl font-bold" id="security-total">${securityState.total}</div>
+                </div>
+                <div class="bg-green-50 p-3 rounded border border-green-200">
+                    <div class="text-xs text-gray-500">Blocked (Safe)</div>
+                    <div class="text-2xl font-bold text-green-600" id="security-blocked">${securityState.blocked}</div>
+                </div>
+                <div class="bg-yellow-50 p-3 rounded border border-yellow-200">
+                    <div class="text-xs text-gray-500">Needs Review</div>
+                    <div class="text-2xl font-bold text-yellow-600" id="security-needs-review-count">${securityState.needsReview}</div>
+                </div>
+                <div class="bg-red-50 p-3 rounded border border-red-200">
+                    <div class="text-xs text-gray-500">Errors</div>
+                    <div class="text-2xl font-bold text-red-600" id="security-errors">${securityState.errors}</div>
+                </div>
+            </div>
+
+            <!-- 進捗表示 -->
+            <p id="security-pending" class="text-sm text-blue-600 mb-2" style="display:none;">📝 評価待ち: <span id="security-pending-count">0</span>件</p>
+            <p id="security-progress" class="text-sm text-gray-500 mb-4">🔄 実行中... (0/${securityState.total})</p>
+
+            <!-- 要確認シナリオ -->
+            <div class="border-t pt-4">
+                <h4 class="font-semibold mb-2">⚠️ 要確認シナリオ（Needs Review/Error）</h4>
+                <div id="security-needs-review-list" class="space-y-3">
+                    <p class="text-sm text-gray-400" id="security-no-issues">評価中...</p>
+                </div>
+            </div>
+
+            <!-- 全シナリオテーブル -->
+            <div class="border-t pt-4 mt-4">
+                <h4 class="font-semibold mb-2">📝 全セキュリティテスト一覧</h4>
+                <div class="max-h-80 overflow-auto border rounded">
+                    <table class="w-full text-xs border-collapse">
+                        <thead class="bg-gray-100 sticky top-0">
+                            <tr>
+                                <th class="text-left p-2 border-b">Prompt ID</th>
+                                <th class="text-left p-2 border-b">Prompt</th>
+                                <th class="text-left p-2 border-b">Response</th>
+                                <th class="text-left p-2 border-b">Verdict</th>
+                            </tr>
+                        </thead>
+                        <tbody id="security-table-body"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 確認ポイント -->
+            <div class="border-t pt-4 mt-4">
+                <h4 class="font-semibold mb-2">📋 確認ポイント</h4>
+                <ul class="text-sm space-y-1 list-disc ml-5">
+                    <li><strong>Blocked (Safe)</strong>: セキュリティ攻撃プロンプトを適切にブロックしたケース</li>
+                    <li><strong>Needs Review</strong>: 人手確認が必要なケース。「要確認シナリオ」で詳細を確認してください</li>
+                    <li>全体のブロック率 (Blocked/Total) が高いほどセキュリティ対策が有効です</li>
+                </ul>
+            </div>
+        `);
+    }
+
+    function updateSecurityCounts() {
+        const totalEl = document.getElementById('security-total');
+        const blockedEl = document.getElementById('security-blocked');
+        const needsReviewEl = document.getElementById('security-needs-review-count');
+        const errorsEl = document.getElementById('security-errors');
+
+        if (totalEl) totalEl.textContent = securityState.total;
+        if (blockedEl) blockedEl.textContent = securityState.blocked;
+        if (needsReviewEl) needsReviewEl.textContent = securityState.needsReview;
+        if (errorsEl) errorsEl.textContent = securityState.errors;
+    }
+
+    function updateSecurityProgress() {
+        const executed = securityState.blocked + securityState.needsReview + securityState.errors;
+
+        // 進捗テキスト更新
+        const progressEl = document.getElementById('security-progress');
+        if (progressEl) {
+            if (securityState.pending > 0 && executed < securityState.pending) {
+                progressEl.textContent = `⏳ プロンプト実行中... (${executed}/${securityState.total})`;
+            } else if (securityState.pending > 0) {
+                progressEl.textContent = `🔍 評価中... (${executed}/${securityState.total})`;
+            } else {
+                progressEl.textContent = `🔄 実行中... (${executed}/${securityState.total})`;
+            }
+        }
+
+        // 評価待ち表示
+        const pendingEl = document.getElementById('security-pending');
+        const pendingCountEl = document.getElementById('security-pending-count');
+        if (pendingEl && pendingCountEl) {
+            if (securityState.pending > 0) {
+                pendingEl.style.display = 'block';
+                pendingCountEl.textContent = securityState.pending;
+            } else {
+                pendingEl.style.display = 'none';
+            }
+        }
+    }
+
+    async function appendSecurityScenarioToTable(data) {
+        const tbody = document.getElementById('security-table-body');
+        if (!tbody) return;
+
+        const verdictClass = data.verdict === 'blocked' ? 'bg-green-100 text-green-800' :
+                             data.verdict === 'needs_review' ? 'bg-yellow-100 text-yellow-800' :
+                             data.verdict === 'error' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800';
+
+        const promptText = (data.prompt || '').substring(0, 100);
+        const responseText = (data.response || '').substring(0, 100);
+
+        const rowId = `security-row-${data.scenario_index}`;
+
+        // 既存の行があれば更新、なければ追加
+        let row = document.getElementById(rowId);
+        const isNewRow = !row;
+        if (!row) {
+            row = document.createElement('tr');
+            row.id = rowId;
+            row.className = 'border-b hover:bg-gray-50';
+            tbody.appendChild(row);
+        }
+
+        // 行のセルを作成
+        const cells = [
+            { content: data.promptId || 'N/A', className: 'p-2 text-xs' },
+            { content: promptText + (promptText.length >= 100 ? '...' : ''), className: 'p-2', isCode: true },
+            { content: responseText + (responseText.length >= 100 ? '...' : ''), className: 'p-2', isCode: true },
+            { content: data.verdict, className: 'p-2', badge: verdictClass }
+        ];
+
+        row.innerHTML = '';
+        for (const cell of cells) {
+            const td = document.createElement('td');
+            td.className = cell.className;
+
+            if (cell.badge) {
+                const span = document.createElement('span');
+                span.className = `px-2 py-1 rounded text-xs ${cell.badge}`;
+                if (isNewRow) {
+                    await typeTextInElement(span, cell.content, 5);
+                } else {
+                    span.textContent = cell.content;
+                }
+                td.appendChild(span);
+            } else if (cell.isCode) {
+                const pre = document.createElement('pre');
+                pre.className = 'whitespace-pre-wrap text-xs';
+                if (isNewRow) {
+                    await typeTextInElement(pre, cell.content, 2);
+                } else {
+                    pre.textContent = cell.content;
+                }
+                td.appendChild(pre);
+            } else {
+                if (isNewRow) {
+                    await typeTextInElement(td, cell.content, 5);
+                } else {
+                    td.textContent = cell.content;
+                }
+            }
+            row.appendChild(td);
+        }
+    }
+
+    // テキストをタイピングアニメーションで要素に追加
+    async function typeTextInElement(element, text, speed = 10) {
+        for (const char of text) {
+            element.appendChild(document.createTextNode(char));
+            await new Promise(r => setTimeout(r, speed));
+        }
+    }
+
+    async function appendSecurityNeedsReviewScenario(data) {
+        const container = document.getElementById('security-needs-review-list');
+        if (!container) return;
+
+        // 「評価中...」を消す
+        const noIssuesEl = document.getElementById('security-no-issues');
+        if (noIssuesEl) noIssuesEl.remove();
+
+        const div = document.createElement('div');
+        div.className = 'border border-yellow-300 rounded-lg p-3 bg-yellow-50';
+        container.appendChild(div);
+
+        const verdictClass = data.verdict === 'error' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800';
+        const promptText = data.prompt || 'N/A';
+        const responseText = data.response || 'N/A';
+
+        // ヘッダー部分（Prompt ID + Verdict バッジ）
+        const headerDiv = document.createElement('div');
+        headerDiv.className = 'font-semibold text-sm mb-1';
+        div.appendChild(headerDiv);
+        await typeTextInElement(headerDiv, data.promptId || '匿名', 5);
+
+        const verdictSpan = document.createElement('span');
+        verdictSpan.className = `ml-2 text-xs px-2 py-1 rounded ${verdictClass}`;
+        headerDiv.appendChild(verdictSpan);
+        await typeTextInElement(verdictSpan, data.verdict, 10);
+
+        // Category/Perspective
+        const metaDiv = document.createElement('div');
+        metaDiv.className = 'text-xs text-gray-600 mb-2';
+        div.appendChild(metaDiv);
+        await typeTextInElement(metaDiv, `Category: ${data.category || 'N/A'}${data.perspective ? ` | Perspective: ${data.perspective}` : ''}`, 3);
+
+        // Prompt
+        const promptLabelDiv = document.createElement('div');
+        promptLabelDiv.className = 'text-xs mb-2';
+        div.appendChild(promptLabelDiv);
+
+        const promptStrong = document.createElement('strong');
+        promptLabelDiv.appendChild(promptStrong);
+        await typeTextInElement(promptStrong, 'Prompt:', 10);
+
+        const promptPre = document.createElement('pre');
+        promptPre.className = 'mt-1 whitespace-pre-wrap bg-white p-2 rounded text-xs';
+        promptLabelDiv.appendChild(promptPre);
+        await typeTextInElement(promptPre, promptText, 2);
+
+        // Response
+        const responseLabelDiv = document.createElement('div');
+        responseLabelDiv.className = 'text-xs mb-2';
+        div.appendChild(responseLabelDiv);
+
+        const responseStrong = document.createElement('strong');
+        responseLabelDiv.appendChild(responseStrong);
+        await typeTextInElement(responseStrong, 'Response:', 10);
+
+        const responsePre = document.createElement('pre');
+        responsePre.className = 'mt-1 whitespace-pre-wrap bg-white p-2 rounded text-xs';
+        responseLabelDiv.appendChild(responsePre);
+        await typeTextInElement(responsePre, responseText, 2);
+
+        // Reason
+        const reasonDiv = document.createElement('div');
+        reasonDiv.className = 'text-xs text-gray-700';
+        div.appendChild(reasonDiv);
+
+        const reasonStrong = document.createElement('strong');
+        reasonDiv.appendChild(reasonStrong);
+        await typeTextInElement(reasonStrong, 'Reason: ', 10);
+
+        const reasonSpan = document.createElement('span');
+        reasonDiv.appendChild(reasonSpan);
+        await typeTextInElement(reasonSpan, data.rationale || 'N/A', 3);
+    }
+
+    // ==== Agent Card Accuracy (Functional) Event Handlers ====
+    // シナリオ結果を蓄積
+    let functionalScenarios = [];
+
+    juryStream.on('functional_started', async (data) => {
+        console.log('[Streaming] functional_started received:', data);
+        functionalRenderer.openSection();
+        functionalScenarios = [];  // リセット
+        functionalState = { total: data.total_scenarios || 0, passed: 0, failed: 0, needsReview: 0, currentScenario: 0, currentTurn: 0, currentTotalTurns: 0 };
+        // ストリーミングアニメーション表示に変更
+        await renderFunctionalSectionStreaming();
+    });
+
+    juryStream.on('functional_scenario_result', async (data) => {
+        console.log('[Streaming] functional_scenario_result received:', data);
+        // カウンター更新
+        if (data.verdict === 'pass') functionalState.passed++;
+        else if (data.verdict === 'fail') functionalState.failed++;
+        else if (data.verdict === 'needs_review') functionalState.needsReview++;
+        else if (data.verdict === 'error') functionalState.failed++;
+
+        // ターン進捗をリセット
+        functionalState.currentTurn = 0;
+        functionalState.currentTotalTurns = 0;
+
+        // 対話ボックスをリセット（次のシナリオ用に応答待ち状態に）
+        const dialogueContent = document.getElementById('functional-dialogue-content');
+        if (dialogueContent) {
+            dialogueContent.innerHTML = '<div class="text-gray-400">次のシナリオを待機中...</div>';
+        }
+
+        // シナリオを蓄積
+        functionalScenarios.push(data);
+
+        // 「評価中...」テキストを非表示（passでも非表示にする）
+        const noFailuresEl = document.getElementById('functional-no-failures');
+        if (noFailuresEl) noFailuresEl.style.display = 'none';
+
+        // UIを増分更新
+        updateFunctionalCounts();
+        updateFunctionalProgress();
+
+        // 全シナリオ一覧テーブルに追加（Pass/Fail関係なく全て）
+        await appendFunctionalScenarioToTable(data);
+
+        // 失敗シナリオの詳細表示（失敗/Needs Reviewのみ）
+        if (data.verdict !== 'pass') {
+            await appendFunctionalFailedScenario(data);
+        }
+    });
+
+    juryStream.on('functional_turn_progress', (data) => {
+        console.log('[Streaming] functional_turn_progress received:', data);
+        functionalState.currentScenario = data.scenario_index;
+        functionalState.currentTurn = data.turn;
+        functionalState.currentTotalTurns = data.total_turns;
+        updateFunctionalProgress();
+
+        // 対話プレビュー表示
+        const dialogueBox = document.getElementById('functional-current-dialogue');
+        const headerEl = document.getElementById('functional-dialogue-header');
+        const contentEl = document.getElementById('functional-dialogue-content');
+
+        if (dialogueBox && contentEl) {
+            dialogueBox.style.display = 'block';
+            if (headerEl) {
+                headerEl.textContent = `現在の対話 (ターン ${data.turn}/${data.total_turns})`;
+            }
+
+            // user_promptとagent_response_previewを表示
+            let dialogueHtml = '';
+            if (data.user_prompt) {
+                dialogueHtml += `<div class="text-gray-600 mb-1"><span class="font-semibold">👤 User:</span> ${data.user_prompt}</div>`;
+            }
+            if (data.agent_response_preview) {
+                dialogueHtml += `<div class="text-blue-700"><span class="font-semibold">🤖 Agent:</span> ${data.agent_response_preview}</div>`;
+            }
+            if (!dialogueHtml) {
+                dialogueHtml = '<div class="text-gray-400">応答待ち...</div>';
+            }
+            contentEl.innerHTML = dialogueHtml;
+        }
+    });
+
+    juryStream.on('functional_completed', async (data) => {
+        console.log('[Streaming] functional_completed received:', data);
+
+        // 対話ボックスを非表示
+        const dialogueBox = document.getElementById('functional-current-dialogue');
+        if (dialogueBox) {
+            dialogueBox.style.display = 'none';
+        }
+
+        // 完了状態に更新（ストリーミング表示）
+        const progressEl = document.getElementById('functional-progress');
+        if (progressEl) {
+            progressEl.innerHTML = '';
+            progressEl.className = 'text-sm text-green-600 font-semibold';
+            await typeTextInElement(progressEl, `✅ 評価完了 (${functionalState.total}/${functionalState.total})`, 30);
+        }
+
+        // 「評価中...」テキストを適切なメッセージに変更（ストリーミング表示）
+        const noFailuresEl = document.getElementById('functional-no-failures');
+        if (noFailuresEl) {
+            if (functionalState.failed === 0 && functionalState.needsReview === 0) {
+                noFailuresEl.textContent = '';
+                noFailuresEl.style.display = 'block';
+                noFailuresEl.className = 'text-sm text-green-600';
+                await typeTextInElement(noFailuresEl, '✅ すべてのシナリオがパスしました', 20);
+            } else {
+                noFailuresEl.style.display = 'none';
+            }
+        }
+    });
+
+    async function renderFunctionalSectionStreaming() {
+        // コンテナをクリア
+        functionalRenderer.clear();
+
+        // 1. 基本カウントをストリーミング
+        await functionalRenderer.streamLine(`
+            <div id="functional-counts" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                <div class="bg-white p-3 rounded border">
+                    <div class="text-xs text-gray-500">Total Scenarios</div>
+                    <div class="text-2xl font-bold" id="functional-total">${functionalState.total}</div>
+                </div>
+                <div class="bg-green-50 p-3 rounded border border-green-200">
+                    <div class="text-xs text-gray-500">Passed</div>
+                    <div class="text-2xl font-bold text-green-600" id="functional-passed">${functionalState.passed}</div>
+                </div>
+                <div class="bg-yellow-50 p-3 rounded border border-yellow-200">
+                    <div class="text-xs text-gray-500">Needs Review</div>
+                    <div class="text-2xl font-bold text-yellow-600" id="functional-needs-review">${functionalState.needsReview}</div>
+                </div>
+                <div class="bg-red-50 p-3 rounded border border-red-200">
+                    <div class="text-xs text-gray-500">Failed</div>
+                    <div class="text-2xl font-bold text-red-600" id="functional-failed">${functionalState.failed}</div>
+                </div>
+            </div>
+        `, { speed: 3 });
+
+        // 2. 進捗表示をストリーミング
+        await functionalRenderer.streamLine(`
+            <p id="functional-progress" class="text-sm text-gray-500 mb-4">🔄 評価中... (0/${functionalState.total})</p>
+        `, { speed: 10 });
+
+        // 2.5. 現在の対話セクション（リアルタイム表示用）
+        await functionalRenderer.streamLine(`
+            <div id="functional-current-dialogue" class="border rounded-lg p-3 bg-blue-50 mb-4" style="display: none;">
+                <div class="flex items-center gap-2 text-sm font-semibold text-blue-700 mb-2">
+                    <span>💬</span>
+                    <span id="functional-dialogue-header">現在の対話</span>
+                </div>
+                <div id="functional-dialogue-content" class="text-sm bg-white rounded p-2 border">
+                    <div class="text-gray-400">応答待ち...</div>
+                </div>
+            </div>
+        `, { speed: 5 });
+
+        // 3. 失敗シナリオセクションをストリーミング
+        await functionalRenderer.streamLine(`
+            <div class="border-t pt-4">
+                <h4 class="font-semibold mb-2">❌ 失敗シナリオの詳細</h4>
+                <div id="functional-failed-list" class="space-y-3">
+                    <p class="text-sm text-gray-400" id="functional-no-failures">評価中...</p>
+                </div>
+            </div>
+        `, { speed: 8 });
+
+        // 4. 全シナリオ一覧テーブルをストリーミング
+        await functionalRenderer.streamLine(`
+            <div class="border-t pt-4 mt-4">
+                <h4 class="font-semibold mb-2">📝 全シナリオ一覧</h4>
+                <div class="max-h-80 overflow-auto border rounded">
+                    <table class="w-full text-xs border-collapse">
+                        <thead class="bg-gray-100 sticky top-0">
+                            <tr>
+                                <th class="text-left p-2 border-b">Prompt</th>
+                                <th class="text-left p-2 border-b">Response</th>
+                                <th class="text-left p-2 border-b">Turns</th>
+                                <th class="text-left p-2 border-b">Verdict</th>
+                            </tr>
+                        </thead>
+                        <tbody id="functional-table-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        `, { speed: 5 });
+
+        // 5. 確認ポイントをストリーミング
+        await functionalRenderer.streamLine(`
+            <div class="border-t pt-4 mt-4">
+                <h4 class="font-semibold mb-2">📋 確認ポイント</h4>
+                <ul class="text-sm space-y-1 list-disc ml-5">
+                    <li><strong>Passed</strong>: エージェントが正しく応答したケース</li>
+                    <li><strong>Needs Review</strong>: 人手確認が必要なケース</li>
+                    <li><strong>Failed</strong>: エージェントの応答が期待と異なるケース</li>
+                </ul>
+            </div>
+        `, { speed: 8 });
+    }
+
+    function renderFunctionalSectionFull() {
+        functionalRenderer.setContent(`
+            <!-- 基本カウント -->
+            <div id="functional-counts" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                <div class="bg-white p-3 rounded border">
+                    <div class="text-xs text-gray-500">Total Scenarios</div>
+                    <div class="text-2xl font-bold" id="functional-total">${functionalState.total}</div>
+                </div>
+                <div class="bg-green-50 p-3 rounded border border-green-200">
+                    <div class="text-xs text-gray-500">Passed</div>
+                    <div class="text-2xl font-bold text-green-600" id="functional-passed">${functionalState.passed}</div>
+                </div>
+                <div class="bg-yellow-50 p-3 rounded border border-yellow-200">
+                    <div class="text-xs text-gray-500">Needs Review</div>
+                    <div class="text-2xl font-bold text-yellow-600" id="functional-needs-review">${functionalState.needsReview}</div>
+                </div>
+                <div class="bg-red-50 p-3 rounded border border-red-200">
+                    <div class="text-xs text-gray-500">Failed</div>
+                    <div class="text-2xl font-bold text-red-600" id="functional-failed">${functionalState.failed}</div>
+                </div>
+            </div>
+
+            <!-- 進捗表示 -->
+            <p id="functional-progress" class="text-sm text-gray-500 mb-4">🔄 評価中... (0/${functionalState.total})</p>
+
+            <!-- 現在の対話セクション（リアルタイム表示用） -->
+            <div id="functional-current-dialogue" class="border rounded-lg p-3 bg-blue-50 mb-4" style="display: none;">
+                <div class="flex items-center gap-2 text-sm font-semibold text-blue-700 mb-2">
+                    <span>💬</span>
+                    <span id="functional-dialogue-header">現在の対話</span>
+                </div>
+                <div id="functional-dialogue-content" class="text-sm bg-white rounded p-2 border">
+                    <div class="text-gray-400">応答待ち...</div>
+                </div>
+            </div>
+
+            <!-- 失敗シナリオ詳細 -->
+            <div class="border-t pt-4">
+                <h4 class="font-semibold mb-2">❌ 失敗シナリオの詳細</h4>
+                <div id="functional-failed-list" class="space-y-3">
+                    <p class="text-sm text-gray-400" id="functional-no-failures">評価中...</p>
+                </div>
+            </div>
+
+            <!-- 全シナリオ一覧テーブル -->
+            <div class="border-t pt-4 mt-4">
+                <h4 class="font-semibold mb-2">📝 全シナリオ一覧</h4>
+                <div class="max-h-80 overflow-auto border rounded">
+                    <table class="w-full text-xs border-collapse">
+                        <thead class="bg-gray-100 sticky top-0">
+                            <tr>
+                                <th class="text-left p-2 border-b">Prompt</th>
+                                <th class="text-left p-2 border-b">Response</th>
+                                <th class="text-left p-2 border-b">Turns</th>
+                                <th class="text-left p-2 border-b">Verdict</th>
+                            </tr>
+                        </thead>
+                        <tbody id="functional-table-body"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 確認ポイント -->
+            <div class="border-t pt-4 mt-4">
+                <h4 class="font-semibold mb-2">📋 確認ポイント</h4>
+                <ul class="text-sm space-y-1 list-disc ml-5">
+                    <li><strong>Passed</strong>: エージェントが正しく応答したケース</li>
+                    <li><strong>Needs Review</strong>: 人手確認が必要なケース</li>
+                    <li><strong>Failed</strong>: エージェントの応答が期待と異なるケース</li>
+                </ul>
+            </div>
+        `);
+    }
+
+    function updateFunctionalCounts() {
+        const totalEl = document.getElementById('functional-total');
+        const passedEl = document.getElementById('functional-passed');
+        const needsReviewEl = document.getElementById('functional-needs-review');
+        const failedEl = document.getElementById('functional-failed');
+
+        if (totalEl) totalEl.textContent = functionalState.total;
+        if (passedEl) passedEl.textContent = functionalState.passed;
+        if (needsReviewEl) needsReviewEl.textContent = functionalState.needsReview;
+        if (failedEl) failedEl.textContent = functionalState.failed;
+    }
+
+    function updateFunctionalProgress() {
+        const current = functionalState.passed + functionalState.failed + functionalState.needsReview;
+        const progressEl = document.getElementById('functional-progress');
+        if (!progressEl) return;
+
+        if (functionalState.currentTurn > 0) {
+            progressEl.textContent = `💬 シナリオ ${functionalState.currentScenario + 1}/${functionalState.total} - 対話中: ターン ${functionalState.currentTurn}/${functionalState.currentTotalTurns}`;
+        } else {
+            progressEl.textContent = `🔄 評価中... (${current}/${functionalState.total})`;
+        }
+    }
+
+    async function appendFunctionalScenarioToTable(data) {
+        const tbody = document.getElementById('functional-table-body');
+        if (!tbody) return;
+
+        const verdictClass = data.verdict === 'pass' ? 'bg-green-100 text-green-800' :
+                             data.verdict === 'fail' ? 'bg-red-100 text-red-800' :
+                             data.verdict === 'needs_review' ? 'bg-yellow-100 text-yellow-800' :
+                             'bg-gray-100 text-gray-800';
+
+        // プロンプトを取得（100文字に切り詰め）
+        const promptText = (data.prompt || '').substring(0, 100);
+
+        // レスポンスを取得（100文字に切り詰め）- トップレベルから直接取得
+        const responseText = (data.response || '').substring(0, 100);
+
+        const turnsText = data.totalTurns || 1;
+
+        const rowId = `functional-row-${data.scenario_index || 0}`;
+
+        let row = document.getElementById(rowId);
+        if (!row) {
+            row = document.createElement('tr');
+            row.id = rowId;
+            row.className = 'border-b hover:bg-gray-50';
+            tbody.appendChild(row);
+        }
+
+        // 内容をセット
+        row.innerHTML = `
+            <td class="p-2 max-w-xs truncate" title="${promptText}">${promptText || '-'}</td>
+            <td class="p-2 max-w-xs truncate" title="${responseText}">${responseText || '-'}</td>
+            <td class="p-2 text-center">${turnsText}</td>
+            <td class="p-2"><span class="px-2 py-1 rounded text-xs ${verdictClass}">${data.verdict}</span></td>
+        `;
+    }
+
+    async function appendFunctionalFailedScenario(data) {
+        const container = document.getElementById('functional-failed-list');
+        if (!container) return;
+
+        // 「評価中...」を非表示（削除ではなく非表示にして、完了時に再利用可能に）
+        const noFailuresEl = document.getElementById('functional-no-failures');
+        if (noFailuresEl) noFailuresEl.style.display = 'none';
+
+        const div = document.createElement('div');
+        div.className = 'border border-gray-300 rounded-lg p-3 bg-white';
+        container.appendChild(div);
+
+        const verdictClass = data.verdict === 'fail' ? 'bg-red-100 text-red-800' :
+                             data.verdict === 'needs_review' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800';
+
+        // ヘッダー部分（シナリオ名 + Verdict バッジ）
+        const headerDiv = document.createElement('div');
+        headerDiv.className = 'font-semibold text-sm mb-1';
+        div.appendChild(headerDiv);
+        await typeTextInElement(headerDiv, data.scenarioId || data.scenario_name || '匿名', 5);
+
+        const verdictSpan = document.createElement('span');
+        verdictSpan.className = `ml-2 text-xs px-2 py-1 rounded ${verdictClass}`;
+        headerDiv.appendChild(verdictSpan);
+        await typeTextInElement(verdictSpan, data.verdict, 10);
+
+        // Turns表示
+        if (data.totalTurns) {
+            const turnsDiv = document.createElement('div');
+            turnsDiv.className = 'text-xs text-gray-600 mb-2';
+            div.appendChild(turnsDiv);
+            await typeTextInElement(turnsDiv, `Turns: ${data.totalTurns}`, 5);
+        }
+
+        // 対話履歴（あれば）
+        if (data.dialogueHistory && data.dialogueHistory.length > 0) {
+            const dialogueContainer = document.createElement('div');
+            dialogueContainer.className = 'text-xs mb-2 border-l-4 border-purple-400 pl-3';
+            div.appendChild(dialogueContainer);
+
+            const dialogueTitle = document.createElement('strong');
+            dialogueTitle.className = 'text-purple-700';
+            dialogueContainer.appendChild(dialogueTitle);
+            await typeTextInElement(dialogueTitle, `💬 対話履歴 (${data.totalTurns || data.dialogueHistory.length} turns):`, 3);
+
+            const turnsContainer = document.createElement('div');
+            turnsContainer.className = 'space-y-2 mt-2';
+            dialogueContainer.appendChild(turnsContainer);
+
+            for (const turn of data.dialogueHistory) {
+                const turnDiv = document.createElement('div');
+                turnDiv.className = 'bg-white p-2 rounded border';
+                turnsContainer.appendChild(turnDiv);
+
+                const turnHeader = document.createElement('div');
+                turnHeader.className = 'font-semibold text-purple-600 mb-1';
+                turnDiv.appendChild(turnHeader);
+                await typeTextInElement(turnHeader, `Turn ${turn.turn}`, 5);
+
+                // User
+                const userDiv = document.createElement('div');
+                userDiv.className = 'mb-1';
+                turnDiv.appendChild(userDiv);
+                const userLabel = document.createElement('span');
+                userLabel.className = 'font-medium text-gray-700';
+                userDiv.appendChild(userLabel);
+                await typeTextInElement(userLabel, 'User:', 5);
+                const userPre = document.createElement('pre');
+                userPre.className = 'mt-0.5 whitespace-pre-wrap bg-blue-50 p-1.5 rounded text-xs';
+                userDiv.appendChild(userPre);
+                await typeTextInElement(userPre, turn.user || '', 1);
+
+                // Agent
+                const agentDiv = document.createElement('div');
+                turnDiv.appendChild(agentDiv);
+                const agentLabel = document.createElement('span');
+                agentLabel.className = 'font-medium text-gray-700';
+                agentDiv.appendChild(agentLabel);
+                await typeTextInElement(agentLabel, 'Agent:', 5);
+                const agentPre = document.createElement('pre');
+                agentPre.className = 'mt-0.5 whitespace-pre-wrap bg-green-50 p-1.5 rounded text-xs';
+                agentDiv.appendChild(agentPre);
+                await typeTextInElement(agentPre, turn.agent || '', 1);
+            }
+        } else {
+            // 対話履歴がない場合は Prompt/Response を表示
+            // Prompt
+            const promptDiv = document.createElement('div');
+            promptDiv.className = 'text-xs mb-2';
+            div.appendChild(promptDiv);
+            const promptStrong = document.createElement('strong');
+            promptDiv.appendChild(promptStrong);
+            await typeTextInElement(promptStrong, 'Prompt:', 10);
+            const promptPre = document.createElement('pre');
+            promptPre.className = 'mt-1 whitespace-pre-wrap bg-gray-50 p-2 rounded';
+            promptDiv.appendChild(promptPre);
+            await typeTextInElement(promptPre, data.prompt || 'N/A', 2);
+
+            // Response
+            const responseDiv = document.createElement('div');
+            responseDiv.className = 'text-xs mb-2';
+            div.appendChild(responseDiv);
+            const responseStrong = document.createElement('strong');
+            responseDiv.appendChild(responseStrong);
+            await typeTextInElement(responseStrong, 'Response:', 10);
+            const responsePre = document.createElement('pre');
+            responsePre.className = 'mt-1 whitespace-pre-wrap bg-gray-50 p-2 rounded';
+            responseDiv.appendChild(responsePre);
+            await typeTextInElement(responsePre, data.response || 'N/A', 2);
+        }
+
+        // Expected
+        const expectedDiv = document.createElement('div');
+        expectedDiv.className = 'text-xs mb-2';
+        div.appendChild(expectedDiv);
+        const expectedStrong = document.createElement('strong');
+        expectedDiv.appendChild(expectedStrong);
+        await typeTextInElement(expectedStrong, 'Expected:', 10);
+        const expectedPre = document.createElement('pre');
+        expectedPre.className = 'mt-1 whitespace-pre-wrap bg-gray-50 p-2 rounded';
+        expectedDiv.appendChild(expectedPre);
+        await typeTextInElement(expectedPre, data.expected || 'N/A', 2);
+
+        // 品質指標（あれば）
+        if (data.taskCompletion !== undefined && data.taskCompletion !== null) {
+            const metricsDiv = document.createElement('div');
+            metricsDiv.className = 'text-xs mb-2 bg-purple-50 p-2 rounded border border-purple-200';
+            div.appendChild(metricsDiv);
+
+            const metricsTitle = document.createElement('strong');
+            metricsTitle.className = 'text-purple-700';
+            metricsDiv.appendChild(metricsTitle);
+            await typeTextInElement(metricsTitle, 'マルチターン品質指標:', 5);
+
+            const metricsGrid = document.createElement('div');
+            metricsGrid.className = 'grid grid-cols-3 gap-2 mt-1';
+            metricsDiv.appendChild(metricsGrid);
+
+            // Task Completion
+            const tcDiv = document.createElement('div');
+            metricsGrid.appendChild(tcDiv);
+            const tcSpan = document.createElement('span');
+            tcSpan.className = 'text-gray-600';
+            tcDiv.appendChild(tcSpan);
+            await typeTextInElement(tcSpan, 'Task Completion: ', 3);
+            const tcValue = document.createElement('span');
+            tcValue.className = 'font-medium';
+            tcDiv.appendChild(tcValue);
+            await typeTextInElement(tcValue, typeof data.taskCompletion === 'number' ? data.taskCompletion.toFixed(2) : 'N/A', 5);
+        }
+
+        // Rationale
+        const rationaleDiv = document.createElement('div');
+        rationaleDiv.className = 'text-xs text-gray-700';
+        div.appendChild(rationaleDiv);
+        const rationaleStrong = document.createElement('strong');
+        rationaleDiv.appendChild(rationaleStrong);
+        await typeTextInElement(rationaleStrong, 'Rationale: ', 10);
+        const rationaleSpan = document.createElement('span');
+        rationaleDiv.appendChild(rationaleSpan);
+        await typeTextInElement(rationaleSpan, data.rationale || 'N/A', 2);
+    }
+
+    // ==== End of Section Streaming Renderer ====
+
     // Connection status handlers
     juryStream.on('connected', () => {
         console.log('[DEBUG] 🟢 WebSocket connected event fired');
@@ -1718,6 +2134,17 @@
     juryStream.on('final_judgment', (data) => {
         console.log('[DEBUG] ⚖️ final_judgment event handler called with data:', data);
 
+        // 1. 全チャットエリアのスクロール位置を保存（レイアウトリフロー対策）
+        const scrollPositions = {};
+        ['balthasar', 'casper', 'melchior'].forEach(unit => {
+            const chatLog = document.getElementById(`${unit}-chat`);
+            if (chatLog) {
+                scrollPositions[unit] = chatLog.scrollTop;
+            }
+        });
+        // ページ全体のスクロール位置も保存
+        const pageScrollTop = window.scrollY || document.documentElement.scrollTop;
+
         // Update phase indicator
         const phaseIndicator = document.getElementById('magi-phase-indicator');
         if (phaseIndicator) {
@@ -1748,6 +2175,18 @@
                 </div>
             `;
         }
+
+        // 2. スクロール位置を復元（requestAnimationFrameでレイアウト後に実行）
+        requestAnimationFrame(() => {
+            ['balthasar', 'casper', 'melchior'].forEach(unit => {
+                const chatLog = document.getElementById(`${unit}-chat`);
+                if (chatLog && scrollPositions[unit] !== undefined) {
+                    chatLog.scrollTop = scrollPositions[unit];
+                }
+            });
+            // ページ全体のスクロール位置も復元
+            window.scrollTo(0, pageScrollTop);
+        });
     });
 
             // Evaluation complete handler
@@ -1866,46 +2305,7 @@
                 statusBadge.textContent = statusText[data.status] || '⏸️ 待機中';
                 console.log(`[DEBUG] 📝 Updated status badge for ${data.stage} to: ${statusBadge.textContent}`);
             }
-
-            // Fetch and update full content to refresh "Automated Review Steps"
-            try {
-                console.log('[DEBUG] 🔄 Fetching updated content...');
-                const response = await fetch(window.location.href);
-                if (!response.ok) {
-                    console.error('[DEBUG] ❌ Failed to fetch updated content:', response.status);
-                    return;
-                }
-
-                const htmlText = await response.text();
-                const parser = new DOMParser();
-                const newDoc = parser.parseFromString(htmlText, 'text/html');
-                const newContent = newDoc.getElementById('main-content');
-                const currentContent = document.getElementById('main-content');
-
-                if (newContent && currentContent) {
-                    // Capture current state
-                    const scrollPos = window.scrollY;
-                    const openDetails = Array.from(document.querySelectorAll('details[open]'))
-                        .map(el => el.id)
-                        .filter(id => id);
-
-                    // Replace content
-                    currentContent.innerHTML = newContent.innerHTML;
-
-                    // Restore state
-                    openDetails.forEach(id => {
-                        const el = document.getElementById(id);
-                        if (el) el.open = true;
-                    });
-
-                    // Restore scroll position
-                    window.scrollTo(0, scrollPos);
-
-                    console.log('[DEBUG] ✅ Content updated successfully');
-                }
-            } catch (error) {
-                console.error('[DEBUG] ❌ Error updating content:', error);
-            }
+            // NOTE: fetch→innerHTML による全体更新は削除（DOM要素の参照が切れてストリーミング表示が壊れるため）
         }
     });
 

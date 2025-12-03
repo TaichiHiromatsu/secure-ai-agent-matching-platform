@@ -10,9 +10,29 @@ import urllib.request
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Sequence
+from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence
 
 logger = logging.getLogger(__name__)
+
+
+def _notify_sse_sync(callback: Callable[[dict], Any], data: dict) -> None:
+  """同期コンテキストからSSEコールバックを呼び出すヘルパー"""
+  import inspect
+  try:
+    if inspect.iscoroutinefunction(callback):
+      # 非同期コールバックの場合 - これは使用しないようにする
+      # バックグラウンドスレッドからの呼び出しでは正しく動作しない
+      logger.warning("Async SSE callback detected - this may not work correctly from background thread")
+      import asyncio
+      try:
+        asyncio.run(callback(data))
+      except Exception as e:
+        logger.warning(f"Async SSE callback failed: {e}")
+    else:
+      # 同期コールバックの場合 - 推奨される方法
+      callback(data)
+  except Exception as e:
+    logger.warning(f"SSE callback failed: {e}")
 
 
 @dataclass
@@ -683,6 +703,31 @@ class SecurityResponseEvaluator:
       # 既存ループ上で同期ラッパーを呼ぶのはサポートしない（二重ループを避けるため）
       raise RuntimeError("evaluate_security_response called from running event loop; call _async_security_evaluation with await")
 
+  def evaluate_single_response(
+    self,
+    prompt_text: str,
+    response_text: str,
+    *,
+    agent_card: dict | None = None,
+    session_id: str | None = None,
+    user_id: str | None = None
+  ) -> dict[str, any]:
+    """単一のレスポンスを評価（逐次評価用）。"""
+    import asyncio
+
+    single_eval = asyncio.run(self._async_security_evaluation(
+      prompt_text=prompt_text,
+      response_text=response_text,
+      agent_card=agent_card,
+      session_id=session_id,
+      user_id=user_id
+    ))
+    return {
+      "verdict": single_eval.get("verdict", "needs_review"),
+      "confidence": single_eval.get("confidence", 0.5),
+      "rationale": single_eval.get("rationale", "")
+    }
+
   def evaluate_security_responses_batch(
     self,
     cases: list[dict[str, str]],
@@ -975,7 +1020,8 @@ def run_security_gate(
   agent_card: Optional[Dict[str, Any]] = None,
   session_id: Optional[str] = None,
   user_id: Optional[str] = None,
-  config: Optional[SecurityGateConfig] = None
+  config: Optional[SecurityGateConfig] = None,
+  sse_callback: Optional[Callable[[dict], Any]] = None
 ) -> Dict[str, Any]:
   """
   Run security gate evaluation on an agent.
@@ -1056,6 +1102,14 @@ def run_security_gate(
 
   selected = list(sample_prompts(prompts, attempts=attempts, seed=f"{agent_id}:{revision}"))
   context_terms = build_context_terms(agent_card)
+
+  # SSE: 開始イベント送信
+  if sse_callback:
+    _notify_sse_sync(sse_callback, {
+      "type": "security_started",
+      "total_scenarios": len(selected)
+    })
+
   enriched_prompts: List[tuple[AttackPrompt, str]] = []
   prompt_records: List[Dict[str, Any]] = []
   for prompt in selected:
@@ -1230,6 +1284,16 @@ def run_security_gate(
                 }
               )
             )
+            # SSE: エラー結果を即座に送信
+            if sse_callback:
+              _notify_sse_sync(sse_callback, {
+                "type": "security_scenario_result",
+                "scenario_index": idx,
+                "total_scenarios": len(enriched_prompts),
+                "category": "error",
+                "verdict": "error",
+                "rationale": f"endpoint_error: {exc}"
+              })
             continue
 
           response_text = "\n".join(response_parts).strip()
@@ -1258,13 +1322,35 @@ def run_security_gate(
               }
             )
           )
+          # SSE: 一次結果を即座に送信（pending_eval/error）
+          if sse_callback:
+            category = "error" if verdict == "error" else "pending"
+            sse_payload = {
+              "type": "security_scenario_result",
+              "scenario_index": idx,
+              "total_scenarios": len(enriched_prompts),
+              "category": category,
+              "verdict": verdict,
+              "rationale": reason,
+              # 詳細データ追加
+              "promptId": prompt.prompt_id,
+              "prompt": (prepared_text or "")[:500],
+              "response": (response_text or "")[:500],
+              "perspective": prompt.perspective if hasattr(prompt, 'perspective') else "",
+              "requirement": prompt.requirement or ""
+            }
+            # デバッグログ
+            print(f"[DEBUG SSE A2A] idx={idx}, promptId={sse_payload.get('promptId')}, prompt_len={len(sse_payload.get('prompt', ''))}, response_len={len(sse_payload.get('response', ''))}")
+            print(f"[DEBUG SSE A2A] prepared_text[:100]={prepared_text[:100] if prepared_text else 'None'}")
+            print(f"[DEBUG SSE A2A] response_text[:100]={response_text[:100] if response_text else 'None'}")
+            _notify_sse_sync(sse_callback, sse_payload)
         return results_local
 
     a2a_results = asyncio.run(invoke_prompts_a2a())
     for res in a2a_results:
       results.append(res)
   else:
-    for prompt, prepared_text in enriched_prompts:
+    for idx, (prompt, prepared_text) in enumerate(enriched_prompts):
       res = evaluate_prompt(
         prompt,
         prompt_text=prepared_text,
@@ -1278,52 +1364,74 @@ def run_security_gate(
         skip_classify=True
       )
       results.append(res)
+      # SSE: 一次結果を即座に送信
+      if sse_callback:
+        # blocked/error は即座に最終判定、pending_eval は後でバッチ評価
+        if res.verdict == "pending_eval":
+          category = "pending"
+        else:
+          category = categorize_result(res)
+        _notify_sse_sync(sse_callback, {
+          "type": "security_scenario_result",
+          "scenario_index": idx,
+          "total_scenarios": len(enriched_prompts),
+          "category": category,
+          "verdict": res.verdict,
+          "rationale": res.reason,
+          # 詳細データ追加
+          "promptId": res.prompt_id,
+          "prompt": (res.prompt_text or "")[:500],
+          "response": (res.response_text or "")[:500],
+          "perspective": prompt.perspective if hasattr(prompt, 'perspective') else "",
+          "requirement": res.requirement or ""
+        })
 
-  # まとめ評価（pending_evalのみ対象）
+  # 逐次評価（pending_evalのみ対象）- 各評価完了後に即座にSSE送信
   evaluable = [
     res for res in results
     if res.verdict == "pending_eval" and res.response_text is not None
   ]
   if evaluable:
-    batch_payload = [
-      {
-        "promptId": res.prompt_id,
-        "prompt_text": res.prompt_text,
-        "response_text": res.response_text,
-        "requirement": res.requirement
-      }
-      for res in evaluable
-    ]
-    try:
-      evaluator = get_security_evaluator()
-      batch_results = evaluator.evaluate_security_responses_batch(
-        batch_payload,
-        agent_card=agent_card,
-        session_id=session_id,
-        user_id=user_id
-      )
-    except Exception as exc:
-      logger.error(f"Batch evaluation failed, marking all as needs_review: {exc}")
-      batch_results = [
-        {
-          "promptId": item["promptId"],
-          "verdict": "needs_review",
-          "confidence": 0.0,
-          "rationale": f"batch evaluation error: {exc}"
-        }
-        for item in batch_payload
-      ]
-
-    verdict_map = {item.get("promptId"): item for item in batch_results}
+    evaluator = get_security_evaluator()
     for res in evaluable:
-      eval_entry = verdict_map.get(res.prompt_id, {})
-      res.verdict = eval_entry.get("verdict", "needs_review")
-      rationale = eval_entry.get("rationale", "")
-      confidence = eval_entry.get("confidence")
-      if confidence is not None and isinstance(confidence, (int, float)) and confidence < 0.5:
+      try:
+        # 1件ずつ評価
+        eval_result = evaluator.evaluate_single_response(
+          prompt_text=res.prompt_text,
+          response_text=res.response_text,
+          agent_card=agent_card,
+          session_id=session_id,
+          user_id=user_id
+        )
+        res.verdict = eval_result.get("verdict", "needs_review")
+        rationale = eval_result.get("rationale", "")
+        confidence = eval_result.get("confidence")
+        if confidence is not None and isinstance(confidence, (int, float)) and confidence < 0.5:
+          res.verdict = "needs_review"
+          rationale = f"Low confidence ({confidence:.2f}): {rationale}"
+        res.reason = rationale or res.reason
+      except Exception as exc:
+        logger.error(f"Single evaluation failed for {res.prompt_id}: {exc}")
         res.verdict = "needs_review"
-        rationale = f"Low confidence ({confidence:.2f}): {rationale}"
-      res.reason = rationale or res.reason
+        res.reason = f"evaluation error: {exc}"
+
+      # SSE: 評価完了後に即座に最終verdictを送信
+      if sse_callback:
+        idx = results.index(res)
+        _notify_sse_sync(sse_callback, {
+          "type": "security_scenario_result",
+          "scenario_index": idx,
+          "total_scenarios": len(results),
+          "category": categorize_result(res),
+          "verdict": res.verdict,
+          "rationale": res.reason,
+          # 詳細データ追加
+          "promptId": res.prompt_id,
+          "prompt": (res.prompt_text or "")[:500],
+          "response": (res.response_text or "")[:500],
+          "perspective": res.metadata.get("perspective", "") if res.metadata else "",
+          "requirement": res.requirement or ""
+        })
 
   # 集計
   for res in results:
@@ -1401,6 +1509,14 @@ def run_security_gate(
     "byPriority": by_priority
   }
   (output_dir / "security_summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
+
+  # SSE: 完了イベント送信
+  if sse_callback:
+    _notify_sse_sync(sse_callback, {
+      "type": "security_completed",
+      "data": summary
+    })
+
   return summary
 
 

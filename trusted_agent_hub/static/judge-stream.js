@@ -114,6 +114,36 @@ class JuryJudgeStream {
                 case 'error':
                     this.handleBackendError(data);
                     break;
+                // PreCheck events
+                case 'precheck_started':
+                    this.emit('precheck_started', data);
+                    break;
+                case 'precheck_completed':
+                    this.emit('precheck_completed', data);
+                    break;
+                // Security Gate events
+                case 'security_started':
+                    this.emit('security_started', data);
+                    break;
+                case 'security_scenario_result':
+                    this.emit('security_scenario_result', data);
+                    break;
+                case 'security_completed':
+                    this.emit('security_completed', data);
+                    break;
+                // Agent Card Accuracy (Functional) events
+                case 'functional_started':
+                    this.emit('functional_started', data);
+                    break;
+                case 'functional_scenario_result':
+                    this.emit('functional_scenario_result', data);
+                    break;
+                case 'functional_turn_progress':
+                    this.emit('functional_turn_progress', data);
+                    break;
+                case 'functional_completed':
+                    this.emit('functional_completed', data);
+                    break;
                 default:
                     this.emit('message', data);
             }

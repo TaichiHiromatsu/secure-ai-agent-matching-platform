@@ -11,7 +11,7 @@ import uuid
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
 from urllib.parse import urlparse, urlunparse
 
 from google.adk.agents.remote_a2a_agent import RemoteA2aAgent
@@ -19,7 +19,7 @@ from google.adk import Runner
 from google.adk.sessions.in_memory_session_service import InMemorySessionService
 import google.genai.types as types
 
-from .security_gate import invoke_endpoint
+from .security_gate import invoke_endpoint, _notify_sse_sync
 
 logger = logging.getLogger(__name__)
 
@@ -609,7 +609,8 @@ async def invoke_multiturn_dialogue(
     max_turns: int = 5,
     timeout: float = 20.0,
     session_id: Optional[str] = None,
-    user_id: Optional[str] = None
+    user_id: Optional[str] = None,
+    progress_callback: Optional[Callable[[dict], None]] = None
 ) -> Dict[str, Any]:
   """
   Execute a multi-turn dialogue with an A2A agent, maintaining conversation context.
@@ -625,6 +626,7 @@ async def invoke_multiturn_dialogue(
       timeout: Timeout for each agent response (default: 20.0 seconds)
       session_id: Optional session ID for tracking (used for logging)
       user_id: Optional user ID (default: "functional-accuracy")
+      progress_callback: Optional callback for SSE progress updates (called after each turn)
 
   Returns:
       Dictionary containing:
@@ -643,13 +645,16 @@ async def invoke_multiturn_dialogue(
 
   try:
     # Normalize endpoint URL for Docker networking
+    # Security Gate uses 127.0.0.1 directly (only transforms 0.0.0.0)
+    # All agents run inside secure-platform container at 127.0.0.1:8002
     parsed = urlparse(endpoint_url)
-    if parsed.hostname in ("0.0.0.0", "localhost", "127.0.0.1"):
-      service_name = "host.docker.internal"
+    if parsed.hostname == "0.0.0.0":
+      # Only transform 0.0.0.0 to 127.0.0.1 (same as Security Gate behavior)
       port = parsed.port or 8002
-      netloc = f"{service_name}:{port}"
+      netloc = f"127.0.0.1:{port}"
       endpoint_url = urlunparse((parsed.scheme, netloc, parsed.path, parsed.params, parsed.query, parsed.fragment))
       logger.info(f"Normalized endpoint URL for multi-turn dialogue: {endpoint_url}")
+    # 127.0.0.1 and localhost are used as-is (agents run inside container)
 
     # Fetch agent card from the endpoint
     import httpx
@@ -759,6 +764,19 @@ async def invoke_multiturn_dialogue(
         "user": current_prompt,
         "agent": agent_response
       })
+
+      # SSE: ターン進捗を送信
+      if progress_callback:
+        try:
+          progress_callback({
+            "type": "functional_turn_progress",
+            "turn": turn,
+            "total_turns": max_turns,
+            "user_prompt": current_prompt[:200] if current_prompt else "",
+            "agent_response_preview": agent_response[:200] if agent_response else ""
+          })
+        except Exception as e:
+          logger.warning(f"Progress callback failed: {e}")
 
       # Check if task is completed
       if _is_task_completed(agent_response):
@@ -940,7 +958,7 @@ def _execute_functional_prompt(
       user_id=user_id
     )
   except Exception as exc:  # pragma: no cover - network errors depend on environment
-    return (None, "error", str(exc)[:300])
+    return (f"[エラー] {str(exc)[:200]}", "error", str(exc)[:300])
   return (response_text, "ok", None)
 
 
@@ -960,7 +978,8 @@ def run_functional_accuracy(
   user_id: Optional[str] = None,
   use_multiturn: bool = False,  # TODO: シングルターン経路は将来廃止し、マルチターンのみの設定に統一する
   max_turns: int = 5,
-  use_adk_generator: bool = False
+  use_adk_generator: bool = False,
+  sse_callback: Optional[Callable[[dict], Any]] = None
 ) -> Dict[str, Any]:
   """
   Run Agent Card Accuracy evaluation on an agent.
@@ -1025,6 +1044,13 @@ def run_functional_accuracy(
   distances: List[float] = []
   embedding_distances: List[float] = []
 
+  # SSE: 開始イベント送信
+  if sse_callback:
+    _notify_sse_sync(sse_callback, {
+      "type": "functional_started",
+      "total_scenarios": len(scenarios)
+    })
+
   error_count = 0
   scenario_records: List[Dict[str, Any]] = []
   with report_path.open("w", encoding="utf-8") as report_file:
@@ -1056,6 +1082,17 @@ def run_functional_accuracy(
           }
         else:
           # Real multi-turn dialogue with context preservation
+          # 進捗コールバックを作成（シナリオインデックスを含める）
+          def make_progress_callback(scenario_idx: int, total: int):
+            def callback(data: dict):
+              if sse_callback:
+                _notify_sse_sync(sse_callback, {
+                  **data,
+                  "scenario_index": scenario_idx,
+                  "total_scenarios": total
+                })
+            return callback
+
           dialogue_result = asyncio.run(invoke_multiturn_dialogue(
             endpoint_url=endpoint_url,
             initial_prompt=scenario.prompt,
@@ -1063,24 +1100,27 @@ def run_functional_accuracy(
             max_turns=max_turns,
             timeout=timeout,
             session_id=session_id,
-            user_id=user_id
+            user_id=user_id,
+            progress_callback=make_progress_callback(idx, len(scenarios)) if sse_callback else None
           ))
 
         # Check if dialogue had errors
         if dialogue_result.get("error"):
+          error_msg = dialogue_result["error"]
           evaluation = {
             "task_completion": 0.0,
             "dialogue_naturalness": 0.0,
             "information_gathering": 0.0,
             "verdict": "error",
             "distance": 1.0,
-            "errors": [dialogue_result["error"]],
-            "rationale": f"Dialogue error: {dialogue_result['error']}"
+            "errors": [error_msg],
+            "rationale": f"Dialogue error: {error_msg}"
           }
           error_count += 1
-          response_text = dialogue_result.get("final_response", "(error)")
+          # エラー時はエラー内容をresponse_textに設定
+          response_text = f"[エラー] {error_msg[:200]}"
           status = "error"
-          error_text = dialogue_result["error"]
+          error_text = error_msg
         else:
           # Convert dialogue_history to DialogueTurn objects for evaluator
           dialogue_turns = [
@@ -1206,6 +1246,34 @@ def run_functional_accuracy(
         "embeddingDistance": emb_distance
       })
 
+      # SSE: シナリオ結果送信
+      if sse_callback:
+        # 対話履歴があれば取得
+        dialogue_history = evaluation.get("dialogue_history", [])
+        total_turns = evaluation.get("total_turns", 0)
+
+        _notify_sse_sync(sse_callback, {
+          "type": "functional_scenario_result",
+          "scenario_index": idx,
+          "total_scenarios": len(scenarios),
+          "scenario_name": scenario.use_case,
+          "verdict": evaluation.get("verdict", "unknown"),
+          "rationale": evaluation.get("rationale", ""),
+          # 詳細データ追加
+          "scenarioId": scenario.id,
+          "prompt": (scenario.prompt or "")[:500],
+          "expected": (scenario.expected_answer or "")[:500],
+          "response": (response_text or "")[:500],
+          "distance": evaluation.get("distance"),
+          "embeddingDistance": emb_distance,
+          "totalTurns": total_turns,
+          "dialogueHistory": dialogue_history[:5] if dialogue_history else [],  # 最大5ターン
+          # 品質指標
+          "taskCompletion": evaluation.get("task_completion"),
+          "dialogueNaturalness": evaluation.get("dialogue_naturalness"),
+          "informationGathering": evaluation.get("information_gathering")
+        })
+
   with prompts_path.open("w", encoding="utf-8") as prompts_file:
     for record in scenario_records:
       prompts_file.write(json.dumps(record, ensure_ascii=False) + "\n")
@@ -1220,8 +1288,8 @@ def run_functional_accuracy(
     "passes": passes,
     "passed": passes,
     "needsReview": needs_review,
-    "averageDistance": round(avg_distance, 4) if not math.isnan(avg_distance) else None,
-    "embeddingAverageDistance": round(avg_embedding_distance, 4) if not math.isnan(avg_embedding_distance) else None,
+    "averageDistance": round(avg_distance, 4) if not math.isnan(avg_distance) else 0.0,
+    "embeddingAverageDistance": round(avg_embedding_distance, 4) if not math.isnan(avg_embedding_distance) else 0.0,
     "embeddingMaxDistance": max_embedding_distance,
     "ragtruthRecords": len(ragtruth_records),
     "responsesWithError": error_count,
@@ -1231,6 +1299,14 @@ def run_functional_accuracy(
     "maxDistance": max(distances) if distances else None
   }
   (output_dir / "functional_summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
+
+  # SSE: 完了イベント送信
+  if sse_callback:
+    _notify_sse_sync(sse_callback, {
+      "type": "functional_completed",
+      "data": summary
+    })
+
   return summary
 
 
