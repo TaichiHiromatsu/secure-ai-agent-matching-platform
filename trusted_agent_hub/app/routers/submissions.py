@@ -225,7 +225,7 @@ def publish_agent(submission: models.Submission) -> dict:
 async def notify_state_change(submission_id: str, old_state: str, new_state: str):
     """Send state change notification via WebSocket"""
     from app.routers.sse import get_sse_manager
-    from app.schemas.jury_stream import validate_event_dict
+    from app.schemas.sse_events import validate_event_dict
     sse_manager = get_sse_manager()
     payload = validate_event_dict({
         "type": "submission_state_change",
@@ -239,7 +239,7 @@ async def notify_state_change(submission_id: str, old_state: str, new_state: str
 async def notify_score_update(submission_id: str, scores: dict):
     """Send score update notification via WebSocket"""
     from app.routers.sse import get_sse_manager
-    from app.schemas.jury_stream import validate_event_dict
+    from app.schemas.sse_events import validate_event_dict
     sse_manager = get_sse_manager()
     payload = validate_event_dict({
         "type": "score_update",
@@ -252,7 +252,7 @@ async def notify_score_update(submission_id: str, scores: dict):
 async def notify_stage_update(submission_id: str, stage: str, status: str):
     """Send stage update notification for progress bar via WebSocket"""
     from app.routers.sse import get_sse_manager
-    from app.schemas.jury_stream import validate_event_dict
+    from app.schemas.sse_events import validate_event_dict
     sse_manager = get_sse_manager()
     payload = validate_event_dict({
         "type": "stage_update",
@@ -279,7 +279,7 @@ def process_submission(submission_id: str):
         stages_cfg = {
             "precheck": True,
             "security": True,
-            "functional": True,
+            "agent_card_accuracy": True,
             "judge": True
         }
         try:
@@ -290,6 +290,27 @@ def process_submission(submission_id: str):
                         stages_cfg[k] = bool(v)
         except Exception as e:
             print(f"[WARN] Failed to parse stages config: {e}")
+
+        # Get custom execution counts from request_context
+        ctx = submission.request_context or {}
+        security_gate_cfg = ctx.get("security_gate", {}) if isinstance(ctx, dict) else {}
+        agent_card_accuracy_cfg = ctx.get("agent_card_accuracy", {}) if isinstance(ctx, dict) else {}
+
+        # Security Gate max_prompts (1-100, default from env or 10)
+        user_max_prompts = security_gate_cfg.get("max_prompts") if isinstance(security_gate_cfg, dict) else None
+        if user_max_prompts is not None:
+            security_max_prompts = max(1, min(100, int(user_max_prompts)))
+        else:
+            security_max_prompts = int(os.getenv("SECURITY_GATE_MAX_PROMPTS", "10"))
+
+        # Agent Card Accuracy max_scenarios (1-10, default from env or 3)
+        user_max_scenarios = agent_card_accuracy_cfg.get("max_scenarios") if isinstance(agent_card_accuracy_cfg, dict) else None
+        if user_max_scenarios is not None:
+            agent_card_accuracy_max_scenarios = max(1, min(10, int(user_max_scenarios)))
+        else:
+            agent_card_accuracy_max_scenarios = int(os.getenv("AGENT_CARD_ACCURACY_MAX_SCENARIOS", "3"))
+
+        print(f"[CONFIG] Security Gate max_prompts: {security_max_prompts}, Agent Card Accuracy max_scenarios: {agent_card_accuracy_max_scenarios}")
 
         # Trust Score weights (4軸) — Jury Judgeと同一の重みを期待
         trust_weights = get_trust_weights()
@@ -356,7 +377,7 @@ def process_submission(submission_id: str):
 
         # --- SSE callback setup (used by all stages) ---
         from app.routers.sse import get_sse_manager
-        from app.schemas.jury_stream import validate_event_dict
+        from app.schemas.sse_events import validate_event_dict
         sse_manager = get_sse_manager()
 
         def sse_callback(data: dict):
@@ -506,7 +527,7 @@ def process_submission(submission_id: str):
                     max_samples=int(os.getenv("ADVBENCH_MAX_SAMPLES", "10"))  # デフォルト10件
                 ),
             ],
-            max_total_prompts=int(os.getenv("SECURITY_GATE_MAX_PROMPTS", "10")),  # デフォルト10件（開発用）、本番は50-100推奨
+            max_total_prompts=security_max_prompts,  # フォームから指定、またはデフォルト10件
             sampling_strategy="priority_balanced"
         )
         endpoint_url = submission.card_document.get("url") or submission.card_document.get("serviceUrl")
@@ -677,12 +698,12 @@ def process_submission(submission_id: str):
             print(f"[WebSocket] Could not send Security Gate completion notification: {e}")
 
         # --- 2. Functional Check ---
-        if stages_cfg["functional"]:
+        if stages_cfg["agent_card_accuracy"]:
             print(f"Running Agent Card Accuracy for submission {submission_id}")
             current_breakdown = dict(submission.score_breakdown)
             if "stages" not in current_breakdown:
                 current_breakdown["stages"] = {}
-            current_breakdown["stages"]["functional"] = {
+            current_breakdown["stages"]["agent_card_accuracy"] = {
                 "status": "running",
                 "attempts": 1,
                 "message": "Agent Card Accuracy is running..."
@@ -692,8 +713,8 @@ def process_submission(submission_id: str):
             submission.updated_at = datetime.utcnow()
             db.commit()
 
-            # Notify WebSocket: Functional stage started
-            asyncio.run(notify_stage_update(submission_id, "functional", "running"))
+            # Notify WebSocket: Agent Card Accuracy stage started
+            asyncio.run(notify_stage_update(submission_id, "agent_card_accuracy", "running"))
 
             ragtruth_dir = base_dir / "evaluation-runner/resources/ragtruth"
 
@@ -703,7 +724,7 @@ def process_submission(submission_id: str):
                 agent_card_path=agent_card_path,
                 ragtruth_dir=ragtruth_dir,
                 output_dir=output_dir / "functional",
-                max_scenarios=int(os.getenv("FUNCTIONAL_MAX_SCENARIOS", "3")),  # デフォルト3シナリオ
+                max_scenarios=agent_card_accuracy_max_scenarios,  # フォームから指定、またはデフォルト3シナリオ
                 dry_run=False,
                 endpoint_url=endpoint_url,
                 endpoint_token=None,
@@ -716,14 +737,14 @@ def process_submission(submission_id: str):
                 sse_callback=sse_callback
             )
 
-            wandb_logger.log_stage_summary("functional", functional_summary)
-            wandb_logger.save_artifact("functional", output_dir / "functional" / "functional_report.jsonl", name="functional-report")
+            wandb_logger.log_stage_summary("agent_card_accuracy", functional_summary)
+            wandb_logger.save_artifact("agent_card_accuracy", output_dir / "functional" / "functional_report.jsonl", name="agent-card-accuracy-report")
         else:
             functional_summary = None
             current_breakdown = dict(submission.score_breakdown)
             if "stages" not in current_breakdown:
                 current_breakdown["stages"] = {}
-            current_breakdown["stages"]["functional"] = {
+            current_breakdown["stages"]["agent_card_accuracy"] = {
                 "status": "skipped",
                 "attempts": 0,
                 "message": "Agent Card Accuracy skipped by selection",
@@ -789,7 +810,7 @@ def process_submission(submission_id: str):
         }
 
         # Functional は件数レポートのみ。Trust Score に加算しない。
-        if stages_cfg["functional"] and total_scenarios > 0:
+        if stages_cfg["agent_card_accuracy"] and total_scenarios > 0:
             functional_score = int((passed_scenarios / total_scenarios) * 100)
         else:
             functional_score = 0
@@ -812,10 +833,10 @@ def process_submission(submission_id: str):
         if "stages" not in current_breakdown:
             current_breakdown["stages"] = {}
 
-        current_breakdown["stages"]["functional"] = {
-            "status": "completed" if stages_cfg["functional"] else "skipped",
-            "attempts": 1 if stages_cfg["functional"] else 0,
-            "message": f"Agent Card Accuracy completed: {passed_scenarios}/{total_scenarios} passed" if stages_cfg["functional"] else "Agent Card Accuracy skipped by selection",
+        current_breakdown["stages"]["agent_card_accuracy"] = {
+            "status": "completed" if stages_cfg["agent_card_accuracy"] else "skipped",
+            "attempts": 1 if stages_cfg["agent_card_accuracy"] else 0,
+            "message": f"Agent Card Accuracy completed: {passed_scenarios}/{total_scenarios} passed" if stages_cfg["agent_card_accuracy"] else "Agent Card Accuracy skipped by selection",
             "warnings": [f"{needs_review_scenarios} scenarios need review"] if needs_review_scenarios > 0 else []
         }
 
@@ -879,7 +900,7 @@ def process_submission(submission_id: str):
 
             if functional_summary:
                 agent_card_accuracy = enhanced_functional_summary
-            elif not stages_cfg["functional"]:
+            elif not stages_cfg["agent_card_accuracy"]:
                 # Use mock data if Agent Card Accuracy was intentionally skipped
                 print(f"Using mock Agent Card Accuracy results for Jury Judge testing")
                 agent_card_accuracy = create_mock_agent_card_accuracy_results()

@@ -17,23 +17,41 @@
                 <label class="block text-gray-700 text-sm font-bold mb-2">
                     実行ステップを選択
                 </label>
-                <div class="grid grid-cols-2 gap-2 text-sm">
-                    <label class="inline-flex items-center">
-                        <input type="checkbox" id="stage_precheck" class="mr-2" checked>
-                        PreCheck
-                    </label>
-                    <label class="inline-flex items-center">
-                        <input type="checkbox" id="stage_security" class="mr-2" checked>
-                        Security Gate
-                    </label>
-                    <label class="inline-flex items-center">
-                        <input type="checkbox" id="stage_functional" class="mr-2" checked>
-                        Agent Card Accuracy
-                    </label>
-                    <label class="inline-flex items-center">
-                        <input type="checkbox" id="stage_judge" class="mr-2" checked>
-                        Judge Panel
-                    </label>
+                <div class="space-y-3 text-sm">
+                    <div class="grid grid-cols-2 gap-2">
+                        <label class="inline-flex items-center">
+                            <input type="checkbox" id="stage_precheck" class="mr-2" checked>
+                            PreCheck
+                        </label>
+                        <label class="inline-flex items-center">
+                            <input type="checkbox" id="stage_judge" class="mr-2" checked>
+                            Judge Panel
+                        </label>
+                    </div>
+
+                    <div class="border-t pt-3">
+                        <label class="inline-flex items-center">
+                            <input type="checkbox" id="stage_security" class="mr-2" checked onchange="toggleSecurityOptions()">
+                            Security Gate
+                        </label>
+                        <div id="security_options" class="ml-6 mt-2 flex items-center gap-2">
+                            <label class="text-gray-600">実行回数:</label>
+                            <input type="number" id="security_max_prompts" class="w-20 px-2 py-1 border rounded text-center" min="1" max="100" value="10">
+                            <span class="text-xs text-gray-500">(1-100)</span>
+                        </div>
+                    </div>
+
+                    <div class="border-t pt-3">
+                        <label class="inline-flex items-center">
+                            <input type="checkbox" id="stage_agent_card_accuracy" class="mr-2" checked onchange="toggleAgentCardAccuracyOptions()">
+                            Agent Card Accuracy
+                        </label>
+                        <div id="agent_card_accuracy_options" class="ml-6 mt-2 flex items-center gap-2">
+                            <label class="text-gray-600">シナリオ数:</label>
+                            <input type="number" id="agent_card_accuracy_max_scenarios" class="w-20 px-2 py-1 border rounded text-center" min="1" max="10" value="3">
+                            <span class="text-xs text-gray-500">(1-10)</span>
+                        </div>
+                    </div>
                 </div>
                 <p class="text-xs text-gray-500 mt-2">チェックを外したステップはスキップされます（スコア0で評価・自動判定は行いません）。</p>
             </div>
@@ -66,6 +84,18 @@
     </div>
 
     <script>
+        function toggleSecurityOptions() {
+            const checked = document.getElementById('stage_security').checked;
+            document.getElementById('security_options').style.opacity = checked ? '1' : '0.5';
+            document.getElementById('security_max_prompts').disabled = !checked;
+        }
+
+        function toggleAgentCardAccuracyOptions() {
+            const checked = document.getElementById('stage_agent_card_accuracy').checked;
+            document.getElementById('agent_card_accuracy_options').style.opacity = checked ? '1' : '0.5';
+            document.getElementById('agent_card_accuracy_max_scenarios').disabled = !checked;
+        }
+
         document.getElementById('submissionForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const agentCardUrl = document.getElementById('agent_card_url').value;
@@ -83,8 +113,14 @@
                     stages: {
                         precheck: document.getElementById('stage_precheck').checked,
                         security: document.getElementById('stage_security').checked,
-                        functional: document.getElementById('stage_functional').checked,
+                        agent_card_accuracy: document.getElementById('stage_agent_card_accuracy').checked,
                         judge: document.getElementById('stage_judge').checked
+                    },
+                    security_gate: {
+                        max_prompts: parseInt(document.getElementById('security_max_prompts').value) || 10
+                    },
+                    agent_card_accuracy: {
+                        max_scenarios: parseInt(document.getElementById('agent_card_accuracy_max_scenarios').value) || 3
                     }
                 }
             };

@@ -330,12 +330,12 @@
         {% endif %}
     </details>
     <!-- Agent Card Accuracy -->
-    <details id="details-functional" class="mb-6 bg-gray-50 p-4 rounded-lg" open>
+    <details id="details-agent-card-accuracy" class="mb-6 bg-gray-50 p-4 rounded-lg" open>
         <summary class="text-lg font-semibold mb-2 flex items-center cursor-pointer">
             <span class="mr-2">📋</span> Agent Card Accuracy
         </summary>
         <!-- ストリーミングコンテンツエリア（SSE受信時に動的に書き換わる） -->
-        <div id="functional-content" class="ml-7 space-y-4 mt-2">
+        <div id="agent-card-accuracy-content" class="ml-7 space-y-4 mt-2">
         {% if submission.score_breakdown.functional_summary %}
             <!-- Basic Counts -->
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -996,6 +996,7 @@
 
     // State management for progressive display
     let securityState = { total: 0, blocked: 0, needsReview: 0, errors: 0 };
+    let securityTestsStarted = 0;  // 開始したテスト数（プログレス表示用）
     let functionalState = { total: 0, passed: 0, failed: 0, needsReview: 0, currentScenario: 0, currentTurn: 0, currentTotalTurns: 0 };
 
     // ==== PreCheck Event Handlers ====
@@ -1055,31 +1056,79 @@
 
     // シナリオ結果を処理する共通関数
     async function processSecurityScenarioResult(data) {
-        // カテゴリに応じてカウンター更新
-        if (data.category === 'pending') {
-            securityState.pending++;
-        } else {
-            if (securityState.pending > 0 && data.verdict !== 'blocked' && data.verdict !== 'error') {
+        // バッチ更新の場合はカウンター処理を調整（pending→最終verdictへの変換）
+        if (data.is_batch_update) {
+            // バッチ更新：pendingから最終verdictへの変換
+            if (securityState.pending > 0) {
                 securityState.pending--;
             }
             if (data.verdict === 'blocked') securityState.blocked++;
             else if (data.verdict === 'needs_review') securityState.needsReview++;
             else if (data.verdict === 'error') securityState.errors++;
-        }
+            // ※ バッチ更新時はverdictカラムのみ更新するため、prompt/responseのマージは不要
+        } else {
+            // 通常更新：カテゴリに応じてカウンター更新
+            if (data.category === 'pending') {
+                securityState.pending++;
+            } else {
+                if (securityState.pending > 0 && data.verdict !== 'blocked' && data.verdict !== 'error') {
+                    securityState.pending--;
+                }
+                if (data.verdict === 'blocked') securityState.blocked++;
+                else if (data.verdict === 'needs_review') securityState.needsReview++;
+                else if (data.verdict === 'error') securityState.errors++;
+            }
 
-        // シナリオを蓄積
-        securityScenarios.push(data);
+            // シナリオを蓄積（バッチ更新時は重複するためスキップ）
+            securityScenarios.push(data);
+        }
 
         // UIを増分更新
         updateSecurityCounts();
         updateSecurityProgress();
 
-        // 結果のverdictを「現在のテスト」に追加表示
-        await updateSecurityCurrentTestVerdict(data);
+        // Phase 1のみ応答を表示（is_batch_updateがfalseまたは未定義の場合）
+        if (!data.is_batch_update && data.response) {
+            await updateSecurityCurrentTestResponse(data);
+        }
 
-        await appendSecurityScenarioToTable(data);
+        // Phase 1: テーブルに行を追加（prompt/response含む）
+        // Phase 2: Verdictのみ更新（prompt/responseはそのまま保持）
+        if (!data.is_batch_update) {
+            await appendSecurityScenarioToTable(data);
+        } else {
+            // Phase 2: Verdictだけを更新
+            // promptIdが無い場合はsecurityScenariosから取得
+            let promptId = data.promptId;
+            if (!promptId && data.scenario_index !== undefined) {
+                const savedScenario = securityScenarios.find(s => s.scenario_index === data.scenario_index);
+                if (savedScenario) {
+                    promptId = savedScenario.promptId;
+                }
+            }
+            const rowId = `security-row-${promptId || data.scenario_index}`;
+            const row = document.getElementById(rowId);
+            if (row) {
+                const verdictCell = row.querySelector('td:last-child span');
+                if (verdictCell) {
+                    const verdictClass = data.verdict === 'blocked' ? 'bg-green-100 text-green-800' :
+                                         data.verdict === 'needs_review' ? 'bg-yellow-100 text-yellow-800' :
+                                         data.verdict === 'error' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800';
+                    verdictCell.className = `px-2 py-1 rounded text-xs ${verdictClass}`;
+                    verdictCell.textContent = data.verdict;
+                }
+            }
+        }
         if (data.verdict === 'needs_review' || data.verdict === 'error') {
-            await appendSecurityNeedsReviewScenario(data);
+            // Phase 2の場合はsecurityScenariosからprompt/responseを取得
+            let enrichedData = data;
+            if (data.is_batch_update && data.scenario_index !== undefined) {
+                const savedScenario = securityScenarios.find(s => s.scenario_index === data.scenario_index);
+                if (savedScenario) {
+                    enrichedData = { ...data, prompt: savedScenario.prompt, response: savedScenario.response };
+                }
+            }
+            await appendSecurityNeedsReviewScenario(enrichedData);
         }
     }
 
@@ -1094,11 +1143,9 @@
         // 表示
         testBox.style.display = 'block';
 
-        // ヘッダー更新
+        // ヘッダー更新（カウントは「プロンプト実行中」に統一）
         if (headerEl) {
-            const testNum = (data.scenario_index || 0) + 1;
-            const totalTests = data.total_scenarios || securityState.total;
-            headerEl.textContent = `現在のテスト (${testNum}/${totalTests})`;
+            headerEl.textContent = `現在のテスト`;
         }
 
         // コンテンツをクリアして新しい要素を作成
@@ -1129,8 +1176,8 @@
         contentEl.appendChild(waitingDiv);
     }
 
-    // 結果のverdictを「現在のテスト」に追加表示する関数
-    async function updateSecurityCurrentTestVerdict(data) {
+    // 「現在のテスト」に応答を表示する関数（Phase 1のみ）
+    async function updateSecurityCurrentTestResponse(data) {
         const contentEl = document.getElementById('security-test-content');
         if (!contentEl) return;
 
@@ -1138,27 +1185,13 @@
         const waitingDiv = document.getElementById('security-test-waiting');
         if (waitingDiv) waitingDiv.remove();
 
-        // Response部分を追加表示（security_test_startedでは送信されないため）
+        // Response部分を表示
         if (data.response) {
             const responseDiv = document.createElement('div');
             responseDiv.className = 'text-blue-700';
             contentEl.appendChild(responseDiv);
             const responseText = data.response.length > 150 ? data.response.substring(0, 150) + '...' : data.response;
             await typeTextInElement(responseDiv, `🤖 応答: ${responseText}`, 3);
-        }
-
-        // Verdict部分を追加表示
-        if (data.verdict) {
-            const verdictDiv = document.createElement('div');
-            const verdictClass = data.verdict === 'blocked' ? 'text-green-700 font-semibold' :
-                                 data.verdict === 'needs_review' ? 'text-yellow-700 font-semibold' :
-                                 data.verdict === 'error' ? 'text-red-700 font-semibold' : 'text-gray-700';
-            verdictDiv.className = verdictClass;
-            contentEl.appendChild(verdictDiv);
-            const verdictIcon = data.verdict === 'blocked' ? '✅' :
-                               data.verdict === 'needs_review' ? '⚠️' :
-                               data.verdict === 'error' ? '❌' : '🔄';
-            await typeTextInElement(verdictDiv, `${verdictIcon} 判定: ${data.verdict}`, 8);
         }
     }
 
@@ -1171,6 +1204,8 @@
             const data = securityEventQueue.shift();
             if (data._eventType === 'test_started') {
                 // テスト開始イベント：現在のテスト表示を更新
+                securityTestsStarted++;  // 開始テスト数をカウント
+                updateSecurityProgress();  // プログレス表示を更新
                 await updateSecurityCurrentTest(data);
             } else {
                 // シナリオ結果イベント：結果処理
@@ -1188,6 +1223,7 @@
         securityTableReady = false;  // テーブル準備中
         securityEventQueue = [];  // キューをリセット
         securityProcessingQueue = false;  // 処理中フラグをリセット
+        securityTestsStarted = 0;  // 開始テスト数をリセット
         securityState = { total: data.total_scenarios || 0, blocked: 0, needsReview: 0, errors: 0, pending: 0 };
         // 初期レイアウト（フル構造）をストリーミング表示
         await renderSecuritySectionStreaming();
@@ -1416,17 +1452,23 @@
     }
 
     function updateSecurityProgress() {
-        const executed = securityState.blocked + securityState.needsReview + securityState.errors;
+        const evaluated = securityState.blocked + securityState.needsReview + securityState.errors;
 
         // 進捗テキスト更新
         const progressEl = document.getElementById('security-progress');
         if (progressEl) {
-            if (securityState.pending > 0 && executed < securityState.pending) {
-                progressEl.textContent = `⏳ プロンプト実行中... (${executed}/${securityState.total})`;
-            } else if (securityState.pending > 0) {
-                progressEl.textContent = `🔍 評価中... (${executed}/${securityState.total})`;
+            if (securityTestsStarted > 0 && securityTestsStarted < securityState.total) {
+                // Phase 1: テスト実行中（開始済みテスト数/全体）
+                progressEl.textContent = `⏳ プロンプト実行中... (${securityTestsStarted}/${securityState.total})`;
+            } else if (securityTestsStarted >= securityState.total && evaluated < securityState.total) {
+                // Phase 2: LLM評価中（全テスト完了後）
+                progressEl.textContent = `🔍 評価中... (${evaluated}/${securityState.total})`;
+            } else if (evaluated >= securityState.total) {
+                // 完了
+                progressEl.textContent = `✅ 評価完了 (${evaluated}/${securityState.total})`;
             } else {
-                progressEl.textContent = `🔄 実行中... (${executed}/${securityState.total})`;
+                // 初期状態
+                progressEl.textContent = `🔄 準備中...`;
             }
         }
 
@@ -1447,6 +1489,15 @@
         const tbody = document.getElementById('security-table-body');
         if (!tbody) return;
 
+        // promptIdベースで行を特定
+        const rowId = `security-row-${data.promptId || data.scenario_index}`;
+        let row = document.getElementById(rowId);
+
+        // ★ 既存の行がある場合は何もしない（上書き防止）
+        if (row) {
+            return;
+        }
+
         const verdictClass = data.verdict === 'blocked' ? 'bg-green-100 text-green-800' :
                              data.verdict === 'needs_review' ? 'bg-yellow-100 text-yellow-800' :
                              data.verdict === 'error' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800';
@@ -1454,17 +1505,11 @@
         const promptText = (data.prompt || '').substring(0, 100);
         const responseText = (data.response || '').substring(0, 100);
 
-        const rowId = `security-row-${data.scenario_index}`;
-
-        // 既存の行があれば更新、なければ追加
-        let row = document.getElementById(rowId);
-        const isNewRow = !row;
-        if (!row) {
-            row = document.createElement('tr');
-            row.id = rowId;
-            row.className = 'border-b hover:bg-gray-50';
-            tbody.appendChild(row);
-        }
+        // 新規行を作成
+        row = document.createElement('tr');
+        row.id = rowId;
+        row.className = 'border-b hover:bg-gray-50';
+        tbody.appendChild(row);
 
         // 行のセルを作成
         const cells = [
@@ -1473,37 +1518,23 @@
             { content: responseText + (responseText.length >= 100 ? '...' : ''), className: 'p-2', isCode: true },
             { content: data.verdict, className: 'p-2', badge: verdictClass }
         ];
-
-        row.innerHTML = '';
         for (const cell of cells) {
             const td = document.createElement('td');
             td.className = cell.className;
-            row.appendChild(td);  // 先にDOMに追加してストリーミングを見えるように
+            row.appendChild(td);
 
             if (cell.badge) {
                 const span = document.createElement('span');
                 span.className = `px-2 py-1 rounded text-xs ${cell.badge}`;
-                td.appendChild(span);  // 先にDOMに追加
-                if (isNewRow) {
-                    await typeTextInElement(span, cell.content, 5);
-                } else {
-                    span.textContent = cell.content;
-                }
+                td.appendChild(span);
+                await typeTextInElement(span, cell.content, 5);
             } else if (cell.isCode) {
                 const pre = document.createElement('pre');
                 pre.className = 'whitespace-pre-wrap text-xs';
-                td.appendChild(pre);  // 先にDOMに追加
-                if (isNewRow) {
-                    await typeTextInElement(pre, cell.content, 2);
-                } else {
-                    pre.textContent = cell.content;
-                }
+                td.appendChild(pre);
+                await typeTextInElement(pre, cell.content, 8);
             } else {
-                if (isNewRow) {
-                    await typeTextInElement(td, cell.content, 5);
-                } else {
-                    td.textContent = cell.content;
-                }
+                await typeTextInElement(td, cell.content, 5);
             }
         }
     }

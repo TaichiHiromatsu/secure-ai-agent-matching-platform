@@ -1439,7 +1439,8 @@ def run_security_gate(
         res.verdict = "needs_review"
         res.reason = f"evaluation error: {exc}"
 
-      # SSE: 評価完了後に即座に最終verdictを送信
+      # SSE: 評価完了後に最終verdictを送信（バッチ更新フラグ付き）
+      # Phase 2ではprompt/responseは送信しない（Phase 1で既に送信済み）
       if sse_callback:
         idx = results.index(res)
         _notify_sse_sync(sse_callback, {
@@ -1449,12 +1450,9 @@ def run_security_gate(
           "category": categorize_result(res),
           "verdict": res.verdict,
           "rationale": res.reason,
-          # 詳細データ追加
+          "is_batch_update": True,  # バッチ評価による更新（テーブル更新のみ）
           "promptId": res.prompt_id,
-          "prompt": (res.prompt_text or "")[:500],
-          "response": (res.response_text or "")[:500],
-          "perspective": res.metadata.get("perspective", "") if res.metadata else "",
-          "requirement": res.requirement or ""
+          # prompt/responseはPhase 1で送信済みなので省略
         })
 
   # 集計

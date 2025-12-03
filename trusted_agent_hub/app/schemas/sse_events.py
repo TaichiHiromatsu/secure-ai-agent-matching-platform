@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field
 
 
 # Core event envelope
-class JuryStreamEvent(BaseModel):
+class SSEEvent(BaseModel):
     type: Literal[
         "evaluation_started",
         "phase_started",
@@ -35,10 +35,10 @@ class JuryStreamEvent(BaseModel):
         "security_scenario_result",
         "security_completed",
         # Agent Card Accuracy events
-        "functional_started",
-        "functional_scenario_result",
-        "functional_turn_progress",
-        "functional_completed",
+        "agent_card_accuracy_started",
+        "agent_card_accuracy_scenario_result",
+        "agent_card_accuracy_turn_progress",
+        "agent_card_accuracy_completed",
     ]
     # Optional payload fields; individual handlers may use subsets.
     content: Optional[str] = None
@@ -90,6 +90,7 @@ class JuryStreamEvent(BaseModel):
     response: Optional[str] = None
     perspective: Optional[str] = None
     requirement: Optional[str] = None
+    is_batch_update: Optional[bool] = None  # Phase 2 batch evaluation flag
     # Agent Card Accuracy (Functional) specific fields
     scenarioId: Optional[str] = None
     expected: Optional[str] = None
@@ -99,11 +100,11 @@ class JuryStreamEvent(BaseModel):
 
 def validate_event_dict(payload: dict) -> dict:
     """
-    Validate and normalize outgoing SSE/WS payloads for Jury Judge stream.
+    Validate and normalize outgoing SSE payloads.
     Returns the cleaned dict (original on validation failure to avoid crashing).
     """
     try:
-        return JuryStreamEvent(**payload).model_dump(exclude_none=True)
+        return SSEEvent(**payload).model_dump(exclude_none=True)
     except Exception:
         # Do not raise; keep original for best-effort delivery
         return payload
