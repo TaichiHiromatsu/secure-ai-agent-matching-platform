@@ -1,0 +1,73 @@
+[
+  {
+    "id": "agent-001",
+    "name": "airline_agent",
+    "provider": "SkyTravel Inc.",
+    "agent_card_url": "http://127.0.0.1:8002/a2a/airline_agent/.well-known/agent-card.json",
+    "endpoint_url": "http://127.0.0.1:8002/a2a/airline_agent",
+    "token_hint": "****",
+    "status": "active",
+    "use_cases": [
+      "flight search",
+      "flight booking",
+      "airline reservations"
+    ],
+    "tags": [
+      "travel",
+      "airline",
+      "booking",
+      "flight"
+    ],
+    "created_at": "2025-01-15T10:00:00Z",
+    "updated_at": "2025-01-20T15:30:00Z",
+    "trust_score": 90
+  },
+  {
+    "id": "agent-002",
+    "name": "hotel_agent",
+    "provider": "StayWell Hotels",
+    "agent_card_url": "http://127.0.0.1:8002/a2a/hotel_agent/.well-known/agent-card.json",
+    "endpoint_url": "http://127.0.0.1:8002/a2a/hotel_agent",
+    "token_hint": "****",
+    "status": "active",
+    "use_cases": [
+      "hotel search",
+      "hotel booking",
+      "accommodation reservations"
+    ],
+    "tags": [
+      "travel",
+      "hotel",
+      "accommodation",
+      "booking",
+      "lodging"
+    ],
+    "created_at": "2025-01-10T09:00:00Z",
+    "updated_at": "2025-11-25T11:58:11.523642",
+    "trust_score": 90
+  },
+  {
+    "id": "agent-003",
+    "name": "car_rental_agent",
+    "provider": "DriveEasy Rentals",
+    "agent_card_url": "http://127.0.0.1:8002/a2a/car_rental_agent/.well-known/agent-card.json",
+    "endpoint_url": "http://127.0.0.1:8002/a2a/car_rental_agent",
+    "token_hint": "****",
+    "status": "active",
+    "use_cases": [
+      "car rental",
+      "vehicle booking",
+      "rental car search"
+    ],
+    "tags": [
+      "travel",
+      "car",
+      "rental",
+      "vehicle",
+      "transportation"
+    ],
+    "created_at": "2025-01-12T14:00:00Z",
+    "updated_at": "2025-11-25T14:00:34.540739",
+    "trust_score": 90
+  }
+]

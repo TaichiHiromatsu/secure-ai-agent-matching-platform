@@ -430,49 +430,6 @@ async def check_step_dependencies(
     return json.dumps(result, indent=2, ensure_ascii=False)
 
 
-async def record_execution_log(
-    step_id: str,
-    agent_name: str,
-    input_data: dict[str, Any],
-    output_data: dict[str, Any],
-    status: str,
-    log_file: str = "artifacts/logs/execution.log",
-) -> str:
-    """Record execution log for a step.
-
-    Args:
-        step_id: Step identifier.
-        agent_name: Name of the agent that executed the step.
-        input_data: Input data for the step.
-        output_data: Output data from the step.
-        status: Execution status (completed, failed, etc.).
-        log_file: Path to the log file.
-
-    Returns:
-        Confirmation message.
-    """
-    import os
-    from pathlib import Path
-
-    # Create log directory if it doesn't exist
-    Path(log_file).parent.mkdir(parents=True, exist_ok=True)
-
-    log_entry = {
-        "timestamp": datetime.now().isoformat(),
-        "step_id": step_id,
-        "agent_name": agent_name,
-        "input": input_data,
-        "output": output_data,
-        "status": status,
-    }
-
-    # Append to log file
-    with open(log_file, 'a', encoding='utf-8') as f:
-        f.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
-
-    return f"Logged execution for step {step_id} to {log_file}"
-
-
 async def get_step_output(
     step_id: str,
     execution_context: dict[str, Any],
@@ -713,7 +670,6 @@ Execution Process:
 When executing steps:
 - Always check dependencies first using check_step_dependencies
 - Use execute_plan_step to execute each step which internally calls invoke_a2a_agent
-- Record every execution using record_execution_log
 - Store outputs using the execution context
 - If a step fails, determine if you can continue or must stop
 
@@ -748,7 +704,6 @@ Use the provided tools:
 - execute_plan_step: Execute a single step by calling the A2A agent
 - invoke_a2a_agent: Directly invoke an A2A agent via HTTP (with security checks)
 - check_step_dependencies: Verify dependencies
-- record_execution_log: Log execution details
 - get_step_output: Retrieve previous step outputs
 
 **IMPORTANT: When starting execution:**
@@ -762,7 +717,6 @@ Use the provided tools:
         execute_plan_step,
         invoke_a2a_agent,
         check_step_dependencies,
-        record_execution_log,
         get_step_output,
     ],
     after_tool_callback=a2a_security_callback,  # セキュリティコールバックを有効化

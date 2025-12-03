@@ -127,7 +127,6 @@ dmyp.json
 # Artifacts (generated files from mediation agent)
 secure_mediation_agent/artifacts/
 artifacts/
-artifacts/plans/
 
 # JSON files (plans, conversations, etc.)
 *.json
@@ -135,14 +134,8 @@ artifacts/plans/
 !package-lock.json
 !tsconfig.json
 !.vscode/*.json
+!trusted_agent_hub/data/agents/registered-agents.json
 artifacts/**/*.json
-plans/**/*.json
-travel_plans/**/*.json
-
-# Generated plan files
-plans/
-travel_plans/
-artifacts/plans/
 
 # Jury Judge Worker temporary files
 trusted_agent_hub/jury-judge-worker/out/

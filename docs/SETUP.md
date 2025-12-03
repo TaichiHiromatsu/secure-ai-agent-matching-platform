@@ -282,9 +282,8 @@ python demo/okinawa_trip_demo.py
 ls -la artifacts/plans/
 cat artifacts/plans/*.md
 
-# 実行ログを確認
-ls -la artifacts/logs/
-cat artifacts/logs/execution.log
+# 会話履歴を確認
+ls -la artifacts/conversations/
 ```
 
 ---
@@ -391,7 +390,7 @@ deactivate
 
 # 3. （オプション）生成されたアーティファクトを削除
 rm -rf artifacts/plans/*
-rm -rf artifacts/logs/*
+rm -rf artifacts/conversations/*
 ```
 
 ---
@@ -402,7 +401,7 @@ rm -rf artifacts/logs/*
 
 1. [トラブルシューティング](#トラブルシューティング) を再確認
 2. GitHubのIssueで報告
-3. ログファイル (`artifacts/logs/`) を添付
+3. 標準出力ログを添付
 
 ---
 
