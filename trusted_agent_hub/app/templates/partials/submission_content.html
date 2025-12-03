@@ -1,3 +1,43 @@
+<!-- Toast Container for progress notifications -->
+<div id="toast-container" class="fixed top-4 right-4 z-50 space-y-2 pointer-events-none" style="max-width: 360px;"></div>
+
+<style>
+.toast {
+    background: white;
+    border-radius: 0.5rem;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    padding: 1rem;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    transform: translateX(120%);
+    opacity: 0;
+    transition: all 0.3s ease-out;
+    pointer-events: auto;
+}
+.toast.show {
+    transform: translateX(0);
+    opacity: 1;
+}
+.toast.hide {
+    transform: translateX(120%);
+    opacity: 0;
+}
+.toast-success { border-left: 4px solid #22c55e; }
+.toast-warning { border-left: 4px solid #eab308; }
+.toast-info { border-left: 4px solid #3b82f6; }
+.toast-error { border-left: 4px solid #ef4444; }
+.toast-icon {
+    width: 1.25rem;
+    height: 1.25rem;
+    flex-shrink: 0;
+}
+.toast-success .toast-icon { color: #22c55e; }
+.toast-warning .toast-icon { color: #eab308; }
+.toast-info .toast-icon { color: #3b82f6; }
+.toast-error .toast-icon { color: #ef4444; }
+</style>
+
 <div class="p-6 bg-gray-50 border-b border-gray-200">
     {% if submission.card_document.translations and submission.card_document.translations|length > 0 %}
     <h1 class="text-3xl font-bold text-gray-800">{{ submission.card_document.translations[0].displayName }}</h1>
@@ -666,6 +706,45 @@
 
 <script src="/static/judge-stream.js"></script>
 <script>
+    // ==== Toast Notification System ====
+    function showToast(message, type = 'info', duration = 4000) {
+        const container = document.getElementById('toast-container');
+        if (!container) return;
+
+        const icons = {
+            success: '<svg class="toast-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>',
+            warning: '<svg class="toast-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>',
+            info: '<svg class="toast-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>',
+            error: '<svg class="toast-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>'
+        };
+
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type}`;
+        toast.innerHTML = `
+            ${icons[type] || icons.info}
+            <div style="flex: 1;">
+                <p style="font-size: 0.875rem; font-weight: 500; color: #111827; margin: 0;">${message}</p>
+            </div>
+            <button onclick="this.parentElement.classList.add('hide'); setTimeout(() => this.parentElement.remove(), 300);" style="color: #9ca3af; background: none; border: none; cursor: pointer; font-size: 1.25rem; line-height: 1;">&times;</button>
+        `;
+        container.appendChild(toast);
+
+        // Trigger animation
+        requestAnimationFrame(() => {
+            toast.classList.add('show');
+        });
+
+        // Auto-remove after duration
+        setTimeout(() => {
+            toast.classList.remove('show');
+            toast.classList.add('hide');
+            setTimeout(() => toast.remove(), 300);
+        }, duration);
+    }
+
+    // Track previous verdicts for stance change detection
+    const previousVerdicts = {};
+
     // Initialize Jury Judge SSE client for real-time updates
     (function() {
         const submissionId = '{{ submission.id }}';
@@ -778,25 +857,43 @@
     }
 
     /**
-     * タイピングアニメーションでメッセージを表示
+     * タイピングアニメーションでメッセージを共通議論ログに表示
      */
     async function displayMessageWithTyping(unit, message, options = {}) {
-        const chatLog = document.getElementById(`${unit}-chat`);
-        if (!chatLog) return;
+        const discussionLog = document.getElementById('magi-discussion-content');
+        if (!discussionLog) return;
 
         // プレースホルダー削除
-        const placeholder = chatLog.querySelector('.magi-chat-placeholder');
+        const placeholder = discussionLog.querySelector('.magi-discussion-placeholder');
         if (placeholder) placeholder.remove();
+
+        // スピーカー名マッピング
+        const speakerMap = {
+            'balthasar': 'BALTHASAR-2',
+            'casper': 'CASPER-3',
+            'melchior': 'MELCHIOR-1'
+        };
 
         // エントリ作成
         const chatEntry = document.createElement('div');
-        chatEntry.className = `magi-chat-entry${options.positionChanged ? ' magi-chat-changed' : ''}`;
-        chatLog.appendChild(chatEntry);
+        chatEntry.className = `magi-discussion-entry magi-speaker-${unit}${options.positionChanged ? ' magi-discussion-changed' : ''}`;
+
+        // スピーカータグを先に追加
+        const speakerTag = document.createElement('span');
+        speakerTag.className = 'magi-speaker-tag';
+        speakerTag.textContent = `[${speakerMap[unit]}] `;
+        chatEntry.appendChild(speakerTag);
+
+        // メッセージ用のspan
+        const messageSpan = document.createElement('span');
+        chatEntry.appendChild(messageSpan);
+
+        discussionLog.appendChild(chatEntry);
 
         // タイピングアニメーション（省略なしで全文表示）
-        await typeText(chatEntry, message, 15);  // 15ms/文字
+        await typeText(messageSpan, message, 15);  // 15ms/文字
 
-        chatLog.scrollTop = chatLog.scrollHeight;
+        discussionLog.scrollTop = discussionLog.scrollHeight;
 
         // 投票変更があれば更新
         if (options.positionChanged && options.newVerdict) {
@@ -1014,6 +1111,11 @@
     juryStream.on('precheck_completed', async (data) => {
         console.log('[Streaming] precheck_completed received:', data);
         precheckRenderer.clear();
+
+        // Toast notification
+        const warningCount = data.warnings?.length || 0;
+        const toastMsg = `PreCheck: ${data.passed ? '完了' : '失敗'}${warningCount > 0 ? ` (警告${warningCount}件)` : ''}`;
+        showToast(toastMsg, data.passed ? (warningCount > 0 ? 'warning' : 'success') : 'error');
 
         // Status行をストリーミング
         const statusClass = data.passed ? 'text-green-600' : 'text-red-600';
@@ -1261,6 +1363,12 @@
 
     juryStream.on('security_completed', async (data) => {
         console.log('[Streaming] security_completed received:', data);
+
+        // Toast notification
+        const blocked = data.data?.blocked || 0;
+        const total = data.data?.attempted || 0;
+        const toastType = blocked === total ? 'success' : 'warning';
+        showToast(`Security Gate: ${blocked}/${total} 通過`, toastType);
 
         // 「現在のテスト」を非表示
         const testBox = document.getElementById('security-current-test');
@@ -1719,6 +1827,12 @@
 
     juryStream.on('functional_completed', async (data) => {
         console.log('[Streaming] functional_completed received:', data);
+
+        // Toast notification
+        const passed = functionalState.passed || 0;
+        const total = functionalState.total || 0;
+        const toastType = passed === total ? 'success' : 'warning';
+        showToast(`Agent Card Accuracy: ${passed}/${total} シナリオ通過`, toastType);
 
         // 対話ボックスを非表示
         const dialogueBox = document.getElementById('functional-current-dialogue');
@@ -2210,6 +2324,19 @@
     juryStream.on('juror_evaluation', (data) => {
         console.log('[DEBUG] 👨‍⚖️ juror_evaluation event handler called with data:', data);
 
+        // Detect stance change and show toast
+        const juror = data.juror;
+        const verdict = data.verdict;
+        const prev = previousVerdicts[juror];
+        if (prev && prev !== verdict) {
+            const name = getMAGISpeaker(juror);
+            const verdictText = { 'safe_pass': 'PASS', 'unsafe_fail': 'FAIL', 'needs_review': 'REVIEW' };
+            const prevText = verdictText[prev] || prev;
+            const newText = verdictText[verdict] || verdict;
+            showToast(`${name}: ${prevText} → ${newText} に変更`, 'info');
+        }
+        previousVerdicts[juror] = verdict;
+
         const unit = getMAGIUnit(data.juror);
         const unitEl = document.getElementById(`magi-${unit}`);
         const statusEl = document.getElementById(`${unit}-status`);
@@ -2217,16 +2344,19 @@
         const scoresEl = document.getElementById(`${unit}-scores`);
 
         if (unitEl) {
-            // Remove evaluating state, add completed
-            unitEl.classList.remove('evaluating');
+            // Remove evaluating state and old verdict classes
+            unitEl.classList.remove('evaluating', 'verdict-pending', 'verdict-pass', 'verdict-fail', 'verdict-review');
             unitEl.classList.add('vote-confirmed');
 
-            // Set vote glow color based on verdict
+            // Add verdict class for dynamic coloring
             if (data.verdict === 'safe_pass') {
+                unitEl.classList.add('verdict-pass');
                 unitEl.style.setProperty('--glow-color', '#51cf66');
             } else if (data.verdict === 'unsafe_fail') {
+                unitEl.classList.add('verdict-fail');
                 unitEl.style.setProperty('--glow-color', '#ff6b6b');
             } else {
+                unitEl.classList.add('verdict-review');
                 unitEl.style.setProperty('--glow-color', '#ffd43b');
             }
         }
@@ -2246,7 +2376,7 @@
             voteEl.className = `magi-unit-vote ${v.class}`;
         }
 
-        // Update score bars
+        // Update score bars and values
         if (scoresEl) {
             const tc = data.taskCompletion || 0;
             const tu = data.toolUsage || 0;
@@ -2255,48 +2385,56 @@
 
             // Task bar (max 40)
             const taskBar = scoresEl.querySelector('[data-axis="task"] .fill');
+            const taskVal = scoresEl.querySelector('[data-axis="task"] .val');
             if (taskBar) taskBar.style.width = `${(tc / 40) * 100}%`;
+            if (taskVal) taskVal.textContent = Math.floor(tc);
 
             // Tool bar (max 30)
             const toolBar = scoresEl.querySelector('[data-axis="tool"] .fill');
+            const toolVal = scoresEl.querySelector('[data-axis="tool"] .val');
             if (toolBar) toolBar.style.width = `${(tu / 30) * 100}%`;
+            if (toolVal) toolVal.textContent = Math.floor(tu);
 
             // Autonomy bar (max 20)
             const autoBar = scoresEl.querySelector('[data-axis="auto"] .fill');
+            const autoVal = scoresEl.querySelector('[data-axis="auto"] .val');
             if (autoBar) autoBar.style.width = `${(au / 20) * 100}%`;
+            if (autoVal) autoVal.textContent = Math.floor(au);
 
             // Safety bar (max 10)
             const safeBar = scoresEl.querySelector('[data-axis="safe"] .fill');
+            const safeVal = scoresEl.querySelector('[data-axis="safe"] .val');
             if (safeBar) safeBar.style.width = `${(sf / 10) * 100}%`;
+            if (safeVal) safeVal.textContent = Math.floor(sf);
         }
 
-        // Add to individual panel chat area with typing animation for rationale
-        const chatLog = document.getElementById(`${unit}-chat`);
-        if (chatLog) {
+        // Add rationale to individual chat box for each unit
+        const chatContent = document.getElementById(`${unit}-chat-content`);
+        if (chatContent) {
             // Remove placeholder if exists
-            const placeholder = chatLog.querySelector('.magi-chat-placeholder');
+            const placeholder = chatContent.querySelector('.magi-chat-placeholder');
             if (placeholder) placeholder.remove();
 
-            const tc = data.taskCompletion || 0;
-            const tu = data.toolUsage || 0;
-            const au = data.autonomy || 0;
-            const sf = data.safety || 0;
-            const trustScore = tc + tu + au + sf;
-
-            const verdictClass = data.verdict === 'safe_pass' ? 'pass' : (data.verdict === 'unsafe_fail' ? 'fail' : 'review');
-
-            // Create header entry (instant display)
-            const headerEntry = document.createElement('div');
-            headerEntry.className = 'magi-chat-entry';
-            headerEntry.innerHTML = `<span class="magi-chat-badge magi-badge-${verdictClass}">${data.verdict}</span> Score: ${trustScore}/100`;
-            chatLog.appendChild(headerEntry);
-
-            // If rationale exists, queue it for typing animation
+            // Add rationale message with typing animation
             if (data.rationale) {
-                queueMessage(unit, data.rationale, { isRationale: true });
-            }
+                const messageEl = document.createElement('div');
+                messageEl.className = 'magi-chat-message typing';
+                chatContent.appendChild(messageEl);
 
-            chatLog.scrollTop = chatLog.scrollHeight;
+                // Typing animation
+                let charIndex = 0;
+                const rationale = data.rationale;
+                const typingInterval = setInterval(() => {
+                    if (charIndex < rationale.length) {
+                        messageEl.textContent = rationale.substring(0, charIndex + 1);
+                        charIndex++;
+                        chatContent.scrollTop = chatContent.scrollHeight;
+                    } else {
+                        messageEl.classList.remove('typing');
+                        clearInterval(typingInterval);
+                    }
+                }, 15);
+            }
         }
     });
 
@@ -2317,17 +2455,51 @@
         }
     });
 
-    // Juror statement handler - MAGI System (with typing animation)
+    // Juror statement handler - MAGI System (with typing animation to individual chat)
     juryStream.on('juror_statement', (data) => {
         console.log('[DEBUG] 🗣️ juror_statement event handler called with data:', data);
 
         const unit = getMAGIUnit(data.juror);
+        const chatContent = document.getElementById(`${unit}-chat-content`);
 
-        // Queue message for typing animation display
-        queueMessage(unit, data.statement, {
-            positionChanged: data.positionChanged,
-            newVerdict: data.newVerdict
-        });
+        if (chatContent && data.statement) {
+            // Add statement with typing animation
+            const messageEl = document.createElement('div');
+            messageEl.className = 'magi-chat-message typing';
+            if (data.positionChanged) {
+                messageEl.classList.add('position-changed');
+            }
+            chatContent.appendChild(messageEl);
+
+            // Typing animation
+            let charIndex = 0;
+            const statement = data.statement;
+            const typingInterval = setInterval(() => {
+                if (charIndex < statement.length) {
+                    messageEl.textContent = statement.substring(0, charIndex + 1);
+                    charIndex++;
+                    chatContent.scrollTop = chatContent.scrollHeight;
+                } else {
+                    messageEl.classList.remove('typing');
+                    clearInterval(typingInterval);
+                }
+            }, 15);
+
+            // Update verdict if position changed
+            if (data.positionChanged && data.newVerdict) {
+                const voteEl = document.getElementById(`${unit}-vote`);
+                if (voteEl) {
+                    const verdictMap = {
+                        'safe_pass': { text: 'PASS', class: 'magi-vote-pass' },
+                        'unsafe_fail': { text: 'FAIL', class: 'magi-vote-fail' },
+                        'needs_review': { text: 'REVIEW', class: 'magi-vote-review' }
+                    };
+                    const v = verdictMap[data.newVerdict] || { text: data.newVerdict, class: '' };
+                    voteEl.textContent = v.text;
+                    voteEl.className = `magi-unit-vote ${v.class}`;
+                }
+            }
+        }
     });
 
     // Round complete handler - MAGI System
@@ -2336,19 +2508,17 @@
         // Round info is logged but no separate UI element needed
     });
 
-    // Final judgment handler (Phase 3) - MAGI System
+    // Final judgment handler (Phase 3) - MAGI System (Evangelion Triangular Layout)
     juryStream.on('final_judgment', (data) => {
         console.log('[DEBUG] ⚖️ final_judgment event handler called with data:', data);
 
-        // 1. 全チャットエリアのスクロール位置を保存（レイアウトリフロー対策）
-        const scrollPositions = {};
-        ['balthasar', 'casper', 'melchior'].forEach(unit => {
-            const chatLog = document.getElementById(`${unit}-chat`);
-            if (chatLog) {
-                scrollPositions[unit] = chatLog.scrollTop;
-            }
-        });
-        // ページ全体のスクロール位置も保存
+        // Toast notification
+        const trustScore = data.trustScore || data.finalScore || 0;
+        const verdict = data.verdict || data.finalVerdict;
+        const toastType = verdict === 'safe_pass' ? 'success' : (verdict === 'unsafe_fail' ? 'error' : 'warning');
+        showToast(`Jury Judge: Trust Score ${Math.floor(trustScore)}点`, toastType);
+
+        // ページ全体のスクロール位置を保存
         const pageScrollTop = window.scrollY || document.documentElement.scrollTop;
 
         // Update phase indicator
@@ -2357,40 +2527,41 @@
             phaseIndicator.textContent = 'Phase 3 完了';
         }
 
-        // Update final decision panel (new Final Judge format)
-        const decisionPanel = document.getElementById('magi-final-decision');
-        if (decisionPanel) {
-            const resultClass = data.finalVerdict === 'safe_pass' ? 'magi-result-pass'
-                : (data.finalVerdict === 'unsafe_fail' ? 'magi-result-fail' : 'magi-result-review');
-
-            const verdictText = data.finalVerdict === 'safe_pass' ? '可決'
-                : (data.finalVerdict === 'unsafe_fail' ? '否決' : '要確認');
-
-            decisionPanel.innerHTML = `
-                <div class="magi-final-result ${resultClass}">
-                    <div class="magi-final-verdict">${verdictText}</div>
-                    <div class="magi-final-details">
-                        <div class="magi-final-score">
-                            <span class="magi-score-label">Trust</span>
-                            <span class="magi-score-value">${Math.floor(data.finalScore)}/100</span>
-                        </div>
-                        <div class="magi-final-method">
-                            ${data.method || '多数決'}
-                        </div>
-                    </div>
-                </div>
-            `;
+        // Update phase display in system info
+        const phaseDisplay = document.getElementById('magi-phase-display');
+        if (phaseDisplay) {
+            phaseDisplay.textContent = '3';
         }
 
-        // 2. スクロール位置を復元（requestAnimationFrameでレイアウト後に実行）
+        // Update trust score display in system info
+        const trustDisplay = document.getElementById('magi-trust-display');
+        if (trustDisplay) {
+            trustDisplay.textContent = Math.floor(trustScore);
+        }
+
+        // Update final verdict display (top right large display)
+        const verdictDisplay = document.getElementById('magi-verdict-display');
+        if (verdictDisplay) {
+            const finalVerdict = data.finalVerdict || data.verdict;
+            const verdictClass = finalVerdict === 'safe_pass' ? 'magi-verdict-pass'
+                : (finalVerdict === 'unsafe_fail' ? 'magi-verdict-fail' : 'magi-verdict-review');
+
+            const verdictText = finalVerdict === 'safe_pass' ? '可決'
+                : (finalVerdict === 'unsafe_fail' ? '否決' : '要確認');
+
+            // Remove old classes, add new verdict class
+            verdictDisplay.className = `magi-verdict-text ${verdictClass}`;
+            verdictDisplay.textContent = verdictText;
+        }
+
+        // 議論ログのスクロール位置を保存・復元
+        const discussionLog = document.getElementById('magi-discussion-content');
+        const discussionScrollTop = discussionLog ? discussionLog.scrollTop : 0;
+
         requestAnimationFrame(() => {
-            ['balthasar', 'casper', 'melchior'].forEach(unit => {
-                const chatLog = document.getElementById(`${unit}-chat`);
-                if (chatLog && scrollPositions[unit] !== undefined) {
-                    chatLog.scrollTop = scrollPositions[unit];
-                }
-            });
-            // ページ全体のスクロール位置も復元
+            if (discussionLog) {
+                discussionLog.scrollTop = discussionScrollTop;
+            }
             window.scrollTo(0, pageScrollTop);
         });
     });
