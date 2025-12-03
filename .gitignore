@@ -149,4 +149,4 @@ trusted_agent_hub/jury-judge-worker/.env.inspect
 *.backup
 *.old
 
-trusted_agent_hub/wandb/
+trusted_agent_hub/wandb/CLAUDE.md
