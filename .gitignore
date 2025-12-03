@@ -135,6 +135,7 @@ artifacts/
 !tsconfig.json
 !.vscode/*.json
 !trusted_agent_hub/data/agents/registered-agents.json
+!**/agent.json
 artifacts/**/*.json
 
 # Jury Judge Worker temporary files
