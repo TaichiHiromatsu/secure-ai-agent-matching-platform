@@ -1,10 +1,10 @@
-# Environment variables
-.env
-.env.*
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+# Environment variables (any directory)
+**/.env
+**/.env.*
+**/.env.local
+**/.env.development.local
+**/.env.test.local
+**/.env.production.local
 
 # Claude Code settings
 .claude/
