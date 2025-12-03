@@ -31,6 +31,7 @@ class JuryStreamEvent(BaseModel):
         "precheck_completed",
         # Security Gate events
         "security_started",
+        "security_test_started",
         "security_scenario_result",
         "security_completed",
         # Agent Card Accuracy events

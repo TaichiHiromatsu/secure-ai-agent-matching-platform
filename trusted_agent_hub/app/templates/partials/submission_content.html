@@ -1049,19 +1049,12 @@
     // ==== Security Gate Event Handlers ====
     // シナリオ結果を蓄積
     let securityScenarios = [];
+    let securityTableReady = false;  // テーブルが準備完了したかどうか
+    let securityEventQueue = [];     // イベントをキューイング
+    let securityProcessingQueue = false;  // キュー処理中フラグ
 
-    juryStream.on('security_started', async (data) => {
-        console.log('[Streaming] security_started received:', data);
-        securityRenderer.openSection();
-        securityScenarios = [];  // リセット
-        securityState = { total: data.total_scenarios || 0, blocked: 0, needsReview: 0, errors: 0, pending: 0 };
-        // 初期レイアウト（フル構造）をストリーミング表示
-        await renderSecuritySectionStreaming();
-    });
-
-    juryStream.on('security_scenario_result', async (data) => {
-        console.log('[Streaming] security_scenario_result received:', data);
-
+    // シナリオ結果を処理する共通関数
+    async function processSecurityScenarioResult(data) {
         // カテゴリに応じてカウンター更新
         if (data.category === 'pending') {
             securityState.pending++;
@@ -1080,14 +1073,163 @@
         // UIを増分更新
         updateSecurityCounts();
         updateSecurityProgress();
+
+        // 結果のverdictを「現在のテスト」に追加表示
+        await updateSecurityCurrentTestVerdict(data);
+
         await appendSecurityScenarioToTable(data);
         if (data.verdict === 'needs_review' || data.verdict === 'error') {
             await appendSecurityNeedsReviewScenario(data);
+        }
+    }
+
+    // 「現在のテスト」表示を更新する関数（テスト開始時に呼ばれる）
+    async function updateSecurityCurrentTest(data) {
+        const testBox = document.getElementById('security-current-test');
+        const headerEl = document.getElementById('security-test-header');
+        const contentEl = document.getElementById('security-test-content');
+
+        if (!testBox || !contentEl) return;
+
+        // 表示
+        testBox.style.display = 'block';
+
+        // ヘッダー更新
+        if (headerEl) {
+            const testNum = (data.scenario_index || 0) + 1;
+            const totalTests = data.total_scenarios || securityState.total;
+            headerEl.textContent = `現在のテスト (${testNum}/${totalTests})`;
+        }
+
+        // コンテンツをクリアして新しい要素を作成
+        contentEl.innerHTML = '';
+
+        // Prompt ID部分
+        if (data.promptId) {
+            const idDiv = document.createElement('div');
+            idDiv.className = 'text-xs text-gray-500';
+            contentEl.appendChild(idDiv);
+            await typeTextInElement(idDiv, `📋 ID: ${data.promptId}`, 5);
+        }
+
+        // Prompt部分をストリーミング表示
+        if (data.prompt) {
+            const promptDiv = document.createElement('div');
+            promptDiv.className = 'text-red-700';
+            contentEl.appendChild(promptDiv);
+            const promptText = data.prompt.length > 150 ? data.prompt.substring(0, 150) + '...' : data.prompt;
+            await typeTextInElement(promptDiv, `🎯 攻撃: ${promptText}`, 3);
+        }
+
+        // 待機中表示を追加
+        const waitingDiv = document.createElement('div');
+        waitingDiv.className = 'text-gray-400 animate-pulse';
+        waitingDiv.id = 'security-test-waiting';
+        waitingDiv.textContent = '🔄 応答待ち...';
+        contentEl.appendChild(waitingDiv);
+    }
+
+    // 結果のverdictを「現在のテスト」に追加表示する関数
+    async function updateSecurityCurrentTestVerdict(data) {
+        const contentEl = document.getElementById('security-test-content');
+        if (!contentEl) return;
+
+        // 待機中表示を削除
+        const waitingDiv = document.getElementById('security-test-waiting');
+        if (waitingDiv) waitingDiv.remove();
+
+        // Response部分を追加表示（security_test_startedでは送信されないため）
+        if (data.response) {
+            const responseDiv = document.createElement('div');
+            responseDiv.className = 'text-blue-700';
+            contentEl.appendChild(responseDiv);
+            const responseText = data.response.length > 150 ? data.response.substring(0, 150) + '...' : data.response;
+            await typeTextInElement(responseDiv, `🤖 応答: ${responseText}`, 3);
+        }
+
+        // Verdict部分を追加表示
+        if (data.verdict) {
+            const verdictDiv = document.createElement('div');
+            const verdictClass = data.verdict === 'blocked' ? 'text-green-700 font-semibold' :
+                                 data.verdict === 'needs_review' ? 'text-yellow-700 font-semibold' :
+                                 data.verdict === 'error' ? 'text-red-700 font-semibold' : 'text-gray-700';
+            verdictDiv.className = verdictClass;
+            contentEl.appendChild(verdictDiv);
+            const verdictIcon = data.verdict === 'blocked' ? '✅' :
+                               data.verdict === 'needs_review' ? '⚠️' :
+                               data.verdict === 'error' ? '❌' : '🔄';
+            await typeTextInElement(verdictDiv, `${verdictIcon} 判定: ${data.verdict}`, 8);
+        }
+    }
+
+    // キューを逐次処理する関数
+    async function processSecurityEventQueue() {
+        if (securityProcessingQueue) return;  // 既に処理中なら何もしない
+        securityProcessingQueue = true;
+
+        while (securityEventQueue.length > 0) {
+            const data = securityEventQueue.shift();
+            if (data._eventType === 'test_started') {
+                // テスト開始イベント：現在のテスト表示を更新
+                await updateSecurityCurrentTest(data);
+            } else {
+                // シナリオ結果イベント：結果処理
+                await processSecurityScenarioResult(data);
+            }
+        }
+
+        securityProcessingQueue = false;
+    }
+
+    juryStream.on('security_started', async (data) => {
+        console.log('[Streaming] security_started received:', data);
+        securityRenderer.openSection();
+        securityScenarios = [];  // リセット
+        securityTableReady = false;  // テーブル準備中
+        securityEventQueue = [];  // キューをリセット
+        securityProcessingQueue = false;  // 処理中フラグをリセット
+        securityState = { total: data.total_scenarios || 0, blocked: 0, needsReview: 0, errors: 0, pending: 0 };
+        // 初期レイアウト（フル構造）をストリーミング表示
+        await renderSecuritySectionStreaming();
+
+        // テーブル準備完了
+        securityTableReady = true;
+
+        // キューに蓄積されたイベントを処理
+        console.log(`[Streaming] Processing ${securityEventQueue.length} queued security events`);
+        processSecurityEventQueue();
+    });
+
+    // テスト開始時に「現在のテスト」を表示（キューに追加して順序保証）
+    juryStream.on('security_test_started', (data) => {
+        console.log('[Streaming] security_test_started received:', data);
+        // test_startedイベントとしてキューに追加
+        securityEventQueue.push({ ...data, _eventType: 'test_started' });
+
+        // テーブルが準備完了していればキュー処理を開始
+        if (securityTableReady) {
+            processSecurityEventQueue();
+        }
+    });
+
+    juryStream.on('security_scenario_result', (data) => {
+        // asyncを削除、常にキューに追加して逐次処理
+        console.log('[Streaming] security_scenario_result received:', data);
+        securityEventQueue.push({ ...data, _eventType: 'scenario_result' });
+
+        // テーブルが準備完了していればキュー処理を開始
+        if (securityTableReady) {
+            processSecurityEventQueue();
         }
     });
 
     juryStream.on('security_completed', async (data) => {
         console.log('[Streaming] security_completed received:', data);
+
+        // 「現在のテスト」を非表示
+        const testBox = document.getElementById('security-current-test');
+        if (testBox) testBox.style.display = 'none';
+
         // 完了状態に更新（ストリーミング表示）
         const progressEl = document.getElementById('security-progress');
         if (progressEl) {
@@ -1139,6 +1281,19 @@
             <p id="security-pending" class="text-sm text-blue-600 mb-2" style="display:none;">📝 評価待ち: <span id="security-pending-count">0</span>件</p>
             <p id="security-progress" class="text-sm text-gray-500 mb-4">🔄 実行中... (0/${securityState.total})</p>
         `, { speed: 10 });
+
+        // 2.5. 現在のテスト表示セクションを追加
+        await securityRenderer.streamLine(`
+            <div id="security-current-test" class="border rounded-lg p-3 bg-red-50 mb-4" style="display: none;">
+                <div class="flex items-center gap-2 text-sm font-semibold text-red-700 mb-2">
+                    <span>🔍</span>
+                    <span id="security-test-header">現在のテスト</span>
+                </div>
+                <div id="security-test-content" class="text-sm bg-white rounded p-2 border space-y-2">
+                    <div class="text-gray-400">テスト実行中...</div>
+                </div>
+            </div>
+        `, { speed: 5 });
 
         // 3. 要確認シナリオセクションをストリーミング
         await securityRenderer.streamLine(`
@@ -1323,25 +1478,26 @@
         for (const cell of cells) {
             const td = document.createElement('td');
             td.className = cell.className;
+            row.appendChild(td);  // 先にDOMに追加してストリーミングを見えるように
 
             if (cell.badge) {
                 const span = document.createElement('span');
                 span.className = `px-2 py-1 rounded text-xs ${cell.badge}`;
+                td.appendChild(span);  // 先にDOMに追加
                 if (isNewRow) {
                     await typeTextInElement(span, cell.content, 5);
                 } else {
                     span.textContent = cell.content;
                 }
-                td.appendChild(span);
             } else if (cell.isCode) {
                 const pre = document.createElement('pre');
                 pre.className = 'whitespace-pre-wrap text-xs';
+                td.appendChild(pre);  // 先にDOMに追加
                 if (isNewRow) {
                     await typeTextInElement(pre, cell.content, 2);
                 } else {
                     pre.textContent = cell.content;
                 }
-                td.appendChild(pre);
             } else {
                 if (isNewRow) {
                     await typeTextInElement(td, cell.content, 5);
@@ -1349,7 +1505,6 @@
                     td.textContent = cell.content;
                 }
             }
-            row.appendChild(td);
         }
     }
 
@@ -1487,14 +1642,14 @@
         }
     });
 
-    juryStream.on('functional_turn_progress', (data) => {
+    juryStream.on('functional_turn_progress', async (data) => {
         console.log('[Streaming] functional_turn_progress received:', data);
         functionalState.currentScenario = data.scenario_index;
         functionalState.currentTurn = data.turn;
         functionalState.currentTotalTurns = data.total_turns;
         updateFunctionalProgress();
 
-        // 対話プレビュー表示
+        // 対話プレビュー表示（ストリーミングアニメーション）
         const dialogueBox = document.getElementById('functional-current-dialogue');
         const headerEl = document.getElementById('functional-dialogue-header');
         const contentEl = document.getElementById('functional-dialogue-content');
@@ -1505,18 +1660,29 @@
                 headerEl.textContent = `現在の対話 (ターン ${data.turn}/${data.total_turns})`;
             }
 
-            // user_promptとagent_response_previewを表示
-            let dialogueHtml = '';
+            // コンテンツをクリアして新しい要素を作成
+            contentEl.innerHTML = '';
+
+            // User部分をストリーミング表示
             if (data.user_prompt) {
-                dialogueHtml += `<div class="text-gray-600 mb-1"><span class="font-semibold">👤 User:</span> ${data.user_prompt}</div>`;
+                const userDiv = document.createElement('div');
+                userDiv.className = 'text-gray-600 mb-1';
+                contentEl.appendChild(userDiv);
+                await typeTextInElement(userDiv, `👤 User: ${data.user_prompt}`, 8);
             }
+
+            // Agent部分をストリーミング表示
             if (data.agent_response_preview) {
-                dialogueHtml += `<div class="text-blue-700"><span class="font-semibold">🤖 Agent:</span> ${data.agent_response_preview}</div>`;
+                const agentDiv = document.createElement('div');
+                agentDiv.className = 'text-blue-700';
+                contentEl.appendChild(agentDiv);
+                await typeTextInElement(agentDiv, `🤖 Agent: ${data.agent_response_preview}`, 8);
             }
-            if (!dialogueHtml) {
-                dialogueHtml = '<div class="text-gray-400">応答待ち...</div>';
+
+            // 両方ない場合は待機表示
+            if (!data.user_prompt && !data.agent_response_preview) {
+                contentEl.innerHTML = '<div class="text-gray-400">応答待ち...</div>';
             }
-            contentEl.innerHTML = dialogueHtml;
         }
     });
 
@@ -1976,6 +2142,15 @@
 
         // Set all MAGI units to evaluating state at Phase 1 start
         if (data.phaseNumber === 1) {
+            // MAGI SYSTEMのdetailsを自動展開してスクロール
+            const judgeDetails = document.getElementById('details-judge');
+            if (judgeDetails && !judgeDetails.open) {
+                judgeDetails.open = true;
+                setTimeout(() => {
+                    judgeDetails.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 100);
+            }
+
             ['melchior', 'balthasar', 'casper'].forEach(unit => {
                 const unitEl = document.getElementById(`magi-${unit}`);
                 const statusEl = document.getElementById(`${unit}-status`);

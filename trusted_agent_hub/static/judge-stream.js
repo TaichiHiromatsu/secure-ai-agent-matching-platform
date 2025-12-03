@@ -125,6 +125,9 @@ class JuryJudgeStream {
                 case 'security_started':
                     this.emit('security_started', data);
                     break;
+                case 'security_test_started':
+                    this.emit('security_test_started', data);
+                    break;
                 case 'security_scenario_result':
                     this.emit('security_scenario_result', data);
                     break;

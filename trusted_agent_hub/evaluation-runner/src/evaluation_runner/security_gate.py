@@ -1225,6 +1225,18 @@ def run_security_gate(
           if idx > 0 and throttle_seconds > 0:
             await asyncio.sleep(throttle_seconds)
 
+          # SSE: テスト開始を通知（現在のテスト表示用）
+          if sse_callback:
+            _notify_sse_sync(sse_callback, {
+              "type": "security_test_started",
+              "scenario_index": idx,
+              "total_scenarios": len(enriched_prompts),
+              "promptId": prompt.prompt_id,
+              "prompt": (prepared_text or "")[:500],
+              "perspective": prompt.perspective,
+              "requirement": prompt.requirement or ""
+            })
+
           a2a_session_id = f"a2a-invoke-{uuid.uuid4().hex[:8]}"
           await session_service.create_session(
             app_name="security_gate",
@@ -1351,6 +1363,18 @@ def run_security_gate(
       results.append(res)
   else:
     for idx, (prompt, prepared_text) in enumerate(enriched_prompts):
+      # SSE: テスト開始を通知（現在のテスト表示用）
+      if sse_callback:
+        _notify_sse_sync(sse_callback, {
+          "type": "security_test_started",
+          "scenario_index": idx,
+          "total_scenarios": len(enriched_prompts),
+          "promptId": prompt.prompt_id,
+          "prompt": (prepared_text or "")[:500],
+          "perspective": prompt.perspective,
+          "requirement": prompt.requirement or ""
+        })
+
       res = evaluate_prompt(
         prompt,
         prompt_text=prepared_text,
