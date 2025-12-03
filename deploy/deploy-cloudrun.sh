@@ -25,7 +25,7 @@ echo "Region: ${REGION}"
 echo "Image: ${IMAGE_NAME}"
 
 # Build and push
-docker build -t "${IMAGE_NAME}" -f deploy/Dockerfile .
+docker build -t "${IMAGE_NAME}" .
 docker push "${IMAGE_NAME}"
 
 # Deploy

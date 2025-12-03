@@ -27,7 +27,7 @@ docker rm secure-platform 2>/dev/null || true
 
 # Build (unless --no-build)
 if [ "$1" != "--no-build" ]; then
-    docker build -t "${IMAGE_NAME}" -f deploy/Dockerfile .
+    docker build -t "${IMAGE_NAME}" .
     echo "Built: ${IMAGE_NAME}"
 fi
 
