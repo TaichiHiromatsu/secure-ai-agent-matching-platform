@@ -67,11 +67,7 @@ COPY deploy/nginx.conf /etc/nginx/nginx.conf
 COPY deploy/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY deploy/start.sh /app/start.sh
 COPY deploy/start-nginx.sh /app/start-nginx.sh
-COPY deploy/patch_adk_agent_card_path.py /app/patch_adk_agent_card_path.py
 RUN chmod +x /app/start.sh /app/start-nginx.sh
-
-# Patch ADK for A2A Protocol v0.3.16 (use agent-card.json instead of agent.json)
-RUN /app/.venv/bin/python /app/patch_adk_agent_card_path.py
 
 # Create required directories
 RUN mkdir -p /var/log/nginx /var/log/supervisor /app/logs
