@@ -110,14 +110,26 @@
 
             <!-- ===== 中央列: BALTHASAR + MAGI + CASPER/MELCHIOR ===== -->
             <div class="magi-center-column">
-                <!-- BALTHASAR-2 (縦長六角形 - 下角2つカット) -->
+                <!-- Triangle Connector Lines (SVG overlay - 固定座標版) -->
+                <svg class="magi-triangle-connector" viewBox="0 0 100 100" preserveAspectRatio="none">
+                    <!-- BALTHASAR左下角 → CASPER右上角 -->
+                    <line x1="41" y1="42" x2="32" y2="55" class="magi-connector-line" />
+                    <!-- BALTHASAR右下角 → MELCHIOR左上角 -->
+                    <line x1="59" y1="42" x2="68" y2="55" class="magi-connector-line" />
+                    <!-- CASPER右上角 → MELCHIOR左上角 (底辺) -->
+                    <line x1="35" y1="58" x2="65" y2="58" class="magi-connector-line" />
+                </svg>
+
+                <!-- MAGI Logo (floating in center) -->
+                <div class="magi-logo-floating">MAGI</div>
+
+                <!-- BALTHASAR-2 (上部) -->
                 <div id="magi-balthasar" class="magi-unit magi-balthasar {{ unit_verdict_class(balthasar_eval.found.verdict if balthasar_eval.found else none) }}" data-juror="claude-3-haiku-20240307">
                     <div class="magi-unit-name">BALTHASAR・2</div>
                     <div class="magi-unit-vote {{ vote_class(balthasar_eval.found.verdict if balthasar_eval.found else none) }}" id="balthasar-vote">
                         {{ vote_text(balthasar_eval.found.verdict if balthasar_eval.found else none) }}
                     </div>
                     <div class="magi-unit-model">claude-3-haiku</div>
-                    <div class="magi-unit-status" id="balthasar-status">{% if balthasar_eval.found %}完了{% else %}待機中{% endif %}</div>
                     <div class="magi-unit-scores" id="balthasar-scores">
                         {% set tc = balthasar_eval.found.taskCompletion or 0 if balthasar_eval.found else 0 %}
                         {% set tu = balthasar_eval.found.toolUsage or 0 if balthasar_eval.found else 0 %}
@@ -130,32 +142,15 @@
                     </div>
                 </div>
 
-                <!-- Connection from BALTHASAR to MAGI -->
-                <div class="magi-connector"></div>
-
-                <!-- MAGI Logo (Center) -->
-                <div class="magi-logo">MAGI</div>
-
-                <!-- Connectors from MAGI to bottom units (45° diagonal lines) -->
-                <div class="magi-connectors-diagonal">
-                    <svg class="magi-diagonal-line" viewBox="0 0 200 50" preserveAspectRatio="none">
-                        <!-- 左斜め線（MAGIからCASPERへ） -->
-                        <line x1="100" y1="0" x2="30" y2="50" stroke="#ffa500" stroke-width="4"/>
-                        <!-- 右斜め線（MAGIからMELCHIORへ） -->
-                        <line x1="100" y1="0" x2="170" y2="50" stroke="#ffa500" stroke-width="4"/>
-                    </svg>
-                </div>
-
                 <!-- Bottom Row: CASPER-3 and MELCHIOR-1 -->
                 <div class="magi-bottom-units">
-                    <!-- CASPER-3 (左下角欠け四角形) -->
+                    <!-- CASPER-3 (左下) -->
                     <div id="magi-casper" class="magi-unit magi-casper {{ unit_verdict_class(casper_eval.found.verdict if casper_eval.found else none) }}" data-juror="gemini-2.5-flash">
                         <div class="magi-unit-name">CASPER・3</div>
                         <div class="magi-unit-vote {{ vote_class(casper_eval.found.verdict if casper_eval.found else none) }}" id="casper-vote">
                             {{ vote_text(casper_eval.found.verdict if casper_eval.found else none) }}
                         </div>
                         <div class="magi-unit-model">gemini-2.5-flash</div>
-                        <div class="magi-unit-status" id="casper-status">{% if casper_eval.found %}完了{% else %}待機中{% endif %}</div>
                         <div class="magi-unit-scores" id="casper-scores">
                             {% set tc = casper_eval.found.taskCompletion or 0 if casper_eval.found else 0 %}
                             {% set tu = casper_eval.found.toolUsage or 0 if casper_eval.found else 0 %}
@@ -168,14 +163,13 @@
                         </div>
                     </div>
 
-                    <!-- MELCHIOR-1 (右下角欠け四角形) -->
+                    <!-- MELCHIOR-1 (右下) -->
                     <div id="magi-melchior" class="magi-unit magi-melchior {{ unit_verdict_class(melchior_eval.found.verdict if melchior_eval.found else none) }}" data-juror="gpt-4o">
                         <div class="magi-unit-name">MELCHIOR・1</div>
                         <div class="magi-unit-vote {{ vote_class(melchior_eval.found.verdict if melchior_eval.found else none) }}" id="melchior-vote">
                             {{ vote_text(melchior_eval.found.verdict if melchior_eval.found else none) }}
                         </div>
                         <div class="magi-unit-model">gpt-4o</div>
-                        <div class="magi-unit-status" id="melchior-status">{% if melchior_eval.found %}完了{% else %}待機中{% endif %}</div>
                         <div class="magi-unit-scores" id="melchior-scores">
                             {% set tc = melchior_eval.found.taskCompletion or 0 if melchior_eval.found else 0 %}
                             {% set tu = melchior_eval.found.toolUsage or 0 if melchior_eval.found else 0 %}
@@ -384,8 +378,41 @@
         display: flex;
         flex-direction: column;
         align-items: center;
-        gap: 8px;
-        justify-content: center;
+        gap: 0;
+        justify-content: flex-start;
+        position: relative;
+        min-height: 450px;
+    }
+
+    /* ===== Triangle Connector SVG ===== */
+    .magi-triangle-connector {
+        position: absolute;
+        bottom: 60px;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 0;
+        pointer-events: none;
+    }
+    .magi-connector-line {
+        stroke: #ff8c00;
+        stroke-width: 2px;
+        stroke-linecap: round;
+        filter: drop-shadow(0 0 4px #ff8c00);
+    }
+
+    /* MAGI Logo (floating in center) */
+    .magi-logo-floating {
+        position: absolute;
+        top: 41%;
+        left: 51%;
+        transform: translate(-50%, -50%);
+        font-size: 32px;
+        font-weight: bold;
+        color: #ffd43b;
+        text-shadow: 0 0 20px #ffd43b, 0 0 40px #ffa500;
+        letter-spacing: 10px;
+        z-index: 5;
     }
 
     /* ===== MAGI Units - 審議中は全て水色、結果で色変化 ===== */
@@ -398,30 +425,31 @@
         align-items: center;
         gap: 6px;
         position: relative;
+        z-index: 1;
     }
 
-    /* BALTHASAR - 縦長四角形の下側の角2つをカット（六角形） */
+    /* BALTHASAR - 横太め六角形、下側の角2つを大きくカット（左右対称） */
     .magi-balthasar {
-        clip-path: polygon(0% 0%, 100% 0%, 100% 85%, 85% 100%, 15% 100%, 0% 85%);
-        min-width: 180px;
-        min-height: 220px;
-        padding: 25px 20px;
+        clip-path: polygon(0% 0%, 100% 0%, 100% 70%, 65% 100%, 35% 100%, 0% 70%);
+        min-width: 280px;
+        min-height: 180px;
+        padding: 20px 30px;
     }
 
-    /* CASPER - 横長、右上角を緩やかにカット（10%） */
+    /* CASPER（左下） - 右上角を大きくカット */
     .magi-casper {
-        clip-path: polygon(0% 0%, 90% 0%, 100% 10%, 100% 100%, 0% 100%);
+        clip-path: polygon(0% 0%, 55% 0%, 100% 40%, 100% 100%, 0% 100%);
         min-width: 280px;
-        min-height: 70px;
-        padding: 10px 20px;
+        min-height: 150px;
+        padding: 15px 25px;
     }
 
-    /* MELCHIOR - 横長、左上角を緩やかにカット（10%） */
+    /* MELCHIOR（右下） - 左上角を大きくカット */
     .magi-melchior {
-        clip-path: polygon(10% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 10%);
+        clip-path: polygon(45% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 40%);
         min-width: 280px;
-        min-height: 70px;
-        padding: 10px 20px;
+        min-height: 150px;
+        padding: 15px 25px;
     }
 
     /* ===== Verdict-based Unit Colors ===== */
@@ -522,48 +550,19 @@
     .magi-score-bar[data-axis="auto"] .fill { background: #ffd43b; }
     .magi-score-bar[data-axis="safe"] .fill { background: #ff6b6b; }
 
-    /* ===== Connectors ===== */
-    .magi-connector {
-        width: 4px;
-        height: 25px;
-        background: linear-gradient(180deg, #ffa500, #ff6600);
-        box-shadow: 0 0 8px rgba(255, 165, 0, 0.6);
-    }
-
-    /* ===== MAGI Logo ===== */
-    .magi-logo {
-        font-size: 22px;
-        font-weight: bold;
-        color: #ffd43b;
-        text-shadow: 0 0 15px #ffd43b;
-        padding: 6px 20px;
-        border: 3px solid #ffd43b;
-        background: rgba(0, 0, 0, 0.7);
-        letter-spacing: 6px;
-    }
-
-    /* Diagonal Connectors (45° lines) */
-    .magi-connectors-diagonal {
-        width: 100%;
-        max-width: 300px;
-        height: 50px;
-    }
-    .magi-diagonal-line {
-        width: 100%;
-        height: 100%;
-    }
-    .magi-diagonal-line line {
-        filter: drop-shadow(0 0 4px rgba(255, 165, 0, 0.6));
+    /* ステータス表示を非表示 */
+    .magi-unit-status {
+        display: none;
     }
 
     /* ===== Bottom Units Row ===== */
     .magi-bottom-units {
         display: flex;
         justify-content: center;
-        gap: 30px;
-        margin-top: auto;
+        gap: 20px;
         width: 100%;
         padding-bottom: 0;
+        z-index: 1;
     }
 
     /* ===== 右列 ===== */
@@ -682,7 +681,7 @@
             align-items: center;
             gap: 24px;
         }
-        .magi-connectors-diagonal {
+        .magi-triangle-connector {
             display: none;
         }
     }

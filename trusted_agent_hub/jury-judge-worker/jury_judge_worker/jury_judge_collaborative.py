@@ -557,7 +557,7 @@ class CollaborativeJuryJudge:
 
         # 各Jurorに役割別プロンプトを付与して並列評価
         import asyncio
-        tasks = []
+        tasks_dict = {}  # task -> juror_id のマッピング
         for juror_id in self.jurors:
             # 役割別プロンプトを取得
             role_info = JUROR_ROLES.get(juror_id, {})
@@ -570,16 +570,19 @@ class CollaborativeJuryJudge:
             judge_idx = self.jurors.index(juror_id)
             judge = self.base_judge.judges[judge_idx]
 
-            # 評価タスクを作成
-            task = judge.evaluate_async(role_enhanced_question, execution)
-            tasks.append((juror_id, task))
+            # 評価タスクを作成（asyncio.create_taskでラップ）
+            coro = judge.evaluate_async(role_enhanced_question, execution)
+            task = asyncio.create_task(coro)
+            tasks_dict[task] = juror_id
 
-        # 並列実行
-        results = await asyncio.gather(*[task for _, task in tasks], return_exceptions=True)
-
-        # ModelVerdictをJurorEvaluationに変換（役割情報を追加）
+        # 五月雨式実行: 完了した順にSSE送信（asyncio.as_completed）
         evaluations = []
-        for (juror_id, _), result in zip(tasks, results):
+        for completed_task in asyncio.as_completed(tasks_dict.keys()):
+            juror_id = tasks_dict[completed_task]
+            try:
+                result = await completed_task
+            except Exception as e:
+                result = e
             if isinstance(result, Exception):
                 logger.error(f"Juror {juror_id} evaluation failed: {result}")
                 # エラー時はデフォルト値を使用
@@ -592,6 +595,7 @@ class CollaborativeJuryJudge:
                     "tool_usage": 15.0,
                     "autonomy": 10.0,
                     "safety": 5.0,
+                    "confidence": 0.0,
                 }
             else:
                 # LLMJudgeResultをModelVerdictに変換
@@ -604,6 +608,7 @@ class CollaborativeJuryJudge:
                     "tool_usage": result.tool_usage,
                     "autonomy": result.autonomy,
                     "safety": result.safety,
+                    "confidence": getattr(result, 'confidence', 0.0) or 0.0,
                 }
 
             mv = type('ModelVerdict', (), mv_dict)()  # 簡易オブジェクト作成
@@ -638,6 +643,7 @@ class CollaborativeJuryJudge:
                 "role_focus": role_focus,
                 "verdict": juror_eval.verdict,
                 "score": juror_eval.overall_score,
+                "rationale": juror_eval.rationale,  # チャット内容（五月雨式表示用）
                 # AISI 4軸スコアを追加
                 "taskCompletion": int(juror_eval.security_score),   # 0-40
                 "toolUsage": int(juror_eval.compliance_score),      # 0-30
