@@ -11,6 +11,7 @@
                     {% set stage_meta = submission.score_breakdown.stages.get(stage.key) if submission.score_breakdown and submission.score_breakdown.get('stages') else none %}
                     {% set is_completed = (stage_meta and stage_meta.status == 'completed') or false %}
                     {% set is_failed = (stage_meta and stage_meta.status == 'failed') or false %}
+                    {% set is_skipped = (stage_meta and stage_meta.status == 'skipped') or false %}
                     {# Determine if stage is running based on previous stage completion #}
                     {% set prev_stage_completed = false %}
                     {% if loop.index == 1 %}
@@ -23,12 +24,12 @@
                         {% set prev_stage_completed = prev_stage_meta and prev_stage_meta.status == 'completed' %}
                     {% endif %}
 
-                    {# Stage is running if previous stage completed but this stage hasn't completed or failed #}
-                    {% set is_running = prev_stage_completed and not is_completed and not is_failed %}
+                    {# Stage is running if previous stage completed but this stage hasn't completed, failed, or skipped #}
+                    {% set is_running = prev_stage_completed and not is_completed and not is_failed and not is_skipped %}
 
                     <div class="flex flex-col items-center flex-1">
                         <div class="relative">
-                            <div class="w-12 h-12 rounded-full flex items-center justify-center text-2xl {% if is_completed %}bg-green-100 border-2 border-green-500{% elif is_failed %}bg-red-100 border-2 border-red-500{% elif is_running %}bg-yellow-100 border-2 border-yellow-500 animate-pulse{% else %}bg-gray-100 border-2 border-gray-300{% endif %}" data-stage="{{ stage.key }}">
+                            <div class="w-12 h-12 rounded-full flex items-center justify-center text-2xl {% if is_completed %}bg-green-100 border-2 border-green-500{% elif is_failed %}bg-red-100 border-2 border-red-500{% elif is_skipped %}bg-gray-200 border-2 border-gray-400 opacity-60{% elif is_running %}bg-yellow-100 border-2 border-yellow-500 animate-pulse{% else %}bg-gray-100 border-2 border-gray-300{% endif %}" data-stage="{{ stage.key }}">
                                 {{ stage.icon }}
                             </div>
                             {% if is_completed %}
@@ -50,6 +51,7 @@
                         <div class="text-xs text-gray-500 mt-1" data-stage-status="{{ stage.key }}">
                             {% if stage_meta.status == 'completed' %}✅ 完了
                             {% elif stage_meta.status == 'failed' %}❌ 失敗
+                            {% elif stage_meta.status == 'skipped' %}⏭️ スキップ
                             {% elif stage_meta.status == 'running' %}⏳ 実行中
                             {% else %}⏸️ 待機中{% endif %}
                         </div>

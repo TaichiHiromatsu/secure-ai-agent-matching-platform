@@ -8,8 +8,12 @@ import logging
 import threading
 from typing import Dict, List, Optional
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, Depends
 from fastapi.responses import StreamingResponse
+from sqlalchemy.orm import Session
+
+from app.database import get_db
+from app.models import Submission
 
 logger = logging.getLogger(__name__)
 
@@ -111,15 +115,84 @@ def get_sse_manager() -> SSEManager:
     return manager
 
 
+def get_initial_state_events(submission: Submission) -> list:
+    """
+    Generate initial state events from submission's current state.
+    This allows clients connecting mid-evaluation to receive past events.
+    """
+    events = []
+
+    if not submission or not submission.score_breakdown:
+        return events
+
+    sb = submission.score_breakdown
+
+    # Send W&B info if available
+    if sb.get("wandb"):
+        events.append({
+            "type": "initial_state",
+            "category": "wandb",
+            "data": sb["wandb"]
+        })
+
+    # Send judge summary if available (includes phase1 evaluations)
+    judge_summary = sb.get("judge_summary")
+    if judge_summary and judge_summary.get("scenarios"):
+        for scenario in judge_summary["scenarios"]:
+            if scenario.get("scenarioId") == "collective_judgment":
+                # Send phase1 evaluations
+                phase1_evals = scenario.get("phase1Evaluations", [])
+                for eval_data in phase1_evals:
+                    events.append({
+                        "type": "juror_evaluation",
+                        "phase": "collective_independent",
+                        "juror": eval_data.get("jurorId"),
+                        "verdict": eval_data.get("verdict"),
+                        "score": eval_data.get("overallScore"),
+                        "rationale": eval_data.get("rationale"),
+                        "taskCompletion": eval_data.get("taskCompletion"),
+                        "toolUsage": eval_data.get("toolUsage"),
+                        "autonomy": eval_data.get("autonomy"),
+                        "safety": eval_data.get("safety"),
+                        "isReplay": True  # Mark as replay so UI can handle differently if needed
+                    })
+
+                # Send final judgment if available
+                final_judgment = scenario.get("finalJudgment")
+                if final_judgment:
+                    events.append({
+                        "type": "final_judgment",
+                        "finalVerdict": scenario.get("finalVerdict"),
+                        "finalScore": scenario.get("finalScore"),
+                        "confidence": scenario.get("confidence"),
+                        "rationale": final_judgment.get("rationale"),
+                        "isReplay": True
+                    })
+                break
+
+    return events
+
+
 @router.get("/sse/submissions/{submission_id}/judge")
-async def sse_judge_stream(request: Request, submission_id: str):
+async def sse_judge_stream(request: Request, submission_id: str, db: Session = Depends(get_db)):
     """
     SSE endpoint for Jury Judge real-time updates.
+    Sends initial state on connection, then streams real-time updates.
     """
+    # Get current submission state for initial events
+    submission = db.query(Submission).filter(Submission.id == submission_id).first()
+    initial_events = get_initial_state_events(submission) if submission else []
+
     queue = await manager.connect(submission_id)
 
     async def event_generator():
         try:
+            # Send initial state events first
+            for event in initial_events:
+                payload = json.dumps(event, ensure_ascii=False)
+                print(f"[SSE Manager] 📤 Sending initial event: type={event.get('type')}")
+                yield f"data: {payload}\n\n"
+
             while True:
                 # Abort if client disconnects
                 if await request.is_disconnected():

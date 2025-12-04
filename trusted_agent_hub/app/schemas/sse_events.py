@@ -1,9 +1,11 @@
 from typing import Literal, Optional, Any, List
 from pydantic import BaseModel, Field
+from pydantic import ConfigDict
 
 
 # Core event envelope
 class SSEEvent(BaseModel):
+    model_config = ConfigDict(extra="allow")
     type: Literal[
         "evaluation_started",
         "phase_started",

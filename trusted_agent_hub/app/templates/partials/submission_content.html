@@ -71,19 +71,21 @@
                 {% set sec = submission.score_breakdown.security_summary or {} %}
                 <div>
                     <div class="text-xs text-gray-500">Security Gate</div>
+                    <div class="text-xs text-gray-400 mb-1">有害プロンプト耐性テスト</div>
                     <div class="font-medium leading-tight">
-                        passed {{ sec.passed or 0 }}/{{ sec.total or 0 }}<br>
-                        needs {{ sec.needsReview or 0 }}/{{ sec.total or 0 }}<br>
-                        failed {{ sec.failed or 0 }}/{{ sec.total or 0 }}
+                        passed <span id="summary-security-passed">{{ sec.passed or 0 }}</span>/<span class="summary-security-total">{{ sec.total or 0 }}</span><br>
+                        needs <span id="summary-security-needs">{{ sec.needsReview or 0 }}</span>/<span class="summary-security-total">{{ sec.total or 0 }}</span><br>
+                        failed <span id="summary-security-failed">{{ sec.failed or 0 }}</span>/<span class="summary-security-total">{{ sec.total or 0 }}</span>
                     </div>
                 </div>
                 {% set fn = submission.score_breakdown.functional_summary or {} %}
                 <div>
                     <div class="text-xs text-gray-500">Agent Card Accuracy</div>
+                    <div class="text-xs text-gray-400 mb-1">カード記載と動作の整合性確認</div>
                     <div class="font-medium leading-tight">
-                        passed {{ fn.passed_scenarios or 0 }}/{{ fn.total_scenarios or 0 }}<br>
-                        needs {{ fn.needsReview or 0 }}/{{ fn.total_scenarios or 0 }}<br>
-                        failed {{ fn.failed_scenarios or 0 }}/{{ fn.total_scenarios or 0 }}
+                        passed <span id="summary-functional-passed">{{ fn.passed_scenarios or 0 }}</span>/<span class="summary-functional-total">{{ fn.total_scenarios or 0 }}</span><br>
+                        needs <span id="summary-functional-needs">{{ fn.needsReview or 0 }}</span>/<span class="summary-functional-total">{{ fn.total_scenarios or 0 }}</span><br>
+                        failed <span id="summary-functional-failed">{{ fn.failed_scenarios or 0 }}</span>/<span class="summary-functional-total">{{ fn.total_scenarios or 0 }}</span>
                     </div>
                 </div>
                 {% if submission.score_breakdown.jury_judge and submission.score_breakdown.jury_judge.rationale %}
@@ -107,6 +109,7 @@
 </div>
 
 <!-- W&B Report Section -->
+<!-- DEBUG: score_breakdown exists: {{ 'yes' if submission.score_breakdown else 'no' }}, wandb exists: {{ 'yes' if submission.score_breakdown and submission.score_breakdown.wandb else 'no' }} -->
 {% if submission.score_breakdown and submission.score_breakdown.wandb %}
 <div class="p-6 border-t border-gray-200">
     <h2 class="text-xl font-semibold mb-4">Weights & Biases Reports</h2>
@@ -125,16 +128,14 @@
                 <p>Project: {{ submission.score_breakdown.wandb.project }}</p>
                 <p>Entity: {{ submission.score_breakdown.wandb.entity }}</p>
             </div>
-            {% if submission.score_breakdown.wandb.url %}
-            <a href="{{ submission.score_breakdown.wandb.url }}" target="_blank" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded inline-flex items-center justify-center transition duration-150 ease-in-out shadow-sm w-full">
+            {% set wandb_base = submission.score_breakdown.wandb.baseUrl or "https://wandb.ai" %}
+            {% set wandb_run_url = submission.score_breakdown.wandb.url or (wandb_base ~ "/" ~ submission.score_breakdown.wandb.entity ~ "/" ~ submission.score_breakdown.wandb.project ~ "/runs/" ~ submission.score_breakdown.wandb.runId) %}
+            <a href="{{ wandb_run_url }}" target="_blank" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded inline-flex items-center justify-center transition duration-150 ease-in-out shadow-sm w-full">
                 <span>Open Core Dashboard</span>
                 <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
                 </svg>
             </a>
-            {% else %}
-            <span class="text-gray-400 text-sm italic bg-gray-100 px-3 py-1 rounded block text-center">URL Unavailable</span>
-            {% endif %}
         </div>
 
         <!-- W&B Weave Card -->
@@ -151,7 +152,8 @@
                 <p>Entity: {{ submission.score_breakdown.wandb.entity }}</p>
                 <p class="mt-2 text-xs">Track LLM evaluations across Jury Judge, Security Gate, and Agent Card Accuracy stages</p>
             </div>
-            <a href="https://wandb.ai/{{ submission.score_breakdown.wandb.entity }}/{{ submission.score_breakdown.wandb.project }}/weave" target="_blank" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded inline-flex items-center justify-center transition duration-150 ease-in-out shadow-sm w-full">
+            {% set wandb_weave_base = submission.score_breakdown.wandb.baseUrl or "https://wandb.ai" %}
+            <a href="{{ wandb_weave_base }}/{{ submission.score_breakdown.wandb.entity }}/{{ submission.score_breakdown.wandb.project }}/weave" target="_blank" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded inline-flex items-center justify-center transition duration-150 ease-in-out shadow-sm w-full">
                 <span>Open Weave Traces</span>
                 <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
@@ -744,6 +746,8 @@
 
     // Track previous verdicts for stance change detection
     const previousVerdicts = {};
+    // Store juror evaluation data for batch update at final_judgment
+    const pendingJurorResults = {};
 
     // Initialize Jury Judge SSE client for real-time updates
     (function() {
@@ -2273,6 +2277,70 @@
         }
     });
 
+    // Initial state handler - receives cached state on connection
+    juryStream.on('initial_state', (data) => {
+        console.log('[DEBUG] 📦 initial_state event received:', data);
+
+        if (data.category === 'wandb' && data.data) {
+            // Dynamically insert W&B section if not already present
+            const existingWandB = document.querySelector('.wandb-report-section');
+            if (!existingWandB) {
+                const wandb = data.data;
+                const reviewProgress = document.getElementById('review-progress')?.closest('.p-6');
+                if (reviewProgress) {
+                    const wandbHtml = `
+                    <div class="p-6 border-t border-gray-200 wandb-report-section">
+                        <h2 class="text-xl font-semibold mb-4">Weights & Biases Reports</h2>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                                <div class="flex items-center gap-2 mb-3">
+                                    <span class="text-2xl">📊</span>
+                                    <div>
+                                        <p class="text-sm font-medium text-gray-900">W&B Core Dashboard</p>
+                                        <p class="text-xs text-gray-500">Experiment Tracking & Metrics</p>
+                                    </div>
+                                </div>
+                                <div class="mb-3 text-xs text-gray-500">
+                                    <p>Run ID: <span class="font-mono">${wandb.runId || ''}</span></p>
+                                    <p>Project: ${wandb.project || ''}</p>
+                                    <p>Entity: ${wandb.entity || ''}</p>
+                                </div>
+                                <a href="${wandb.url || `https://wandb.ai/${wandb.entity}/${wandb.project}/runs/${wandb.runId}`}" target="_blank" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded inline-flex items-center justify-center transition duration-150 ease-in-out shadow-sm w-full">
+                                    <span>Open Core Dashboard</span>
+                                    <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                                    </svg>
+                                </a>
+                            </div>
+                            <div class="bg-purple-50 p-4 rounded-lg border border-purple-200">
+                                <div class="flex items-center gap-2 mb-3">
+                                    <span class="text-2xl">🔮</span>
+                                    <div>
+                                        <p class="text-sm font-medium text-gray-900">W&B Weave Traces</p>
+                                        <p class="text-xs text-gray-500">LLM Call Observability</p>
+                                    </div>
+                                </div>
+                                <div class="mb-3 text-xs text-gray-500">
+                                    <p>Project: ${wandb.project || ''}</p>
+                                    <p>Entity: ${wandb.entity || ''}</p>
+                                    <p class="mt-2 text-xs">Track LLM evaluations across Jury Judge, Security Gate, and Agent Card Accuracy stages</p>
+                                </div>
+                                <a href="https://wandb.ai/${wandb.entity}/${wandb.project}/weave" target="_blank" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded inline-flex items-center justify-center transition duration-150 ease-in-out shadow-sm w-full">
+                                    <span>Open Weave Traces</span>
+                                    <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                                    </svg>
+                                </a>
+                            </div>
+                        </div>
+                    </div>`;
+                    reviewProgress.insertAdjacentHTML('afterend', wandbHtml);
+                    console.log('[DEBUG] 📦 W&B section dynamically inserted');
+                }
+            }
+        }
+    });
+
     // Phase change handler - MAGI System
     juryStream.on('phase_change', (data) => {
         console.log('[DEBUG] 🔄 phase_change event handler called with data:', data);
@@ -2305,6 +2373,16 @@
                 if (unitEl) unitEl.classList.add('evaluating');
                 if (statusEl) statusEl.textContent = '評価中...';
             });
+            // SVGコネクタ線も点滅
+            const connectorSvg = document.querySelector('.magi-triangle-connector');
+            if (connectorSvg) connectorSvg.classList.add('evaluating');
+
+            // 決議表示を「評価中」に
+            const verdictDisplay = document.getElementById('magi-verdict-display');
+            if (verdictDisplay) {
+                verdictDisplay.textContent = '評価中';
+                verdictDisplay.className = 'magi-verdict-text magi-verdict-pending';
+            }
         }
     });
 
@@ -2324,10 +2402,54 @@
     }
 
     // Juror evaluation handler (Phase 1) - MAGI System
+    // Phase1でチャットにリアルタイム表示
     juryStream.on('juror_evaluation', (data) => {
         console.log('[DEBUG] 👨‍⚖️ juror_evaluation event handler called with data:', data);
 
-        // Detect stance change and show toast
+        // Judge Panelが閉じていたら開く（DOMアクセスのため）
+        const judgeDetails = document.getElementById('details-judge');
+        if (judgeDetails && !judgeDetails.open) {
+            judgeDetails.open = true;
+            console.log('[DEBUG] 👨‍⚖️ Opened details-judge panel');
+        }
+
+        // データを保存
+        const unit = getMAGIUnit(data.juror);
+        console.log('[DEBUG] 👨‍⚖️ unit:', unit, 'juror:', data.juror);
+        pendingJurorResults[unit] = data;
+
+        // チャットにリアルタイム表示（Phase1中）
+        const chatContentId = `${unit}-chat-content`;
+        const chatContent = document.getElementById(chatContentId);
+        console.log('[DEBUG] 👨‍⚖️ chatContentId:', chatContentId, 'chatContent:', chatContent, 'rationale:', data.rationale ? data.rationale.substring(0, 50) + '...' : 'EMPTY');
+        if (chatContent && data.rationale) {
+            // プレースホルダーを削除
+            const placeholder = chatContent.querySelector('.magi-chat-placeholder');
+            if (placeholder) {
+                placeholder.remove();
+            }
+            // タイピングアニメーションで表示
+            const messageEl = document.createElement('div');
+            messageEl.className = 'magi-chat-message typing';
+            chatContent.appendChild(messageEl);
+
+            const text = data.rationale;
+            let charIndex = 0;
+            const typeSpeed = 10;
+            function typeChar() {
+                if (charIndex < text.length) {
+                    messageEl.textContent = text.substring(0, charIndex + 1);
+                    charIndex++;
+                    chatContent.scrollTop = chatContent.scrollHeight;
+                    setTimeout(typeChar, typeSpeed);
+                } else {
+                    messageEl.classList.remove('typing');
+                }
+            }
+            typeChar();
+        }
+
+        // 立場変更の検出とトースト表示は維持
         const juror = data.juror;
         const verdict = data.verdict;
         const prev = previousVerdicts[juror];
@@ -2339,104 +2461,6 @@
             showToast(`${name}: ${prevText} → ${newText} に変更`, 'info');
         }
         previousVerdicts[juror] = verdict;
-
-        const unit = getMAGIUnit(data.juror);
-        const unitEl = document.getElementById(`magi-${unit}`);
-        const statusEl = document.getElementById(`${unit}-status`);
-        const voteEl = document.getElementById(`${unit}-vote`);
-        const scoresEl = document.getElementById(`${unit}-scores`);
-
-        if (unitEl) {
-            // Remove evaluating state
-            unitEl.classList.remove('evaluating', 'verdict-pending');
-            unitEl.classList.add('vote-confirmed');
-            // 各Jurorの個別verdictに基づいて即座に色を変更
-            unitEl.classList.remove('verdict-pass', 'verdict-fail', 'verdict-review');
-            if (data.verdict === 'safe_pass') {
-                unitEl.classList.add('verdict-pass');
-            } else if (data.verdict === 'unsafe_fail') {
-                unitEl.classList.add('verdict-fail');
-            } else if (data.verdict === 'needs_review') {
-                unitEl.classList.add('verdict-review');
-            }
-        }
-
-        if (statusEl) {
-            statusEl.textContent = '完了';
-        }
-
-        if (voteEl) {
-            const verdictMap = {
-                'safe_pass': { text: 'PASS', class: 'magi-vote-pass' },
-                'unsafe_fail': { text: 'FAIL', class: 'magi-vote-fail' },
-                'needs_review': { text: 'REVIEW', class: 'magi-vote-review' }
-            };
-            const v = verdictMap[data.verdict] || { text: data.verdict, class: '' };
-            voteEl.textContent = v.text;
-            voteEl.className = `magi-unit-vote ${v.class}`;
-        }
-
-        // Update score bars and values
-        if (scoresEl) {
-            const tc = data.taskCompletion || 0;
-            const tu = data.toolUsage || 0;
-            const au = data.autonomy || 0;
-            const sf = data.safety || 0;
-
-            // Task bar (max 40)
-            const taskBar = scoresEl.querySelector('[data-axis="task"] .fill');
-            const taskVal = scoresEl.querySelector('[data-axis="task"] .val');
-            if (taskBar) taskBar.style.width = `${(tc / 40) * 100}%`;
-            if (taskVal) taskVal.textContent = Math.floor(tc);
-
-            // Tool bar (max 30)
-            const toolBar = scoresEl.querySelector('[data-axis="tool"] .fill');
-            const toolVal = scoresEl.querySelector('[data-axis="tool"] .val');
-            if (toolBar) toolBar.style.width = `${(tu / 30) * 100}%`;
-            if (toolVal) toolVal.textContent = Math.floor(tu);
-
-            // Autonomy bar (max 20)
-            const autoBar = scoresEl.querySelector('[data-axis="auto"] .fill');
-            const autoVal = scoresEl.querySelector('[data-axis="auto"] .val');
-            if (autoBar) autoBar.style.width = `${(au / 20) * 100}%`;
-            if (autoVal) autoVal.textContent = Math.floor(au);
-
-            // Safety bar (max 10)
-            const safeBar = scoresEl.querySelector('[data-axis="safe"] .fill');
-            const safeVal = scoresEl.querySelector('[data-axis="safe"] .val');
-            if (safeBar) safeBar.style.width = `${(sf / 10) * 100}%`;
-            if (safeVal) safeVal.textContent = Math.floor(sf);
-        }
-
-        // Add rationale to individual chat box for each unit
-        const chatContent = document.getElementById(`${unit}-chat-content`);
-        if (chatContent) {
-            // Remove placeholder if exists
-            const placeholder = chatContent.querySelector('.magi-chat-placeholder');
-            if (placeholder) placeholder.remove();
-
-            // Add rationale message with typing animation
-            if (data.rationale) {
-                const messageEl = document.createElement('div');
-                messageEl.className = 'magi-chat-message typing';
-                chatContent.appendChild(messageEl);
-
-                // Typing animation with chat box internal scroll
-                let charIndex = 0;
-                const rationale = data.rationale;
-                const typingInterval = setInterval(() => {
-                    if (charIndex < rationale.length) {
-                        messageEl.textContent = rationale.substring(0, charIndex + 1);
-                        charIndex++;
-                        // チャットボックス内部のみスクロール（ページ全体は動かさない）
-                        chatContent.scrollTop = chatContent.scrollHeight;
-                    } else {
-                        messageEl.classList.remove('typing');
-                        clearInterval(typingInterval);
-                    }
-                }, 15);
-            }
-        }
     });
 
     // Consensus check handler - MAGI System
@@ -2453,6 +2477,13 @@
         const phaseIndicator = document.getElementById('magi-phase-indicator');
         if (phaseIndicator) {
             phaseIndicator.textContent = 'Phase 2';
+        }
+
+        // 決議表示を「審議中」に（黄緑色）
+        const verdictDisplay = document.getElementById('magi-verdict-display');
+        if (verdictDisplay) {
+            verdictDisplay.textContent = '審議中';
+            verdictDisplay.className = 'magi-verdict-text magi-verdict-deliberating';
         }
     });
 
@@ -2569,8 +2600,91 @@
             finalJudgeChat.style.display = 'flex';
         }
 
-        // 各カードは既にjuror_evaluationで個別verdictに基づいて色が設定済み
-        // final_judgmentでは全体統一せず、各Jurorの最終verdictを維持
+        // 全カードの点滅を停止（Phase2完了）
+        ['melchior', 'balthasar', 'casper'].forEach(unit => {
+            const unitEl = document.getElementById(`magi-${unit}`);
+            if (unitEl) unitEl.classList.remove('evaluating');
+        });
+
+        // SVGコネクタ線の点滅を停止
+        const connectorSvg = document.querySelector('.magi-triangle-connector');
+        if (connectorSvg) connectorSvg.classList.remove('evaluating');
+
+        // 保存したjuror_evaluationデータを使って全カードを一括更新
+        ['melchior', 'balthasar', 'casper'].forEach(unit => {
+            const jurorData = pendingJurorResults[unit];
+            if (!jurorData) return;
+
+            const unitEl = document.getElementById(`magi-${unit}`);
+            const voteEl = document.getElementById(`${unit}-vote`);
+            const scoresEl = document.getElementById(`${unit}-scores`);
+            const chatContent = document.getElementById(`${unit}-chat-content`);
+
+            // カードの色を更新
+            if (unitEl) {
+                unitEl.classList.remove('verdict-pending');
+                unitEl.classList.add('vote-confirmed');
+                unitEl.classList.remove('verdict-pass', 'verdict-fail', 'verdict-review');
+                if (jurorData.verdict === 'safe_pass') {
+                    unitEl.classList.add('verdict-pass');
+                } else if (jurorData.verdict === 'unsafe_fail') {
+                    unitEl.classList.add('verdict-fail');
+                } else if (jurorData.verdict === 'needs_review') {
+                    unitEl.classList.add('verdict-review');
+                }
+            }
+
+            // 投票テキストを更新
+            if (voteEl) {
+                const verdictMap = {
+                    'safe_pass': { text: 'PASS', class: 'magi-vote-pass' },
+                    'unsafe_fail': { text: 'FAIL', class: 'magi-vote-fail' },
+                    'needs_review': { text: 'REVIEW', class: 'magi-vote-review' }
+                };
+                const v = verdictMap[jurorData.verdict] || { text: jurorData.verdict, class: '' };
+                voteEl.textContent = v.text;
+                voteEl.className = `magi-unit-vote ${v.class}`;
+            }
+
+            // スコアバーを更新
+            if (scoresEl) {
+                const tc = jurorData.taskCompletion || 0;
+                const tu = jurorData.toolUsage || 0;
+                const au = jurorData.autonomy || 0;
+                const sf = jurorData.safety || 0;
+
+                const taskBar = scoresEl.querySelector('[data-axis="task"] .fill');
+                const taskVal = scoresEl.querySelector('[data-axis="task"] .val');
+                if (taskBar) taskBar.style.width = `${(tc / 40) * 100}%`;
+                if (taskVal) taskVal.textContent = Math.floor(tc);
+
+                const toolBar = scoresEl.querySelector('[data-axis="tool"] .fill');
+                const toolVal = scoresEl.querySelector('[data-axis="tool"] .val');
+                if (toolBar) toolBar.style.width = `${(tu / 30) * 100}%`;
+                if (toolVal) toolVal.textContent = Math.floor(tu);
+
+                const autoBar = scoresEl.querySelector('[data-axis="auto"] .fill');
+                const autoVal = scoresEl.querySelector('[data-axis="auto"] .val');
+                if (autoBar) autoBar.style.width = `${(au / 20) * 100}%`;
+                if (autoVal) autoVal.textContent = Math.floor(au);
+
+                const safeBar = scoresEl.querySelector('[data-axis="safe"] .fill');
+                const safeVal = scoresEl.querySelector('[data-axis="safe"] .val');
+                if (safeBar) safeBar.style.width = `${(sf / 10) * 100}%`;
+                if (safeVal) safeVal.textContent = Math.floor(sf);
+            }
+
+            // チャットにrationaleを追加
+            if (chatContent && jurorData.rationale) {
+                const placeholder = chatContent.querySelector('.magi-chat-placeholder');
+                if (placeholder) placeholder.remove();
+
+                const messageEl = document.createElement('div');
+                messageEl.className = 'magi-chat-message';
+                messageEl.textContent = jurorData.rationale;
+                chatContent.appendChild(messageEl);
+            }
+        });
 
         // Update FINAL JUDGE section content with typing animation
         // rationale（最終ジャッジの評価理由）を優先表示
@@ -2673,6 +2787,37 @@
                     trustScoreEl.textContent = data.scores.trust_score;
                     console.log(`[DEBUG] ✅ Updated trust score to: ${data.scores.trust_score}`);
                 }
+            }
+
+            // Update Security Gate summary counts
+            if (data.scores.security_summary) {
+                const sec = data.scores.security_summary;
+                const setText = (id, value) => {
+                    const el = document.getElementById(id);
+                    if (el && value !== undefined) el.textContent = value;
+                };
+                setText('summary-security-passed', sec.passed ?? 0);
+                setText('summary-security-needs', sec.needsReview ?? 0);
+                setText('summary-security-failed', sec.failed ?? 0);
+                // update all total denominators
+                document.querySelectorAll('.summary-security-total').forEach(el => {
+                    el.textContent = sec.total ?? 0;
+                });
+            }
+
+            // Update Agent Card Accuracy summary counts
+            if (data.scores.functional_summary) {
+                const fn = data.scores.functional_summary;
+                const setText = (id, value) => {
+                    const el = document.getElementById(id);
+                    if (el && value !== undefined) el.textContent = value;
+                };
+                setText('summary-functional-passed', fn.passed_scenarios ?? 0);
+                setText('summary-functional-needs', fn.needsReview ?? 0);
+                setText('summary-functional-failed', fn.failed_scenarios ?? 0);
+                document.querySelectorAll('.summary-functional-total').forEach(el => {
+                    el.textContent = fn.total_scenarios ?? 0;
+                });
             }
 
             // Update judge summary breakdown

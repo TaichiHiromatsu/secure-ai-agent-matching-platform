@@ -296,17 +296,17 @@ def process_submission(submission_id: str):
         security_gate_cfg = ctx.get("security_gate", {}) if isinstance(ctx, dict) else {}
         agent_card_accuracy_cfg = ctx.get("agent_card_accuracy", {}) if isinstance(ctx, dict) else {}
 
-        # Security Gate max_prompts (1-100, default from env or 10)
+        # Security Gate max_prompts (1-30, default from env or 10)
         user_max_prompts = security_gate_cfg.get("max_prompts") if isinstance(security_gate_cfg, dict) else None
         if user_max_prompts is not None:
-            security_max_prompts = max(1, min(100, int(user_max_prompts)))
+            security_max_prompts = max(1, min(30, int(user_max_prompts)))
         else:
             security_max_prompts = int(os.getenv("SECURITY_GATE_MAX_PROMPTS", "10"))
 
-        # Agent Card Accuracy max_scenarios (1-10, default from env or 3)
+        # Agent Card Accuracy max_scenarios (1-5, default from env or 3)
         user_max_scenarios = agent_card_accuracy_cfg.get("max_scenarios") if isinstance(agent_card_accuracy_cfg, dict) else None
         if user_max_scenarios is not None:
-            agent_card_accuracy_max_scenarios = max(1, min(10, int(user_max_scenarios)))
+            agent_card_accuracy_max_scenarios = max(1, min(5, int(user_max_scenarios)))
         else:
             agent_card_accuracy_max_scenarios = int(os.getenv("AGENT_CARD_ACCURACY_MAX_SCENARIOS", "3"))
 
@@ -377,8 +377,15 @@ def process_submission(submission_id: str):
 
         # --- SSE callback setup (used by all stages) ---
         from app.routers.sse import get_sse_manager
-        from app.schemas.sse_events import validate_event_dict
         sse_manager = get_sse_manager()
+
+        # Send W&B info via SSE immediately after saving
+        sse_manager.send_sync(submission_id, {
+            "type": "initial_state",
+            "category": "wandb",
+            "data": current_breakdown["wandb"]
+        })
+        from app.schemas.sse_events import validate_event_dict
 
         def sse_callback(data: dict):
             """Send real-time updates to SSE clients (sync version using thread-safe send)"""
@@ -611,6 +618,8 @@ def process_submission(submission_id: str):
         # Calculate passed/failed for UI display
         safe_blocked = blocked  # Blocked = successfully defended
         manual_review = needs_review  # Needs review = potential security issue
+        # failed は「エラー」で落ちたケースのみカウント（needsReview は別枠）
+        failed_total = errors
 
         # Load security report for detailed scenario information
         security_report_path = output_dir / "security" / "security_report.jsonl"
@@ -631,7 +640,7 @@ def process_submission(submission_id: str):
             "total": total_security,
             "attempted": total_security,
             "passed": safe_blocked,
-            "failed": manual_review,
+            "failed": failed_total,
             "blocked": blocked,
             "needsReview": needs_review,
             "notExecuted": not_executed,
@@ -755,10 +764,43 @@ def process_submission(submission_id: str):
             db.commit()
 
         # Transform functional_summary to match UI expectations
-        total_scenarios = functional_summary.get("scenarios", 0) if functional_summary else 0
-        passed_scenarios = functional_summary.get("passed", functional_summary.get("passes", 0)) if functional_summary else 0
-        needs_review_scenarios = functional_summary.get("needsReview", 0) if functional_summary else 0
-        failed_scenarios = total_scenarios - passed_scenarios - needs_review_scenarios
+        if functional_summary:
+            # Normalize total count with multiple possible keys
+            total_scenarios = (
+                functional_summary.get("total_scenarios")
+                or functional_summary.get("totalScenarios")
+                or functional_summary.get("total")
+                or (len(functional_summary.get("scenarios")) if isinstance(functional_summary.get("scenarios"), list) else functional_summary.get("scenarios", 0))
+                or 0
+            )
+            passed_scenarios = (
+                functional_summary.get("passed")
+                or functional_summary.get("passes")
+                or functional_summary.get("passCount")
+                or 0
+            )
+            needs_review_scenarios = (
+                functional_summary.get("needsReview")
+                or functional_summary.get("needs_review")
+                or functional_summary.get("needsReviewCount")
+                or 0
+            )
+            failed_field = (
+                functional_summary.get("failed")
+                or functional_summary.get("fails")
+                or functional_summary.get("failCount")
+            )
+            residual_failed = max(total_scenarios - passed_scenarios - needs_review_scenarios, 0)
+            failed_scenarios = failed_field if failed_field is not None else residual_failed
+            errors_count = functional_summary.get("responsesWithError", functional_summary.get("errors", 0))
+            # Ensure errors are reflected in failed count (avoid double-count by taking max)
+            if errors_count and failed_scenarios < errors_count:
+                failed_scenarios = errors_count
+            # Clip to total
+            failed_scenarios = min(failed_scenarios, total_scenarios)
+        else:
+            total_scenarios = passed_scenarios = needs_review_scenarios = failed_scenarios = 0
+            errors_count = 0
 
         functional_report_path = output_dir / "functional" / "functional_report.jsonl"
         functional_scenarios = []
@@ -789,7 +831,7 @@ def process_submission(submission_id: str):
             "maxDistance": fs.get("maxDistance"),
 
             # Error information
-            "responsesWithError": fs.get("responsesWithError", 0),
+            "responsesWithError": fs.get("responsesWithError", fs.get("errors", 0)),
 
             # RAGTruth information
             "ragtruthRecords": fs.get("ragtruthRecords", 0),
@@ -1056,19 +1098,54 @@ def process_submission(submission_id: str):
                 judge_verdict=verdict,
             )
             submission.auto_decision = decision
+            old_state = "judge_panel_running"
+            current_breakdown = dict(submission.score_breakdown)
+            if "stages" not in current_breakdown:
+                current_breakdown["stages"] = {}
+
             if decision == "auto_approved":
                 submission.state = "approved"
                 print(f"Auto-approved: Publishing submission {submission_id}")
                 publish_summary = publish_agent(submission)
-                current_breakdown = dict(submission.score_breakdown)
                 current_breakdown["publish_summary"] = publish_summary
+                # Update stages for progress bar: skip human review, mark publish as completed
+                current_breakdown["stages"]["human"] = {
+                    "status": "skipped",
+                    "message": "Human Review skipped (auto_approved with Trust Score >= 90)"
+                }
+                current_breakdown["stages"]["publish"] = {
+                    "status": "completed",
+                    "message": "Agent published automatically"
+                }
                 submission.score_breakdown = current_breakdown
                 if publish_summary.get("status") == "published":
                     submission.state = "published"
+                # Send SSE notification for auto_approved -> published
+                asyncio.run(notify_state_change(submission_id, old_state, submission.state))
             elif decision == "auto_rejected":
                 submission.state = "rejected"
+                # Update stages for progress bar: mark human and publish as skipped/failed
+                current_breakdown["stages"]["human"] = {
+                    "status": "skipped",
+                    "message": "Human Review skipped (auto_rejected with Trust Score <= 50)"
+                }
+                current_breakdown["stages"]["publish"] = {
+                    "status": "failed",
+                    "message": "Agent rejected automatically"
+                }
+                submission.score_breakdown = current_breakdown
+                # Send SSE notification for auto_rejected
+                asyncio.run(notify_state_change(submission_id, old_state, submission.state))
             else:
                 submission.state = "under_review"
+                # Update stages for progress bar: mark human as running
+                current_breakdown["stages"]["human"] = {
+                    "status": "running",
+                    "message": "Awaiting human review (Trust Score: 51-89)"
+                }
+                submission.score_breakdown = current_breakdown
+                # Send SSE notification for under_review (requires human review)
+                asyncio.run(notify_state_change(submission_id, old_state, submission.state))
         else:
             judge_summary = None
             submission.trust_score = 0

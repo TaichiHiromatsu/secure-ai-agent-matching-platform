@@ -121,6 +121,7 @@ class MultiModelJudge:
                 model=model_name,
                 dry_run=dry_run,
                 temperature=0.1,
+                max_output_tokens=1024,  # Increased for Japanese rationale in Phase1
             )
             judge = LLMJudge(config)
             self.judges.append(judge)

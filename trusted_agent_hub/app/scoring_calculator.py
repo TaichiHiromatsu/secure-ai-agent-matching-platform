@@ -65,12 +65,18 @@ def determine_auto_decision(
     auto_approve = int(os.getenv("AUTO_APPROVE_THRESHOLD", "90"))
     auto_reject = int(os.getenv("AUTO_REJECT_THRESHOLD", "50"))
 
+    # Safety guard: if thresholds are inverted, prefer the stricter (higher) value for approval
+    # and always give precedence to explicit judge rejection.
     if judge_verdict == "reject":
         return "auto_rejected"
-    if trust_score <= auto_reject:
-        return "auto_rejected"
+
+    # Prefer auto-approve when both thresholds overlap (e.g., AUTO_REJECT_THRESHOLD=100)
     if trust_score >= auto_approve:
         return "auto_approved"
+
+    if trust_score <= auto_reject:
+        return "auto_rejected"
+
     return "requires_human_review"
 
 

@@ -43,7 +43,7 @@ class LLMJudgeConfig:
     provider: str = "google-adk"  # Default to Google ADK
     model: Optional[str] = None
     temperature: float = 0.1
-    max_output_tokens: int = 512  # Increased for structured responses
+    max_output_tokens: int = 512  # Default for structured responses
     base_url: Optional[str] = None
     dry_run: bool = False
 
@@ -105,6 +105,7 @@ class LLMJudge:
             # JSON出力を強制するための設定
             generate_content_config = types.GenerateContentConfig(
                 response_mime_type="application/json",
+                max_output_tokens=self.config.max_output_tokens,
             )
 
             # AISI Inspect評価基準に基づくエージェントを作成

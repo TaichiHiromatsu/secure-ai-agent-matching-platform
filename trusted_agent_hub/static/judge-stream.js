@@ -111,6 +111,9 @@ class JuryJudgeStream {
                 case 'submission_state_change':
                     this.emit('submission_state_change', data);
                     break;
+                case 'initial_state':
+                    this.emit('initial_state', data);
+                    break;
                 case 'error':
                     this.handleBackendError(data);
                     break;

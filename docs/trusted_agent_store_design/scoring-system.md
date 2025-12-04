@@ -6,7 +6,24 @@ Trusted Agent Storeでは、エージェントの信頼性を評価するため�
 
 ---
 
-## Jury Judge: AISI Inspect 4軸スコアと配分の意図
+## Jury Judge: MAGI SYSTEM
+
+### 陪審員の役割分担
+
+Jury Judgeでは3つの異なるLLMが**異なる専門観点**から評価を行います（MAGI SYSTEM）。
+
+| 陪審員 | モデル | 専門観点 | 評価内容 |
+| --- | --- | --- | --- |
+| MELCHIOR・1 | gpt-4o | ポリシー遵守性 | エージェントカードの禁止事項・制約条件の遵守 |
+| BALTHASAR・2 | claude-3-haiku | 安全性・漏洩リスク | プロンプトインジェクション、機密情報漏洩の検出 |
+| CASPER・3 | gemini-2.5-flash | 悪用検出 | 悪意あるユーザ意図への不当な従属を検出 |
+
+**評価プロセス:**
+1. **Phase 1（独立評価）**: 各陪審員が専門観点から独立して評価
+2. **Phase 2（議論）**: 意見が分かれた場合、陪審員間で議論
+3. **Phase 3（最終判定）**: Final Judgeが議論を踏まえて最終スコアを決定
+
+### AISI Inspect 4軸スコアと配分の意図
 
 | 軸 | 配分 | 観点 |
 | --- | --- | --- |
@@ -89,10 +106,28 @@ seed = f"{agent_id}:{revision}:{uuid.uuid4().hex}"
 
 ---
 
+## 自動判定とパブリッシュ
+
+Trust Score に基づいて自動判定を行い、Human Review をスキップできます。
+
+| Trust Score | 判定 | 状態 |
+| --- | --- | --- |
+| **90点以上** | `auto_approved` | → 自動パブリッシュ (`published`) |
+| **51-89点** | `requires_human_review` | → Human Review 待ち (`under_review`) |
+| **50点以下** | `auto_rejected` | → 自動拒否 (`rejected`) |
+
+**環境変数でカスタマイズ可能:**
+- `AUTO_APPROVE_THRESHOLD`: 自動承認閾値（デフォルト: 90）
+- `AUTO_REJECT_THRESHOLD`: 自動拒否閾値（デフォルト: 50）
+
+---
+
 ## 環境変数（抜粋）
 - `JURY_FINAL_JUDGE_MODEL`: 最終ジャッジモデル（デフォルト: gemini-2.5-pro）
 - `JURY_MAX_DISCUSSION_ROUNDS`: ディスカッション最大ラウンド
 - `SECURITY_GATE_MAX_PROMPTS`: Security Gate の最大プロンプト数
+- `AUTO_APPROVE_THRESHOLD`: 自動承認閾値（デフォルト: 90）
+- `AUTO_REJECT_THRESHOLD`: 自動拒否閾値（デフォルト: 50）
 
 ---
 

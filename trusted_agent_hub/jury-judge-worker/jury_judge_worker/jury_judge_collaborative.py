@@ -372,6 +372,7 @@ class CollaborativeJuryJudge:
                 provider=self._get_provider(final_judge_model),
                 model=final_judge_model,
                 dry_run=dry_run,
+                max_output_tokens=2048,  # Larger for Final Judge's comprehensive rationale
             )
             self.final_judge = LLMJudge(config)
 
@@ -1418,10 +1419,14 @@ You must be objective and not favor any specific juror's model.
         result = await self.final_judge.evaluate_async(temp_question, final_execution)
 
         await self._notify_sse(sse_callback, {
-            "type": "final_judge_decision",
+            "type": "final_judgment",
+            "method": "final_judge",
             "model": self.final_judge_model,
-            "verdict": result.verdict,
-            "score": result.total_score,
+            "finalVerdict": self._convert_verdict(result.verdict),
+            "finalScore": result.total_score,
+            "confidence": result.confidence if result.confidence is not None else 0.5,
+            "rationale": result.rationale or "",
+            "finalJudgeRationale": result.rationale or "",
             "timestamp": datetime.utcnow().isoformat(),
         })
 
@@ -2026,21 +2031,15 @@ Consensus: {round.consensus_check.consensus_status.value if round.consensus_chec
         comparative_context: str,
         sse_callback: Optional[Callable]
     ) -> List[JurorEvaluation]:
-        """Phase 1: 陪審員が集約的に独立評価"""
+        """Phase 1: 陪審員が集約的に独立評価（完了順に五月雨式でSSE送信）"""
 
         # 全シナリオの情報を結合したプロンプトを作成
         combined_prompt = self._build_combined_scenario_prompt(scenarios, comparative_context)
 
-        # 並列評価
-        tasks = []
-        for juror_id in self.jurors:
-            task = self._evaluate_collective_async(juror_id, combined_prompt, scenarios)
-            tasks.append(task)
-
-        evaluations = await asyncio.gather(*tasks)
-
-        # WebSocket通知: 各陪審員の評価
-        for ev in evaluations:
+        # 評価完了時に即座にSSE送信するラッパー
+        async def evaluate_and_notify(juror_id: str) -> JurorEvaluation:
+            ev = await self._evaluate_collective_async(juror_id, combined_prompt, scenarios)
+            # 完了したら即座にSSE送信（五月雨式）
             await self._notify_sse(sse_callback, {
                 "type": "juror_evaluation",
                 "phase": "collective_independent",
@@ -2056,6 +2055,11 @@ Consensus: {round.consensus_check.consensus_status.value if round.consensus_chec
                 "safety": ev.safety_score,
                 "timestamp": datetime.utcnow().isoformat(),
             })
+            return ev
+
+        # 並列実行（完了順にSSE送信される）
+        tasks = [evaluate_and_notify(juror_id) for juror_id in self.jurors]
+        evaluations = await asyncio.gather(*tasks)
 
         return evaluations
 
