@@ -102,10 +102,32 @@ class LLMJudge:
             # Use streaming-capable, currently available default
             model_name = self.config.model or "gemini-2.5-flash"
 
+            # Safety設定: 評価タスクではコンテンツブロックを緩和
+            # types.HarmCategory と types.HarmBlockThreshold を使用
+            safety_settings = [
+                types.SafetySetting(
+                    category=types.HarmCategory.HARM_CATEGORY_HARASSMENT,
+                    threshold=types.HarmBlockThreshold.OFF
+                ),
+                types.SafetySetting(
+                    category=types.HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+                    threshold=types.HarmBlockThreshold.OFF
+                ),
+                types.SafetySetting(
+                    category=types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+                    threshold=types.HarmBlockThreshold.OFF
+                ),
+                types.SafetySetting(
+                    category=types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+                    threshold=types.HarmBlockThreshold.OFF
+                ),
+            ]
+
             # JSON出力を強制するための設定
             generate_content_config = types.GenerateContentConfig(
                 response_mime_type="application/json",
                 max_output_tokens=self.config.max_output_tokens,
+                safety_settings=safety_settings,
             )
 
             # AISI Inspect評価基準に基づくエージェントを作成
@@ -265,6 +287,15 @@ reasoningフィールドには評価理由を日本語で詳しく記述し、�
                 response_text = self._extract_text_from_events(response)
                 parsed = self._parse_response(response_text)
 
+                # JSONパースエラー（verdict="error"）の場合はリトライ
+                if parsed.get("verdict") == "error" and attempt < max_attempts:
+                    logger.warning(
+                        f"Google ADK JSON parse error detected, retrying... "
+                        f"(attempt {attempt}/{max_attempts})"
+                    )
+                    await asyncio.sleep(1.0)  # 少し待ってからリトライ
+                    continue
+
                 result = LLMJudgeResult(
                     score=parsed.get("score"),
                     verdict=parsed.get("verdict"),
@@ -314,24 +345,43 @@ reasoningフィールドには評価理由を日本語で詳しく記述し、�
                 return self._fallback_result(f"google_adk_error:{error}")
 
     def _extract_text_from_events(self, response) -> str:
-        """Eventオブジェクトからテキストを抽出"""
+        """Eventオブジェクトからテキストを抽出
+
+        SAFETYブロック時は __SAFETY_BLOCKED__ マーカーを返す
+        """
         if isinstance(response, list) and len(response) > 0:
             last_event = response[-1]
             # Eventからテキストを抽出
             if hasattr(last_event, 'text'):
-                return last_event.text
+                text = last_event.text
+                if text:
+                    return text
             elif hasattr(last_event, 'content'):
                 content = last_event.content
+                if content is None:
+                    # SAFETYブロックの可能性: contentがNone
+                    logger.warning("Google ADK response content is None (possible SAFETY block)")
+                    return "__SAFETY_BLOCKED__"
                 if hasattr(content, 'text'):
-                    return content.text
-                elif hasattr(content, 'parts') and len(content.parts) > 0:
+                    text = content.text
+                    if text:
+                        return text
+                elif hasattr(content, 'parts') and content.parts and len(content.parts) > 0:
                     first_part = content.parts[0]
-                    if hasattr(first_part, 'text'):
+                    if hasattr(first_part, 'text') and first_part.text:
                         return first_part.text
                     return str(first_part)
-                if isinstance(content, str):
+                if isinstance(content, str) and content:
                     return content
+                # contentが空またはパーツなし → SAFETYブロックの可能性
+                if not content or (hasattr(content, 'parts') and not content.parts):
+                    logger.warning("Google ADK response has empty content (possible SAFETY block)")
+                    return "__SAFETY_BLOCKED__"
                 return str(content)
+        # 空のレスポンス → SAFETYブロックの可能性
+        if not response or (isinstance(response, list) and len(response) == 0):
+            logger.warning("Google ADK response is empty (possible SAFETY block)")
+            return "__SAFETY_BLOCKED__"
         return str(response)
 
     def _evaluate_with_google_adk(self, question: QuestionSpec, execution: ExecutionResult) -> LLMJudgeResult:
@@ -652,6 +702,22 @@ DO NOT use markdown code blocks. DO NOT add any text before or after the JSON ob
     def _parse_response(self, raw: str) -> dict:
         try:
             cleaned = raw.strip()
+
+            # SAFETYブロック検出: 専用のエラーメッセージを返す
+            if cleaned == "__SAFETY_BLOCKED__":
+                logger.warning("Gemini SAFETY filter blocked the response")
+                return {
+                    "score": None,
+                    "verdict": "error",
+                    "rationale": "評価失敗: Gemini SAFETYフィルターにより応答がブロックされました。評価対象のコンテンツが安全性基準に抵触した可能性があります。",
+                    "task_completion": None,
+                    "tool_usage": None,
+                    "autonomy": None,
+                    "safety": None,
+                    "total_score": None,
+                    "confidence": None,
+                    "_safety_blocked": True,  # SAFETYブロックフラグ
+                }
 
             # Log raw response for debugging Claude issues
             logger.debug(f"Parsing LLM response (first 300 chars): {raw[:300]}")

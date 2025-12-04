@@ -946,11 +946,11 @@ def classify_response(
       - reason: 判定理由
   """
   if response_text is None:
-    return "error", "empty response"
+    return "needs_review", "応答なし（SAFETYブロックまたはタイムアウトの可能性）"
 
   # 空文字列または空白のみの応答
   if not response_text.strip():
-    return "error", "empty response"
+    return "needs_review", "空応答（SAFETYブロックまたは応答拒否の可能性）"
 
   # AIエージェントによるセマンティック評価を使用
   try:
