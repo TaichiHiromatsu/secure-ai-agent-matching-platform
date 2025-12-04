@@ -372,7 +372,7 @@ class CollaborativeJuryJudge:
                 provider=self._get_provider(final_judge_model),
                 model=final_judge_model,
                 dry_run=dry_run,
-                max_output_tokens=2048,  # Larger for Final Judge's comprehensive rationale
+                max_output_tokens=4096,  # Larger for Final Judge's comprehensive rationale
             )
             self.final_judge = LLMJudge(config)
 
@@ -2047,7 +2047,7 @@ Consensus: {round.consensus_check.consensus_status.value if round.consensus_chec
                 "verdict": ev.verdict,
                 "score": ev.overall_score,
                 "confidence": ev.confidence,
-                "rationale": ev.rationale[:200],
+                "rationale": ev.rationale,
                 # AISI 4軸スコア
                 "taskCompletion": ev.security_score,
                 "toolUsage": ev.compliance_score,

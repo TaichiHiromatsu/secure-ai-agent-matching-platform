@@ -201,12 +201,12 @@
 
                 <!-- FINAL JUDGE Chat (常時表示) -->
                 <div class="magi-chat-box magi-chat-cyan magi-final-judge-chat" id="final-judge-chat">
-                    <div class="magi-chat-header">MAGI FINAL JUDGE</div>
+                    <div class="magi-chat-header">MAGI FINAL JUDGE <span class="magi-final-judge-status" id="final-judge-status">{% if final_judgment.found and final_judgment.found.rationale %}完了{% else %}待機中{% endif %}</span></div>
                     <div class="magi-chat-content" id="final-judge-content">
                         {% if final_judgment.found and final_judgment.found.rationale %}
                         <div class="magi-chat-message">{{ final_judgment.found.rationale }}</div>
                         {% else %}
-                        <div class="magi-chat-placeholder">最終判定待ち...</div>
+                        <div class="magi-chat-placeholder" id="final-judge-placeholder">Phase 3を待機中...</div>
                         {% endif %}
                     </div>
                 </div>
@@ -432,6 +432,45 @@
         text-shadow: 0 0 20px #ffd43b, 0 0 40px #ffa500;
         letter-spacing: 10px;
         z-index: 5;
+    }
+
+    /* Phase 3でMAGIロゴを点滅 */
+    .magi-logo-floating.final-judging {
+        animation: magi-logo-pulse 1s ease-in-out infinite;
+    }
+    @keyframes magi-logo-pulse {
+        0%, 100% {
+            color: #ffd43b;
+            text-shadow: 0 0 20px #ffd43b, 0 0 40px #ffa500;
+        }
+        50% {
+            color: #ff5252;
+            text-shadow: 0 0 30px #ff5252, 0 0 60px #ff0000;
+        }
+    }
+
+    /* FINAL JUDGE ステータス表示 */
+    .magi-final-judge-status {
+        font-size: 9px;
+        font-weight: normal;
+        color: #888;
+        margin-left: 8px;
+        padding: 2px 8px;
+        background: rgba(0, 0, 0, 0.3);
+        border-radius: 4px;
+    }
+    .magi-final-judge-status.judging {
+        color: #ff5252;
+        background: rgba(255, 82, 82, 0.2);
+        animation: status-pulse 1s ease-in-out infinite;
+    }
+    .magi-final-judge-status.complete {
+        color: #51cf66;
+        background: rgba(81, 207, 102, 0.2);
+    }
+    @keyframes status-pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
     }
 
     /* ===== MAGI Units - 審議中は全て水色、結果で色変化 ===== */

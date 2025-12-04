@@ -2384,6 +2384,109 @@
                 verdictDisplay.className = 'magi-verdict-text magi-verdict-pending';
             }
         }
+
+        // Phase 3 (final_judgment)開始時の処理
+        if (data.phase === 'final_judgment' || data.phaseNumber === 3) {
+            console.log('[DEBUG] 🔄 Phase 3 started - updating MAGI cards and starting final judge');
+
+            // 1. 3つのカードの点滅を停止
+            ['melchior', 'balthasar', 'casper'].forEach(unit => {
+                const unitEl = document.getElementById(`magi-${unit}`);
+                if (unitEl) unitEl.classList.remove('evaluating');
+            });
+
+            // SVGコネクタ線の点滅を停止
+            const connectorSvg = document.querySelector('.magi-triangle-connector');
+            if (connectorSvg) connectorSvg.classList.remove('evaluating');
+
+            // 2. 保存したjuror_evaluationデータで3つのカードを更新
+            ['melchior', 'balthasar', 'casper'].forEach(unit => {
+                const jurorData = pendingJurorResults[unit];
+                if (!jurorData) return;
+
+                const unitEl = document.getElementById(`magi-${unit}`);
+                const voteEl = document.getElementById(`${unit}-vote`);
+                const scoresEl = document.getElementById(`${unit}-scores`);
+
+                // カードの色を更新
+                if (unitEl) {
+                    unitEl.classList.remove('verdict-pending');
+                    unitEl.classList.add('vote-confirmed');
+                    unitEl.classList.remove('verdict-pass', 'verdict-fail', 'verdict-review');
+                    if (jurorData.verdict === 'safe_pass') {
+                        unitEl.classList.add('verdict-pass');
+                    } else if (jurorData.verdict === 'unsafe_fail') {
+                        unitEl.classList.add('verdict-fail');
+                    } else if (jurorData.verdict === 'needs_review') {
+                        unitEl.classList.add('verdict-review');
+                    }
+                }
+
+                // 投票テキストを更新
+                if (voteEl) {
+                    const verdictMap = {
+                        'safe_pass': { text: 'PASS', class: 'magi-vote-pass' },
+                        'unsafe_fail': { text: 'FAIL', class: 'magi-vote-fail' },
+                        'needs_review': { text: 'REVIEW', class: 'magi-vote-review' }
+                    };
+                    const v = verdictMap[jurorData.verdict] || { text: jurorData.verdict, class: '' };
+                    voteEl.textContent = v.text;
+                    voteEl.className = `magi-unit-vote ${v.class}`;
+                }
+
+                // スコアバーを更新
+                if (scoresEl) {
+                    const tc = jurorData.taskCompletion || 0;
+                    const tu = jurorData.toolUsage || 0;
+                    const au = jurorData.autonomy || 0;
+                    const sf = jurorData.safety || 0;
+
+                    const taskBar = scoresEl.querySelector('[data-axis="task"] .fill');
+                    const taskVal = scoresEl.querySelector('[data-axis="task"] .val');
+                    if (taskBar) taskBar.style.width = `${(tc / 40) * 100}%`;
+                    if (taskVal) taskVal.textContent = Math.floor(tc);
+
+                    const toolBar = scoresEl.querySelector('[data-axis="tool"] .fill');
+                    const toolVal = scoresEl.querySelector('[data-axis="tool"] .val');
+                    if (toolBar) toolBar.style.width = `${(tu / 30) * 100}%`;
+                    if (toolVal) toolVal.textContent = Math.floor(tu);
+
+                    const autoBar = scoresEl.querySelector('[data-axis="auto"] .fill');
+                    const autoVal = scoresEl.querySelector('[data-axis="auto"] .val');
+                    if (autoBar) autoBar.style.width = `${(au / 20) * 100}%`;
+                    if (autoVal) autoVal.textContent = Math.floor(au);
+
+                    const safeBar = scoresEl.querySelector('[data-axis="safe"] .fill');
+                    const safeVal = scoresEl.querySelector('[data-axis="safe"] .val');
+                    if (safeBar) safeBar.style.width = `${(sf / 10) * 100}%`;
+                    if (safeVal) safeVal.textContent = Math.floor(sf);
+                }
+            });
+
+            // 3. MAGIロゴを点滅開始
+            const magiLogo = document.querySelector('.magi-logo-floating');
+            if (magiLogo) magiLogo.classList.add('final-judging');
+
+            // 4. 決議表示を「審議中」に
+            const verdictDisplay = document.getElementById('magi-verdict-display');
+            if (verdictDisplay) {
+                verdictDisplay.textContent = '審議中';
+                verdictDisplay.className = 'magi-verdict-text magi-verdict-deliberating';
+            }
+
+            // 5. FINAL JUDGEのステータスを「最終判定中...」に
+            const finalJudgeStatus = document.getElementById('final-judge-status');
+            if (finalJudgeStatus) {
+                finalJudgeStatus.textContent = '最終判定中...';
+                finalJudgeStatus.className = 'magi-final-judge-status judging';
+            }
+
+            // 6. FINAL JUDGEのプレースホルダーを更新
+            const finalJudgePlaceholder = document.getElementById('final-judge-placeholder');
+            if (finalJudgePlaceholder) {
+                finalJudgePlaceholder.textContent = '最終判定を生成中...';
+            }
+        }
     });
 
     // Helper function to map juror IDs to MAGI unit names
@@ -2600,91 +2703,16 @@
             finalJudgeChat.style.display = 'flex';
         }
 
-        // 全カードの点滅を停止（Phase2完了）
-        ['melchior', 'balthasar', 'casper'].forEach(unit => {
-            const unitEl = document.getElementById(`magi-${unit}`);
-            if (unitEl) unitEl.classList.remove('evaluating');
-        });
+        // MAGIロゴの点滅を停止
+        const magiLogo = document.querySelector('.magi-logo-floating');
+        if (magiLogo) magiLogo.classList.remove('final-judging');
 
-        // SVGコネクタ線の点滅を停止
-        const connectorSvg = document.querySelector('.magi-triangle-connector');
-        if (connectorSvg) connectorSvg.classList.remove('evaluating');
-
-        // 保存したjuror_evaluationデータを使って全カードを一括更新
-        ['melchior', 'balthasar', 'casper'].forEach(unit => {
-            const jurorData = pendingJurorResults[unit];
-            if (!jurorData) return;
-
-            const unitEl = document.getElementById(`magi-${unit}`);
-            const voteEl = document.getElementById(`${unit}-vote`);
-            const scoresEl = document.getElementById(`${unit}-scores`);
-            const chatContent = document.getElementById(`${unit}-chat-content`);
-
-            // カードの色を更新
-            if (unitEl) {
-                unitEl.classList.remove('verdict-pending');
-                unitEl.classList.add('vote-confirmed');
-                unitEl.classList.remove('verdict-pass', 'verdict-fail', 'verdict-review');
-                if (jurorData.verdict === 'safe_pass') {
-                    unitEl.classList.add('verdict-pass');
-                } else if (jurorData.verdict === 'unsafe_fail') {
-                    unitEl.classList.add('verdict-fail');
-                } else if (jurorData.verdict === 'needs_review') {
-                    unitEl.classList.add('verdict-review');
-                }
-            }
-
-            // 投票テキストを更新
-            if (voteEl) {
-                const verdictMap = {
-                    'safe_pass': { text: 'PASS', class: 'magi-vote-pass' },
-                    'unsafe_fail': { text: 'FAIL', class: 'magi-vote-fail' },
-                    'needs_review': { text: 'REVIEW', class: 'magi-vote-review' }
-                };
-                const v = verdictMap[jurorData.verdict] || { text: jurorData.verdict, class: '' };
-                voteEl.textContent = v.text;
-                voteEl.className = `magi-unit-vote ${v.class}`;
-            }
-
-            // スコアバーを更新
-            if (scoresEl) {
-                const tc = jurorData.taskCompletion || 0;
-                const tu = jurorData.toolUsage || 0;
-                const au = jurorData.autonomy || 0;
-                const sf = jurorData.safety || 0;
-
-                const taskBar = scoresEl.querySelector('[data-axis="task"] .fill');
-                const taskVal = scoresEl.querySelector('[data-axis="task"] .val');
-                if (taskBar) taskBar.style.width = `${(tc / 40) * 100}%`;
-                if (taskVal) taskVal.textContent = Math.floor(tc);
-
-                const toolBar = scoresEl.querySelector('[data-axis="tool"] .fill');
-                const toolVal = scoresEl.querySelector('[data-axis="tool"] .val');
-                if (toolBar) toolBar.style.width = `${(tu / 30) * 100}%`;
-                if (toolVal) toolVal.textContent = Math.floor(tu);
-
-                const autoBar = scoresEl.querySelector('[data-axis="auto"] .fill');
-                const autoVal = scoresEl.querySelector('[data-axis="auto"] .val');
-                if (autoBar) autoBar.style.width = `${(au / 20) * 100}%`;
-                if (autoVal) autoVal.textContent = Math.floor(au);
-
-                const safeBar = scoresEl.querySelector('[data-axis="safe"] .fill');
-                const safeVal = scoresEl.querySelector('[data-axis="safe"] .val');
-                if (safeBar) safeBar.style.width = `${(sf / 10) * 100}%`;
-                if (safeVal) safeVal.textContent = Math.floor(sf);
-            }
-
-            // チャットにrationaleを追加
-            if (chatContent && jurorData.rationale) {
-                const placeholder = chatContent.querySelector('.magi-chat-placeholder');
-                if (placeholder) placeholder.remove();
-
-                const messageEl = document.createElement('div');
-                messageEl.className = 'magi-chat-message';
-                messageEl.textContent = jurorData.rationale;
-                chatContent.appendChild(messageEl);
-            }
-        });
+        // FINAL JUDGEのステータスを「完了」に
+        const finalJudgeStatus = document.getElementById('final-judge-status');
+        if (finalJudgeStatus) {
+            finalJudgeStatus.textContent = '完了';
+            finalJudgeStatus.className = 'magi-final-judge-status complete';
+        }
 
         // Update FINAL JUDGE section content with typing animation
         // rationale（最終ジャッジの評価理由）を優先表示
