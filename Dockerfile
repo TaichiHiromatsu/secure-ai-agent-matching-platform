@@ -26,7 +26,7 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen
 
 # ============================================
-# Trusted Agent Hub dependencies (evaluation-runner, jury-judge-worker)
+# Trusted Agent Store dependencies (evaluation-runner, jury-judge-worker)
 # ============================================
 COPY trusted_agent_hub/evaluation-runner /app/evaluation-runner
 COPY trusted_agent_hub/third_party /app/third_party

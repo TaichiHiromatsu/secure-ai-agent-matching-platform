@@ -188,7 +188,7 @@ graph TB
         Main --> F
     end
 
-    subgraph Store["Trusted Agent Hub<br/>(エージェントストア)"]
+    subgraph Store["Trusted Agent Store<br/>(エージェントストア)"]
         Registry[(エージェント<br/>レジストリ)]
         Trust[信頼性スコア<br/>管理]
     end
@@ -274,7 +274,7 @@ secure-ai-agent-matching-platform/
 │   │   └── final_anomaly_detection_agent.py    # Final-PI-Checker
 │   └── utils/                        # ユーティリティ
 │
-├── trusted_agent_hub/                # 🏪 Trusted Agent Hub (エージェントストア)
+├── trusted_agent_hub/                # 🏪 Trusted Agent Store (エージェントストア)
 │   ├── app/                          # FastAPI アプリケーション
 │   │   ├── routers/                  # APIルーター
 │   │   ├── schemas/                  # Pydanticスキーマ
@@ -420,7 +420,7 @@ echo "GOOGLE_API_KEY=your-gemini-api-key" > .env
 | [SPECIFICATION.md](docs/secure_mediation_agent_design/SPECIFICATION.md) | 技術仕様書（実装詳細） |
 | [SECURITY_IMPLEMENTATION.md](docs/secure_mediation_agent_design/SECURITY_IMPLEMENTATION.md) | セキュリティ実装詳細 |
 | [DEMO.md](docs/demo/DEMO.md) | デモ概要 |
-| [trusted_agent_store_design/](docs/trusted_agent_store_design/) | Trusted Agent Hub設計ドキュメント |
+| [trusted_agent_store_design/](docs/trusted_agent_store_design/) | Trusted Agent Store設計ドキュメント |
 
 ---
 

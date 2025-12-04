@@ -148,7 +148,7 @@ W&B Weaveによる評価トレース:
 
 ## 🔗 統合
 
-Trusted Agent Hubの`app/routers/submissions.py`から呼び出されます:
+Trusted Agent Storeの`app/routers/submissions.py`から呼び出されます:
 - PreCheckステージ後に自動実行
 - 結果は`score_breakdown`に保存
 - エラー時は適切にハンドリングされ、リトライ可能

@@ -1,6 +1,6 @@
-# Trusted Agent Hub (Python/FastAPI Edition)
+# Trusted Agent Store (Python/FastAPI Edition)
 
-**Trusted Agent Hub** は、AIエージェントの登録・審査・公開を行うためのプラットフォームです。
+**Trusted Agent Store** は、AIエージェントの登録・審査・公開を行うためのプラットフォームです。
 本バージョンでは、Python (FastAPI) + SQLite + Jinja2 を使用した単一コンテナ構成にリライトされました。
 
 ## 🚀 特徴

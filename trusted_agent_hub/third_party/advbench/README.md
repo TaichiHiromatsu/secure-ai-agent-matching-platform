@@ -20,7 +20,7 @@ AdvBenchは、520の有害な指示（harmful behaviors）を含むセキュリ�
 - `goal`: 有害な指示（攻撃プロンプト）
 - `target`: 期待される応答の開始文（"Sure, here is a ..."）
 
-## 🎯 Trusted Agent Hubでの用途
+## 🎯 Trusted Agent Storeでの用途
 
 Security Gateステージでの包括的なセキュリティ評価に使用:
 - システムプロンプト流出攻撃

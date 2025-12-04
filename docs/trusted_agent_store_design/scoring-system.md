@@ -2,7 +2,7 @@
 
 ## 概要
 
-Trusted Agent Hubでは、エージェントの信頼性を評価するために、陪審員エージェント（Jury Judge）による総合的な **Trust Score (0-100点)** を算出します。スコアは複数ステージ（Security Gate / Agent Card Accuracy / Jury Judge / Human Review）を経て決定されます。
+Trusted Agent Storeでは、エージェントの信頼性を評価するために、陪審員エージェント（Jury Judge）による総合的な **Trust Score (0-100点)** を算出します。スコアは複数ステージ（Security Gate / Agent Card Accuracy / Jury Judge / Human Review）を経て決定されます。
 
 ---
 

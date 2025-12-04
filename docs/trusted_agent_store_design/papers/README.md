@@ -1,10 +1,10 @@
 # エージェントストア関連リサーチメモ
 
-このディレクトリは、Trusted Agent Hubの設計・実装における学術的根拠と最新研究のリサーチメモです。
+このディレクトリは、Trusted Agent Storeの設計・実装における学術的根拠と最新研究のリサーチメモです。
 
 ## 📚 収集済み論文
 
-| ファイル | 年 | タイトル | Trusted Agent Hubへの適用 |
+| ファイル | 年 | タイトル | Trusted Agent Storeへの適用 |
 | --- | --- | --- | --- |
 | `responsible-ai-agents-2502.18359.pdf` | 2025 | Responsible AI Agents: Policy Choices for Open Agent Ecosystems | **6段階審査フロー**の設計根拠。オープンなエージェント市場における規制・ライセンシング枠組みを整理。 |
 | `automated-risky-game-2506.00073.pdf` | 2025 | The Automated but Risky Game: Governing General-Purpose AI Agents | **リスク分層**と**マルチステークホルダー協調**の設計論。Security Gate/Jury Judgeの判定ルールに適用。 |

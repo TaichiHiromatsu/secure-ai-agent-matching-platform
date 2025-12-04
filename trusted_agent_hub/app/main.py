@@ -21,7 +21,7 @@ URL_PREFIX = os.getenv("URL_PREFIX", "")
 # Create tables
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="Trusted Agent Hub")
+app = FastAPI(title="Trusted Agent Store")
 
 # Mount static files
 static_dir = os.path.join(BASE_DIR, "static") if BASE_DIR else "static"
