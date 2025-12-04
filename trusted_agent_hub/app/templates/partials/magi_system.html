@@ -55,12 +55,6 @@
 <details id="details-judge" class="mb-6 rounded-lg overflow-hidden" {% if not show_waiting_state %}open{% endif %}>
     <summary class="text-lg font-semibold p-4 flex items-center cursor-pointer bg-gray-800 text-white">
         <span class="mr-2">⚖️</span> Jury Judge Panel - MAGI SYSTEM
-        <span id="magi-phase-indicator" class="magi-phase-badge-title ml-4">
-            {%- if show_historical and collective.found and collective.found.finalJudgment -%}Phase 3 完了
-            {%- elif show_historical and collective.found and collective.found.discussionRounds -%}Phase 2
-            {%- elif show_historical and collective.found and collective.found.phase1Evaluations -%}Phase 1
-            {%- else -%}待機中{%- endif -%}
-        </span>
     </summary>
 
     <!-- MAGI System Container - Evangelion Faithful Design (Phase 3) -->
@@ -132,22 +126,44 @@
                     </div>
                 </div>
 
-                <!-- 決議結果表示 (BALTHASARの右、絶対位置) -->
+                {# Phase判定: Phase1評価完了→Phase2、最終判定完了→Phase3 #}
+                {% set has_phase1 = show_historical and collective.found and collective.found.phase1Evaluations %}
+                {% set has_discussion = show_historical and collective.found and collective.found.discussionRounds %}
+                {% set has_final = show_historical and collective.found and collective.found.finalJudgment %}
+                {% set phase_text = "Phase 3" if has_final else "Phase 2" if (has_phase1 or has_discussion) else "Phase 1" %}
+
+                {# Verdict判定: Phase1評価完了かつ最終判定未完→審議中 #}
+                {% set verdict_class = "" %}
+                {% set verdict_text = "評価中" %}
+                {% if has_final %}
+                    {% if collective.found.finalJudgment.finalVerdict == 'safe_pass' %}
+                        {% set verdict_class = "magi-verdict-pass" %}
+                        {% set verdict_text = "可決" %}
+                    {% elif collective.found.finalJudgment.finalVerdict == 'unsafe_fail' %}
+                        {% set verdict_class = "magi-verdict-fail" %}
+                        {% set verdict_text = "否決" %}
+                    {% else %}
+                        {% set verdict_class = "magi-verdict-review" %}
+                        {% set verdict_text = "要確認" %}
+                    {% endif %}
+                {% elif has_phase1 or has_discussion %}
+                    {% set verdict_class = "magi-verdict-deliberating" %}
+                    {% set verdict_text = "審議中" %}
+                {% else %}
+                    {% set verdict_class = "magi-verdict-pending" %}
+                    {% set verdict_text = "評価中" %}
+                {% endif %}
+
+                <!-- Phase表示 (左側) / Phase3完了時は非表示 -->
+                {% if not has_final %}
+                <div class="magi-phase-inline">
+                    <div id="magi-phase-chip" class="magi-phase-chip">{{ phase_text }}</div>
+                </div>
+                {% endif %}
+
+                <!-- Verdict表示 (右側) -->
                 <div class="magi-verdict-result-inline">
-                    <div id="magi-verdict-display" class="magi-verdict-text
-                        {% if show_historical and collective.found and collective.found.finalJudgment %}
-                            {% if collective.found.finalJudgment.finalVerdict == 'safe_pass' %}magi-verdict-pass
-                            {% elif collective.found.finalJudgment.finalVerdict == 'unsafe_fail' %}magi-verdict-fail
-                            {% else %}magi-verdict-review{% endif %}
-                        {% elif show_historical and collective.found and collective.found.discussionRounds %}magi-verdict-deliberating
-                        {% else %}magi-verdict-pending{% endif %}">
-                        {% if show_historical and collective.found and collective.found.finalJudgment %}
-                            {% if collective.found.finalJudgment.finalVerdict == 'safe_pass' %}可決
-                            {% elif collective.found.finalJudgment.finalVerdict == 'unsafe_fail' %}否決
-                            {% else %}要確認{% endif %}
-                        {% elif show_historical and collective.found and collective.found.discussionRounds %}審議中
-                        {% else %}評価中{% endif %}
-                    </div>
+                    <div id="magi-verdict-display" class="magi-verdict-text {{ verdict_class }}">{{ verdict_text }}</div>
                 </div>
 
                 <!-- Bottom Row: CASPER-3 and MELCHIOR-1 -->
@@ -613,13 +629,48 @@
         display: none;
     }
 
-    /* ===== 決議結果表示 (BALTHASARの右、絶対位置) ===== */
+    /* ===== Phase表示 (左側) ===== */
+    .magi-phase-inline {
+        position: absolute;
+        top: 56px;
+        left: 33px;
+        z-index: 10;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    /* ===== Verdict表示 (右側) ===== */
     .magi-verdict-result-inline {
         position: absolute;
-        top: 50px;
+        top: 40px;
         right: 20px;
         z-index: 10;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 10px;
     }
+    .magi-phase-chip {
+        font-size: 16px;
+        color: #ff8c00;
+        text-shadow: 0 0 12px #ff8c00;
+        background: transparent;
+        font-weight: bold;
+    }
+
+    /* AISI 4軸スコア (枠なしテキストのみ) */
+    .aisi-score {
+        font-size: 14px;
+        font-weight: bold;
+        padding: 2px 6px;
+        background: transparent;
+        border: none;
+    }
+    .aisi-score.task { color: #4dabf7; text-shadow: 0 0 8px #4dabf7; }
+    .aisi-score.tool { color: #51cf66; text-shadow: 0 0 8px #51cf66; }
+    .aisi-score.auto { color: #ffd43b; text-shadow: 0 0 8px #ffd43b; }
+    .aisi-score.safe { color: #ff6b6b; text-shadow: 0 0 8px #ff6b6b; }
 
     /* ===== Bottom Units Row ===== */
     .magi-bottom-units {
@@ -689,6 +740,25 @@
         color: #adff2f;
         text-shadow: 0 0 15px #adff2f;
     }
+
+    .magi-aisi-scores {
+        display: flex;
+        gap: 4px;
+        align-items: center;
+        white-space: nowrap;
+    }
+    .aisi-chip {
+        font-size: 12px;
+        padding: 3px 7px;
+        border-radius: 7px;
+        border: 1px solid currentColor;
+        background: rgba(0,0,0,0.35);
+        box-shadow: 0 0 10px rgba(0,0,0,0.25);
+    }
+    .aisi-chip.task { color: #4dabf7; }
+    .aisi-chip.tool { color: #51cf66; }
+    .aisi-chip.auto { color: #ffd43b; }
+    .aisi-chip.safe { color: #ff6b6b; }
 
     @keyframes verdict-pulse-red {
         0%, 100% { box-shadow: 0 0 15px rgba(255, 82, 82, 0.5); }

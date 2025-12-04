@@ -98,6 +98,10 @@ class SSEEvent(BaseModel):
     expected: Optional[str] = None
     totalTurns: Optional[int] = None
     dialogueHistory: Optional[List[Any]] = None
+    # State change fields
+    oldState: Optional[str] = None
+    newState: Optional[str] = None
+    stages: Optional[dict] = None  # Stage updates bundled with state change
 
 
 def validate_event_dict(payload: dict) -> dict:

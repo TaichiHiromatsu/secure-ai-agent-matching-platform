@@ -222,19 +222,22 @@ def publish_agent(submission: models.Submission) -> dict:
             "error": str(e)
         }
 
-async def notify_state_change(submission_id: str, old_state: str, new_state: str):
-    """Send state change notification via WebSocket"""
+async def notify_state_change(submission_id: str, old_state: str, new_state: str, stages: dict = None):
+    """Send state change notification via WebSocket with optional stage updates"""
     from app.routers.sse import get_sse_manager
     from app.schemas.sse_events import validate_event_dict
     sse_manager = get_sse_manager()
-    payload = validate_event_dict({
+    payload = {
         "type": "submission_state_change",
         "oldState": old_state,
         "newState": new_state,
         "timestamp": datetime.utcnow().isoformat()
-    })
+    }
+    if stages:
+        payload["stages"] = stages
+    payload = validate_event_dict(payload)
     await sse_manager.send(submission_id, payload)
-    print(f"[WebSocket] State change: {old_state} -> {new_state}")
+    print(f"[WebSocket] State change: {old_state} -> {new_state}" + (f" (stages: {list(stages.keys())})" if stages else ""))
 
 async def notify_score_update(submission_id: str, scores: dict):
     """Send score update notification via WebSocket"""
@@ -1120,8 +1123,11 @@ def process_submission(submission_id: str):
                 submission.score_breakdown = current_breakdown
                 if publish_summary.get("status") == "published":
                     submission.state = "published"
-                # Send SSE notification for auto_approved -> published
-                asyncio.run(notify_state_change(submission_id, old_state, submission.state))
+                # Send SSE notification for auto_approved -> published with stage updates
+                asyncio.run(notify_state_change(submission_id, old_state, submission.state, {
+                    "human": {"status": "skipped"},
+                    "publish": {"status": "completed"}
+                }))
             elif decision == "auto_rejected":
                 submission.state = "rejected"
                 # Update stages for progress bar: mark human and publish as skipped/failed
@@ -1134,8 +1140,11 @@ def process_submission(submission_id: str):
                     "message": "Agent rejected automatically"
                 }
                 submission.score_breakdown = current_breakdown
-                # Send SSE notification for auto_rejected
-                asyncio.run(notify_state_change(submission_id, old_state, submission.state))
+                # Send SSE notification for auto_rejected with stage updates
+                asyncio.run(notify_state_change(submission_id, old_state, submission.state, {
+                    "human": {"status": "skipped"},
+                    "publish": {"status": "failed"}
+                }))
             else:
                 submission.state = "under_review"
                 # Update stages for progress bar: mark human as running
@@ -1144,8 +1153,10 @@ def process_submission(submission_id: str):
                     "message": "Awaiting human review (Trust Score: 51-89)"
                 }
                 submission.score_breakdown = current_breakdown
-                # Send SSE notification for under_review (requires human review)
-                asyncio.run(notify_state_change(submission_id, old_state, submission.state))
+                # Send SSE notification for under_review with stage updates
+                asyncio.run(notify_state_change(submission_id, old_state, submission.state, {
+                    "human": {"status": "running"}
+                }))
         else:
             judge_summary = None
             submission.trust_score = 0

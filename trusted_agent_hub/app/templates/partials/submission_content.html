@@ -2346,7 +2346,7 @@
         console.log('[DEBUG] 🔄 phase_change event handler called with data:', data);
 
         // Update MAGI phase indicator
-        const phaseIndicator = document.getElementById('magi-phase-indicator');
+        const phaseIndicator = document.getElementById('magi-phase-chip');
         if (phaseIndicator) {
             const phaseMap = {
                 'initial_evaluation': 'Phase 1',
@@ -2577,7 +2577,7 @@
         console.log('[DEBUG] 💬 discussion_start event handler called with data:', data);
 
         // Update phase indicator
-        const phaseIndicator = document.getElementById('magi-phase-indicator');
+        const phaseIndicator = document.getElementById('magi-phase-chip');
         if (phaseIndicator) {
             phaseIndicator.textContent = 'Phase 2';
         }
@@ -2664,10 +2664,10 @@
         // ページ全体のスクロール位置を保存
         const pageScrollTop = window.scrollY || document.documentElement.scrollTop;
 
-        // Update phase indicator
-        const phaseIndicator = document.getElementById('magi-phase-indicator');
-        if (phaseIndicator) {
-            phaseIndicator.textContent = 'Phase 3 完了';
+        // Phase 3完了時はPhase表示を非表示にする
+        const phaseInlineEl = document.querySelector('.magi-phase-inline');
+        if (phaseInlineEl) {
+            phaseInlineEl.style.display = 'none';
         }
 
         // Update phase display in system info
@@ -2799,6 +2799,50 @@
         if (stateEl && data.newState) {
             stateEl.textContent = data.newState;
             console.log(`[DEBUG] ✅ Updated state display to: ${data.newState}`);
+        }
+
+        // Process stage updates if included in the event
+        if (data.stages) {
+            Object.entries(data.stages).forEach(([stageName, stageData]) => {
+                const status = stageData.status;
+                console.log(`[DEBUG] 🎯 Processing stage from state_change: ${stageName} -> ${status}`);
+
+                // Update progress bar icon
+                const stageEl = document.querySelector(`[data-stage="${stageName}"]`);
+                if (stageEl) {
+                    stageEl.classList.remove(
+                        'bg-green-100', 'border-green-500',
+                        'bg-red-100', 'border-red-500',
+                        'bg-yellow-100', 'border-yellow-500', 'animate-pulse',
+                        'bg-gray-100', 'border-gray-300',
+                        'bg-gray-200', 'border-gray-400', 'opacity-60'
+                    );
+
+                    if (status === 'completed') {
+                        stageEl.classList.add('bg-green-100', 'border-green-500');
+                    } else if (status === 'failed') {
+                        stageEl.classList.add('bg-red-100', 'border-red-500');
+                    } else if (status === 'running') {
+                        stageEl.classList.add('bg-yellow-100', 'border-yellow-500', 'animate-pulse');
+                    } else if (status === 'skipped') {
+                        stageEl.classList.add('bg-gray-200', 'border-gray-400', 'opacity-60');
+                    } else {
+                        stageEl.classList.add('bg-gray-100', 'border-gray-300');
+                    }
+                }
+
+                // Update status badge text
+                const statusBadge = document.querySelector(`[data-stage-status="${stageName}"]`);
+                if (statusBadge) {
+                    const statusText = {
+                        'completed': '✅ 完了',
+                        'failed': '❌ 失敗',
+                        'running': '⏳ 実行中',
+                        'skipped': '⏭️ スキップ'
+                    };
+                    statusBadge.textContent = statusText[status] || '⏸️ 待機中';
+                }
+            });
         }
     });
 
