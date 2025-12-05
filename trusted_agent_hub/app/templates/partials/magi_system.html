@@ -217,7 +217,7 @@
 
                 <!-- FINAL JUDGE Chat (常時表示) -->
                 <div class="magi-chat-box magi-chat-cyan magi-final-judge-chat" id="final-judge-chat">
-                    <div class="magi-chat-header">MAGI FINAL JUDGE <span class="magi-final-judge-status" id="final-judge-status">{% if final_judgment.found and final_judgment.found.rationale %}完了{% else %}待機中{% endif %}</span></div>
+                    <div class="magi-chat-header">FINAL JUDGE <span class="magi-final-judge-status" id="final-judge-status">{% if final_judgment.found and final_judgment.found.rationale %}完了{% else %}待機中{% endif %}</span></div>
                     <div class="magi-chat-content" id="final-judge-content">
                         {% if final_judgment.found and final_judgment.found.rationale %}
                         <div class="magi-chat-message">{{ final_judgment.found.rationale }}</div>
