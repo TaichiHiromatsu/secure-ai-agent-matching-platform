@@ -628,26 +628,34 @@
         <summary class="text-lg font-semibold mb-2 flex items-center cursor-pointer">
             <span class="mr-2">🚀</span> Publish
         </summary>
-        {% if submission.score_breakdown.publish_summary %}
-        <div class="ml-7 space-y-2 mt-2">
-            <p class="text-sm text-gray-700">
-                <span class="font-semibold">Status:</span>
-                <span class="{% if submission.score_breakdown.publish_summary.status == 'published' %}text-green-600{% else %}text-yellow-600{% endif %}">
-            {{ submission.score_breakdown.publish_summary.status }}
-                </span>
-            </p>
-            {% if submission.score_breakdown.publish_summary.publishedAt %}
-            <p class="text-sm text-gray-700">
-                <span class="font-semibold">Published At:</span> {{ submission.score_breakdown.publish_summary.publishedAt }}
-            </p>
+        <div id="publish-panel">
+            {% if submission.score_breakdown.publish_summary %}
+                <div class="ml-7 space-y-2 mt-2">
+                    <p class="text-sm text-gray-700">
+                        <span class="font-semibold">Status:</span>
+                        <span id="publish-status-value" class="{% if submission.score_breakdown.publish_summary.status == 'published' %}text-green-600{% else %}text-yellow-600{% endif %}">
+                            {{ submission.score_breakdown.publish_summary.status }}
+                        </span>
+                    </p>
+                    {% if submission.score_breakdown.publish_summary.publishedAt %}
+                    <p class="text-sm text-gray-700" id="publish-at-line">
+                        <span class="font-semibold">Published At:</span> {{ submission.score_breakdown.publish_summary.publishedAt }}
+                    </p>
+                    {% endif %}
+                    <p class="text-sm text-gray-700" id="publish-trust-line">
+                        <span class="font-semibold">Trust Score:</span> {{ submission.score_breakdown.publish_summary.trustScore }}/100
+                    </p>
+                </div>
+            {% elif submission.state == 'rejected' or submission.auto_decision == 'auto_rejected' %}
+                <div class="ml-7 space-y-2 mt-2" id="publish-rejected-block">
+                    <p class="text-sm text-red-600 font-semibold">Rejected (auto)</p>
+                    <p class="text-xs text-gray-600">Trust Score: {{ submission.trust_score }}/100</p>
+                    <p class="text-xs text-gray-600">Human Review: skipped</p>
+                </div>
+            {% else %}
+                <p class="ml-7 text-sm text-gray-500" id="publish-placeholder">Not yet published</p>
             {% endif %}
-            <p class="text-sm text-gray-700">
-                <span class="font-semibold">Trust Score:</span> {{ submission.score_breakdown.publish_summary.trustScore }}/100
-            </p>
         </div>
-        {% else %}
-        <p class="ml-7 text-sm text-gray-500">Not yet published</p>
-        {% endif %}
     </details>
     {% else %}
     <!-- 評価未開始時も空のセクションを表示（SSEで動的に更新される） -->
@@ -2799,6 +2807,34 @@
         if (stateEl && data.newState) {
             stateEl.textContent = data.newState;
             console.log(`[DEBUG] ✅ Updated state display to: ${data.newState}`);
+        }
+
+        // Update Publish panel in real time for rejected/published transitions
+        const publishPanel = document.getElementById('publish-panel');
+        if (publishPanel && data.newState) {
+            if (data.newState === 'rejected') {
+                publishPanel.innerHTML = `
+                    <div class="ml-7 space-y-2 mt-2" id="publish-rejected-block">
+                        <p class="text-sm text-red-600 font-semibold">Rejected (auto)</p>
+                        <p class="text-xs text-gray-600">Trust Score: ${data.trustScore ?? '—'}/100</p>
+                        <p class="text-xs text-gray-600">Human Review: skipped</p>
+                    </div>
+                `;
+            } else if (data.newState === 'published' && data.publishSummary) {
+                const ps = data.publishSummary;
+                publishPanel.innerHTML = `
+                    <div class="ml-7 space-y-2 mt-2">
+                        <p class="text-sm text-gray-700">
+                            <span class="font-semibold">Status:</span>
+                            <span id="publish-status-value" class="${ps.status === 'published' ? 'text-green-600' : 'text-yellow-600'}">${ps.status}</span>
+                        </p>
+                        ${ps.publishedAt ? `<p class="text-sm text-gray-700" id="publish-at-line"><span class="font-semibold">Published At:</span> ${ps.publishedAt}</p>` : ''}
+                        <p class="text-sm text-gray-700" id="publish-trust-line">
+                            <span class="font-semibold">Trust Score:</span> ${ps.trustScore ?? '—'}/100
+                        </p>
+                    </div>
+                `;
+            }
         }
 
         // Process stage updates if included in the event
