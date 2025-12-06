@@ -7,7 +7,7 @@
 
 - **6段階審査フロー**: PreCheck → Security Gate → Agent Card Accuracy → Jury Judge → Human Review → Publish
 - **多層セキュリティ評価**: AISI Securityベンチマークによる実攻撃シミュレーション
-- **Agents-as-a-Judge**: GPT-4o/Claude/Geminiによる多段階評価（Plan → Counter → Reconcile）
+- **Agents-as-a-Judge**: GPT-4o/Claude Haiku/Gemini Flashによる並列ラウンド議論とMinority-Veto戦略
 - **完全トレーサビリティ**: W&B Weaveによる全評価プロセスの可視化
 - **Agent Registry**: 審査済みエージェントの永続化と検索API
 - **Override機能**: 失敗エージェントの手動承認機能（理由記録付き）
@@ -154,10 +154,10 @@ Agent Cardの`skills`に基づく機能テスト:
 - Claude 3.5 Sonnet (Anthropic)
 - Gemini 2.5 Flash (Google)
 
-**3段階推論プロセス**:
-1. **Plan**: 各モデルが独立に評価
-2. **Counter**: 評価の反論・検証
-3. **Reconcile**: 最終スコア統合（MCTSベース）
+**Collaborative Jury Judge**:
+- 3人の陪審員が**並列ラウンド議論**を実行（最大3ラウンド）
+- **Minority-Veto戦略**: 30%以上が問題検出→needs_review、1人でもreject→reject
+- 合意に達したら早期終了可能
 
 **トレーサビリティ**: W&B Weaveで全評価ログを記録
 
@@ -236,8 +236,7 @@ Agent Cardの`skills`に基づく機能テスト:
 
 - **`jury-judge-worker/jury_judge_worker/llm_judge.py`**
   - Multi-model Judge実装
-  - Plan → Counter → Reconcile推論フロー
-  - MCTSベース合意形成
+  - 並列ラウンド議論とMinority-Veto戦略
 
 ### データセット
 
@@ -327,5 +326,5 @@ POST /api/reviews/{submission_id}/publish
 - **トレース内容**:
   - Security Gate: 攻撃プロンプトと応答
   - Agent Card Accuracy: シナリオ実行ログ
-  - Jury Judge: Plan/Counter/Reconcile推論過程
+  - Jury Judge: 並列ラウンド議論と合意形成過程
 - **アクセス**: submission詳細ページから「📊 View in W&B Weave」リンク

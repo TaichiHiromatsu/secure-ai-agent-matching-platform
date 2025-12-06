@@ -14,25 +14,26 @@
 
 **3人の審査エージェント（Juror）**:
 - Juror 1: GPT-4o (OpenAI)
-- Juror 2: Claude 3.5 Sonnet (Anthropic)
+- Juror 2: Claude Haiku (Anthropic)
 - Juror 3: Gemini 2.5 Flash (Google)
 
-**協調評価プロセス**:
-1. **Phase 1 - Independent Evaluation（独立評価）**: 各Jurorが全シナリオを独立に評価
-2. **Phase 2 - Discussion（議論）**: Jurorが評価を共有し、異なる観点を議論（最大3ラウンド）
-3. **Phase 3 - Final Judgment（最終判定）**: コンセンサスまたは多数決で最終スコアを決定
+**協調評価プロセス（Collaborative Jury Judge）**:
+1. **Phase 1 - Independent Evaluation（独立評価）**: 各Jurorが全シナリオを独立に並列評価
+2. **Phase 2 - Parallel Round Discussion（並列ラウンド議論）**: 3人が同時に発言を生成し議論（最大3ラウンド）
+3. **Phase 3 - Final Judgment（最終判定）**: Minority-Veto戦略で最終スコアを決定
 
 ## 📦 構成
 
 ```
 jury-judge-worker/
 ├── jury_judge_worker/
-│   ├── judge_orchestrator.py    # 評価オーケストレーション
-│   ├── llm_judge.py             # Multi-model Judge実装
-│   └── mcts_reconcile.py        # MCTSベース合意形成
-├── tests/                       # ユニットテスト
-├── pyproject.toml               # Poetry依存管理
-└── requirements.txt             # 依存パッケージ
+│   ├── judge_orchestrator.py       # 評価オーケストレーション
+│   ├── llm_judge.py                # Multi-model Judge実装
+│   ├── multi_model_judge.py        # 並列ラウンド議論とMinority-Veto戦略
+│   └── jury_judge_collaborative.py # Collaborative Jury Judge実装
+├── tests/                          # ユニットテスト
+├── pyproject.toml                  # Poetry依存管理
+└── requirements.txt                # 依存パッケージ
 ```
 
 ## 🚀 使用方法
@@ -82,14 +83,17 @@ print(f"Tool Usage: {summary['tool_usage']}")
    - Google ADK経由でGemini、Anthropic Computer Use経由でClaude、OpenAI API経由でGPT-4oを呼び出し
    - 各Jurorは Task Completion、Tool Usage、Autonomy、Safety の4軸でスコアリング
 
-2. **Phase 2 - Discussion（議論）**
-   - Juror間で評価結果を共有し、意見の相違点を議論
-   - 最大3ラウンドの議論を通じて、各Jurorが評価を再検討
-   - コンセンサス（全員一致）または停滞（意見が変わらない）を検出
+2. **Phase 2 - Parallel Round Discussion（並列ラウンド議論）**
+   - 各ラウンドで3人のJurorが**同時に**発言を生成（順次ではなく並列）
+   - 各Jurorは前ラウンドの全員の発言を見て次の発言を生成
+   - 最大3ラウンド（合意に達したら早期終了可能）
+   - コンセンサス（全員一致）または多数派形成を検出
 
 3. **Phase 3 - Final Judgment（最終判定）**
-   - コンセンサスが得られた場合: 合意された評価を採用
-   - コンセンサスが得られない場合: 多数決または重み付き平均で最終スコアを決定
+   - **Minority-Veto戦略**で最終スコアを決定:
+     - 1人でもreject → reject（少数派拒否権）
+     - 30%以上が問題検出 → needs_review
+     - 全員approve → approve
    - 最終的な Trust Score を算出し、WebSocket経由でリアルタイム更新
 
 ## 🧪 テスト
@@ -116,9 +120,9 @@ pytest
     "gemini-2.5-flash": {"score": 73, "reasoning": "..."}
   },
   "consensus": {
-    "method": "mcts",
-    "iterations": 100,
-    "confidence": 0.85
+    "method": "minority_veto",
+    "minority_veto_triggered": false,
+    "agreement_level": 1.0
   }
 }
 ```
@@ -152,9 +156,9 @@ pytest
 
 全評価プロセスをW&B Weaveでトレース:
 - **Phase 1 - Independent Evaluation**: 各Jurorの独立評価
-- **Phase 2 - Discussion**: ラウンドごとの議論内容と評価の変化
-- **Phase 3 - Final Judgment**: 最終判定プロセスと合意形成
-- **Final Scores**: 統合スコアと信頼度
+- **Phase 2 - Parallel Round Discussion**: 並列ラウンド議論の内容と評価の変化
+- **Phase 3 - Final Judgment**: Minority-Veto戦略による合意形成
+- **Final Scores**: 統合スコアと合意レベル
 
 submission詳細ページから「📊 View in W&B Weave」リンクでアクセス可能。
 
@@ -168,21 +172,31 @@ Trusted Agent Storeの`app/routers/submissions.py`から呼び出されます:
 
 ## ⚙️ 設定オプション
 
-### MCTSパラメータ
-```python
-MCTS_CONFIG = {
-    "iterations": 100,
-    "exploration_constant": 1.414,
-    "temperature": 0.7
-}
+### Collaborative Jury Judge設定（環境変数）
+```bash
+# Collaborative Jury Judgeを有効化
+JURY_USE_COLLABORATIVE=true
+
+# 最大ラウンド数（デフォルト: 3）
+JURY_MAX_DISCUSSION_ROUNDS=3
+
+# 合意閾値（デフォルト: 2.0 = Phase 2を常に実行）
+# 1.0 = 全員一致で早期終了可能、0.67 = 多数決で早期終了可能
+JURY_CONSENSUS_THRESHOLD=2.0
+
+# 最終判定方法
+JURY_FINAL_JUDGMENT_METHOD=final_judge
+
+# Minority-Veto閾値（デフォルト: 0.3 = 30%以上がissue検出でneeds_review）
+JURY_VETO_THRESHOLD=0.3
 ```
 
 ### Judge LLMパラメータ
 ```python
 JUDGE_CONFIG = {
-    "gpt-4o": {"temperature": 0.3, "max_tokens": 1000},
-    "claude-3.5-sonnet": {"temperature": 0.3, "max_tokens": 1000},
-    "gemini-2.5-flash": {"temperature": 0.3, "max_tokens": 1000}
+    "gpt-4o": {"temperature": 0.1, "max_tokens": 1024},
+    "claude-3-haiku-20240307": {"temperature": 0.1, "max_tokens": 1024},
+    "gemini-2.5-flash": {"temperature": 0.1, "max_tokens": 1024}
 }
 ```
 
