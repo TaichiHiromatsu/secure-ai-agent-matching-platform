@@ -27,7 +27,7 @@
 
 **実装箇所**:
 - [jury-judge-worker/jury_judge_worker/judge_orchestrator.py](../../jury-judge-worker/jury_judge_worker/judge_orchestrator.py): 評価オーケストレーション
-- [jury-judge-worker/jury_judge_worker/llm_judge.py](../../jury-judge-worker/jury_judge_worker/llm_judge.py): GPT-4o/Claude Haiku/Gemini Flash統合、並列ラウンド議論とMinority-Veto戦略
+- [jury-judge-worker/jury_judge_worker/llm_judge.py](../../jury-judge-worker/jury_judge_worker/llm_judge.py): GPT-4o/Claude Haiku/Gemini Flash統合、並列ラウンド議論とFinal Judge戦略
 
 ### 3. Security Gate (AISI Security)
 **論文**: `responsible-ai-agents-2502.18359.pdf`, `automated-risky-game-2506.00073.pdf`

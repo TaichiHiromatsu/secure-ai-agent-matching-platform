@@ -7,7 +7,7 @@
 
 - **6段階審査フロー**: PreCheck → Security Gate → Agent Card Accuracy → Jury Judge → Human Review → Publish
 - **多層セキュリティ評価**: AISI Securityベンチマークによる実攻撃シミュレーション
-- **Agents-as-a-Judge**: GPT-4o/Claude Haiku/Gemini Flashによる並列ラウンド議論とMinority-Veto戦略
+- **Agents-as-a-Judge**: GPT-4o/Claude Haiku/Gemini Flashによる並列ラウンド議論とFinal Judge（Gemini 2.5 Pro）による最終合議
 - **完全トレーサビリティ**: W&B Weaveによる全評価プロセスの可視化
 - **Agent Registry**: 審査済みエージェントの永続化と検索API
 - **Override機能**: 失敗エージェントの手動承認機能（理由記録付き）
@@ -156,7 +156,7 @@ Agent Cardの`skills`に基づく機能テスト:
 
 **Collaborative Jury Judge**:
 - 3人の陪審員が**並列ラウンド議論**を実行（最大3ラウンド）
-- **Minority-Veto戦略**: 30%以上が問題検出→needs_review、1人でもreject→reject
+- **Final Judge（Gemini 2.5 Pro）**が議論を総合して最終判定
 - 合意に達したら早期終了可能
 
 **トレーサビリティ**: W&B Weaveで全評価ログを記録
@@ -236,7 +236,7 @@ Agent Cardの`skills`に基づく機能テスト:
 
 - **`jury-judge-worker/jury_judge_worker/llm_judge.py`**
   - Multi-model Judge実装
-  - 並列ラウンド議論とMinority-Veto戦略
+  - 並列ラウンド議論とFinal Judge戦略
 
 ### データセット
 
