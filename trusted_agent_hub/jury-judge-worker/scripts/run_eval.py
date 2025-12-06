@@ -32,7 +32,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--scenario", default=os.environ.get("INSPECT_SCENARIO", str(PROJECT_SCENARIO)))
     parser.add_argument("--artifacts", default=os.environ.get("ARTIFACTS_DIR"), help="Path to sandbox artifacts directory")
     parser.add_argument("--manifest", default=os.environ.get("MANIFEST_PATH", str(ROOT / "prompts/aisi/manifest.tier3.json")))
-    parser.add_argument("--enable-judge-panel", action="store_true", help="Generate judge_report.jsonl via Judge Panel PoC")
+    parser.add_argument("--enable-judge-panel", action="store_true", help="Generate jury_judge_report.jsonl via Judge Panel PoC")
     parser.add_argument("--agent-card", help="AgentCard JSON path used for Judge Panel question generation")
     parser.add_argument("--relay-endpoint", help="A2A Relay endpoint for executing judge questions")
     parser.add_argument("--relay-token", help="Bearer token for the A2A Relay endpoint")
@@ -545,7 +545,7 @@ def _run_judge_panel(
     verdicts = orchestrator.run_panel(questions, executions)
     llm_summary["calls"] = orchestrator.llm_calls if llm_judge_instance else 0
 
-    report_path = judge_dir / "judge_report.jsonl"
+    report_path = judge_dir / "jury_judge_report.jsonl"
     with report_path.open("w", encoding="utf-8") as f:
         for verdict in verdicts:
             execution = next((item for item in executions if item.question_id == verdict.question_id), None)
@@ -650,7 +650,7 @@ def _run_judge_panel(
             "judge_relay_error_ratio": (relay_error_count / questions_total) if questions_total else 0,
             "judge_relay_retry_ratio": (relay_retry_count / questions_total) if questions_total else 0,
             "judge_review_ui_url": review_ui_url,
-            "judge_report_path": str(report_path),
+            "jury_judge_report_path": str(report_path),
             "judge_relay_path": str(relay_log_path)
         })
         log_artifact(wandb_config, report_path, name=f"judge-report-{wandb_config.run_id}")

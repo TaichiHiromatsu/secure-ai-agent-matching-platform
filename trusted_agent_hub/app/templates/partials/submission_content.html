@@ -111,7 +111,7 @@
 <!-- W&B Report Section -->
 <!-- DEBUG: score_breakdown exists: {{ 'yes' if submission.score_breakdown else 'no' }}, wandb exists: {{ 'yes' if submission.score_breakdown and submission.score_breakdown.wandb else 'no' }} -->
 {% if submission.score_breakdown and submission.score_breakdown.wandb %}
-<div class="p-6 border-t border-gray-200">
+<div class="p-6 border-t border-gray-200 wandb-report-section">
     <h2 class="text-xl font-semibold mb-4">Weights & Biases Reports</h2>
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <!-- W&B Core Card -->
@@ -346,26 +346,15 @@
                 </ul>
             </div>
 
-            <!-- Artifacts -->
-            {% if submission.score_breakdown.security_summary.artifacts %}
+            <!-- Artifacts Download -->
             <div class="border-t pt-4">
                 <h4 class="font-semibold mb-2">📁 Artifacts</h4>
-                <div class="space-y-2">
-            {% if submission.score_breakdown.security_summary.artifacts.prompts %}
-            <div class="text-sm">
-                <span class="font-medium">Prompts:</span>
-                <code class="text-xs bg-gray-100 px-2 py-1 rounded">{{ submission.score_breakdown.security_summary.artifacts.prompts }}</code>
+                <a href="/api/submissions/{{ submission.id }}/artifacts/security"
+                   class="px-3 py-1.5 text-sm font-medium text-blue-700 bg-blue-100 hover:bg-blue-200 rounded-md transition-colors"
+                   download="security_gate_report.jsonl">
+                    ↓ Security Gate
+                </a>
             </div>
-            {% endif %}
-            {% if submission.score_breakdown.security_summary.artifacts.report %}
-            <div class="text-sm">
-                <span class="font-medium">Report:</span>
-                <code class="text-xs bg-gray-100 px-2 py-1 rounded">{{ submission.score_breakdown.security_summary.artifacts.report }}</code>
-            </div>
-            {% endif %}
-                </div>
-            </div>
-            {% endif %}
         </div>
         {% else %}
         <p class="ml-7 text-sm text-gray-500">No security test results available</p>
@@ -592,26 +581,15 @@
                 </ul>
             </div>
 
-            <!-- Artifacts -->
-            {% if submission.score_breakdown.functional_summary.artifacts %}
+            <!-- Artifacts Download -->
             <div class="border-t pt-4">
                 <h4 class="font-semibold mb-2">📁 Artifacts</h4>
-                <div class="space-y-2">
-            {% if submission.score_breakdown.functional_summary.artifacts.report %}
-            <div class="text-sm">
-                <span class="font-medium">Report (JSONL):</span>
-                <code class="text-xs bg-gray-100 px-2 py-1 rounded">{{ submission.score_breakdown.functional_summary.artifacts.report }}</code>
+                <a href="/api/submissions/{{ submission.id }}/artifacts/functional"
+                   class="px-3 py-1.5 text-sm font-medium text-green-700 bg-green-100 hover:bg-green-200 rounded-md transition-colors"
+                   download="agent_card_accuracy_report.jsonl">
+                    ↓ Agent Card Accuracy
+                </a>
             </div>
-            {% endif %}
-            {% if submission.score_breakdown.functional_summary.artifacts.prompts %}
-            <div class="text-sm">
-                <span class="font-medium">Prompts:</span>
-                <code class="text-xs bg-gray-100 px-2 py-1 rounded">{{ submission.score_breakdown.functional_summary.artifacts.prompts }}</code>
-            </div>
-            {% endif %}
-                </div>
-            </div>
-            {% endif %}
         {% else %}
         <p class="text-sm text-gray-500">待機中...</p>
         {% endif %}
@@ -623,8 +601,25 @@
         <p class="p-4 text-sm text-gray-400 text-center">No judge panel results available</p>
         {% endif %}
     </details>
+    <!-- Human Review -->
+    <details id="details-human-review" class="mb-6 bg-gray-50 p-4 rounded-lg">
+        <summary class="text-lg font-semibold mb-2 flex items-center cursor-pointer">
+            <span class="mr-2">🙋</span> Human Review
+        </summary>
+        <div id="human-review-content" class="ml-7 space-y-2 mt-2">
+            {% if submission.state == 'approved' or submission.state == 'rejected' %}
+            <p class="text-sm text-gray-500">Review completed: {{ submission.state }}</p>
+            {% elif submission.auto_decision == 'auto_approved' %}
+            <p class="text-sm text-green-600">Auto-approved (Trust Score >= 80)</p>
+            {% elif submission.auto_decision == 'auto_rejected' %}
+            <p class="text-sm text-red-600">Auto-rejected (Trust Score < 20)</p>
+            {% else %}
+            <p class="text-sm text-yellow-600">Pending human review (Trust Score: {{ submission.trust_score }}/100)</p>
+            {% endif %}
+        </div>
+    </details>
     <!-- Publish -->
-    <details id="details-publish" class="mb-6 bg-gray-50 p-4 rounded-lg">
+    <details id="details-publish" class="mb-6 bg-gray-50 p-4 rounded-lg" {% if submission.state == 'published' or submission.state == 'rejected' %}open{% endif %}>
         <summary class="text-lg font-semibold mb-2 flex items-center cursor-pointer">
             <span class="mr-2">🚀</span> Publish
         </summary>
@@ -646,11 +641,17 @@
                         <span class="font-semibold">Trust Score:</span> {{ submission.score_breakdown.publish_summary.trustScore }}/100
                     </p>
                 </div>
-            {% elif submission.state == 'rejected' or submission.auto_decision == 'auto_rejected' %}
+            {% elif submission.state == 'rejected' %}
                 <div class="ml-7 space-y-2 mt-2" id="publish-rejected-block">
+                    {% if submission.auto_decision == 'auto_rejected' %}
                     <p class="text-sm text-red-600 font-semibold">Rejected (auto)</p>
-                    <p class="text-xs text-gray-600">Trust Score: {{ submission.trust_score }}/100</p>
+                    <p class="text-xs text-gray-600">Trust Score: {{ submission.trust_score }}/100 <= 50</p>
                     <p class="text-xs text-gray-600">Human Review: skipped</p>
+                    {% else %}
+                    <p class="text-sm text-red-600 font-semibold">Rejected (manual)</p>
+                    <p class="text-xs text-gray-600">Trust Score: {{ submission.trust_score }}/100</p>
+                    <p class="text-xs text-gray-600">Human Review: rejected</p>
+                    {% endif %}
                 </div>
             {% else %}
                 <p class="ml-7 text-sm text-gray-500" id="publish-placeholder">Not yet published</p>
@@ -1342,8 +1343,13 @@
         securityProcessingQueue = false;  // 処理中フラグをリセット
         securityTestsStarted = 0;  // 開始テスト数をリセット
         securityState = { total: data.total_scenarios || 0, blocked: 0, needsReview: 0, errors: 0, pending: 0 };
-        // 初期レイアウト（フル構造）をストリーミング表示
-        await renderSecuritySectionStreaming();
+
+        // サーバーサイドで既に表示済みの場合はストリーミングをスキップ
+        const hasServerContent = document.querySelector('#security-content .grid');
+        if (!hasServerContent) {
+            // 初期レイアウト（フル構造）をストリーミング表示
+            await renderSecuritySectionStreaming();
+        }
 
         // テーブル準備完了
         securityTableReady = true;
@@ -1379,6 +1385,22 @@
     juryStream.on('security_completed', async (data) => {
         console.log('[Streaming] security_completed received:', data);
 
+        // 集計リコンシリエーション（リアルタイム更新漏れ補正）
+        const summary = data.data || {};
+        const summaryCounts = {
+            total: summary.attempted ?? securityState.total,
+            blocked: summary.blocked ?? securityState.blocked,
+            needsReview: summary.needsReview ?? securityState.needsReview,
+            errors: summary.errors ?? securityState.errors,
+        };
+        // サーバ集計がフロントより大きい場合だけ補正
+        if (summaryCounts.total > securityState.total) securityState.total = summaryCounts.total;
+        if (summaryCounts.blocked > securityState.blocked) securityState.blocked = summaryCounts.blocked;
+        if (summaryCounts.needsReview > securityState.needsReview) securityState.needsReview = summaryCounts.needsReview;
+        if (summaryCounts.errors > securityState.errors) securityState.errors = summaryCounts.errors;
+        updateSecurityCounts();
+        updateSecurityProgress();
+
         // Toast notification
         const blocked = data.data?.blocked || 0;
         const total = data.data?.attempted || 0;
@@ -1403,9 +1425,13 @@
         // 「要確認シナリオ」が空の場合は「該当なし」に変更（ストリーミング表示）
         const noIssuesEl = document.getElementById('security-no-issues');
         if (noIssuesEl) {
-            noIssuesEl.textContent = '';
-            noIssuesEl.className = 'text-sm text-green-600';
-            await typeTextInElement(noIssuesEl, '✅ 該当なし（全てブロック済み）', 20);
+            if (securityState.needsReview === 0 && securityState.errors === 0) {
+                noIssuesEl.textContent = '';
+                noIssuesEl.className = 'text-sm text-green-600';
+                await typeTextInElement(noIssuesEl, '✅ 該当なし（全てブロック済み）', 20);
+            } else {
+                noIssuesEl.textContent = '';
+            }
         }
     });
 
@@ -1495,6 +1521,18 @@
                 </ul>
             </div>
         `, { speed: 8 });
+
+        // 6. Artifactsダウンロードセクション
+        await securityRenderer.streamLine(`
+            <div class="border-t pt-4">
+                <h4 class="font-semibold mb-2">📁 Artifacts</h4>
+                <a href="/api/submissions/${submissionId}/artifacts/security"
+                   class="px-3 py-1.5 text-sm font-medium text-blue-700 bg-blue-100 hover:bg-blue-200 rounded-md transition-colors"
+                   download="security_gate_report.jsonl">
+                    ↓ Security Gate
+                </a>
+            </div>
+        `, { speed: 5 });
     }
 
     function renderSecuritySectionFull() {
@@ -1558,6 +1596,16 @@
                     <li><strong>Needs Review</strong>: 人手確認が必要なケース。「要確認シナリオ」で詳細を確認してください</li>
                     <li>全体のブロック率 (Blocked/Total) が高いほどセキュリティ対策が有効です</li>
                 </ul>
+            </div>
+
+            <!-- Artifacts Download -->
+            <div class="border-t pt-4">
+                <h4 class="font-semibold mb-2">📁 Artifacts</h4>
+                <a href="/api/submissions/${submissionId}/artifacts/security"
+                   class="px-3 py-1.5 text-sm font-medium text-blue-700 bg-blue-100 hover:bg-blue-200 rounded-md transition-colors"
+                   download="security_gate_report.jsonl">
+                    ↓ Security Gate
+                </a>
             </div>
         `);
     }
@@ -1754,8 +1802,13 @@
         functionalRenderer.openSection();
         functionalScenarios = [];  // リセット
         functionalState = { total: data.total_scenarios || 0, passed: 0, failed: 0, needsReview: 0, currentScenario: 0, currentTurn: 0, currentTotalTurns: 0 };
-        // ストリーミングアニメーション表示に変更
-        await renderFunctionalSectionStreaming();
+
+        // サーバーサイドで既に表示済みの場合はストリーミングをスキップ
+        const hasServerContent = document.querySelector('#agent-card-accuracy-content .grid');
+        if (!hasServerContent) {
+            // ストリーミングアニメーション表示
+            await renderFunctionalSectionStreaming();
+        }
     });
 
     juryStream.on('functional_scenario_result', async (data) => {
@@ -1962,6 +2015,18 @@
                 </ul>
             </div>
         `, { speed: 8 });
+
+        // 6. Artifactsダウンロードセクション
+        await functionalRenderer.streamLine(`
+            <div class="border-t pt-4">
+                <h4 class="font-semibold mb-2">📁 Artifacts</h4>
+                <a href="/api/submissions/${submissionId}/artifacts/functional"
+                   class="px-3 py-1.5 text-sm font-medium text-green-700 bg-green-100 hover:bg-green-200 rounded-md transition-colors"
+                   download="agent_card_accuracy_report.jsonl">
+                    ↓ Agent Card Accuracy
+                </a>
+            </div>
+        `, { speed: 5 });
     }
 
     function renderFunctionalSectionFull() {
@@ -2034,6 +2099,16 @@
                     <li><strong>Needs Review</strong>: 人手確認が必要なケース</li>
                     <li><strong>Failed</strong>: エージェントの応答が期待と異なるケース</li>
                 </ul>
+            </div>
+
+            <!-- Artifacts Download -->
+            <div class="border-t pt-4">
+                <h4 class="font-semibold mb-2">📁 Artifacts</h4>
+                <a href="/api/submissions/${submissionId}/artifacts/functional"
+                   class="px-3 py-1.5 text-sm font-medium text-green-700 bg-green-100 hover:bg-green-200 rounded-md transition-colors"
+                   download="agent_card_accuracy_report.jsonl">
+                    ↓ Agent Card Accuracy
+                </a>
             </div>
         `);
     }
@@ -2291,8 +2366,11 @@
 
         if (data.category === 'wandb' && data.data) {
             // Dynamically insert W&B section if not already present
+            // Check multiple selectors to prevent duplicate W&B sections
             const existingWandB = document.querySelector('.wandb-report-section');
-            if (!existingWandB) {
+            const existingWandBTitle = document.querySelector('h2');
+            const hasWandBTitle = existingWandBTitle && existingWandBTitle.textContent.includes('Weights & Biases');
+            if (!existingWandB && !hasWandBTitle) {
                 const wandb = data.data;
                 const reviewProgress = document.getElementById('review-progress')?.closest('.p-6');
                 if (reviewProgress) {
@@ -2517,6 +2595,20 @@
     juryStream.on('juror_evaluation', (data) => {
         console.log('[DEBUG] 👨‍⚖️ juror_evaluation event handler called with data:', data);
 
+        // データを保存
+        const unit = getMAGIUnit(data.juror);
+        console.log('[DEBUG] 👨‍⚖️ unit:', unit, 'juror:', data.juror);
+        pendingJurorResults[unit] = data;
+
+        // サーバーサイドで既に表示済みの場合はストリーミングをスキップ
+        const chatContentId = `${unit}-chat-content`;
+        const chatContent = document.getElementById(chatContentId);
+        const existingMessage = chatContent?.querySelector('.magi-chat-message:not(.typing)');
+        if (existingMessage && existingMessage.textContent.trim()) {
+            console.log('[DEBUG] 👨‍⚖️ Skipping streaming - server content already exists for', unit);
+            return;
+        }
+
         // Judge Panelが閉じていたら開く（DOMアクセスのため）
         const judgeDetails = document.getElementById('details-judge');
         if (judgeDetails && !judgeDetails.open) {
@@ -2524,14 +2616,7 @@
             console.log('[DEBUG] 👨‍⚖️ Opened details-judge panel');
         }
 
-        // データを保存
-        const unit = getMAGIUnit(data.juror);
-        console.log('[DEBUG] 👨‍⚖️ unit:', unit, 'juror:', data.juror);
-        pendingJurorResults[unit] = data;
-
         // チャットにリアルタイム表示（Phase1中）
-        const chatContentId = `${unit}-chat-content`;
-        const chatContent = document.getElementById(chatContentId);
         console.log('[DEBUG] 👨‍⚖️ chatContentId:', chatContentId, 'chatContent:', chatContent, 'rationale:', data.rationale ? data.rationale.substring(0, 50) + '...' : 'EMPTY');
         if (chatContent && data.rationale) {
             // プレースホルダーを削除
@@ -2662,6 +2747,14 @@
             return;
         }
         finalJudgmentReceived = true;
+
+        // サーバーサイドで既に表示済みの場合はストリーミングをスキップ
+        const existingFinalJudgeContent = document.getElementById('final-judge-content');
+        const existingFinalMessage = existingFinalJudgeContent?.querySelector('.magi-chat-message:not(.typing)');
+        if (existingFinalMessage && existingFinalMessage.textContent.trim()) {
+            console.log('[DEBUG] ⚖️ Skipping streaming - server content already exists for final judgment');
+            return;
+        }
 
         // Toast notification
         const trustScore = data.trustScore || data.finalScore || 0;
@@ -2810,27 +2903,23 @@
         }
 
         // Update Publish panel in real time for rejected/published transitions
+        // stages.publish.status で判定する
         const publishPanel = document.getElementById('publish-panel');
-        if (publishPanel && data.newState) {
-            if (data.newState === 'rejected') {
+        if (publishPanel && data.stages?.publish) {
+            const publishStatus = data.stages.publish.status;
+            if (publishStatus === 'failed') {
                 publishPanel.innerHTML = `
                     <div class="ml-7 space-y-2 mt-2" id="publish-rejected-block">
                         <p class="text-sm text-red-600 font-semibold">Rejected (auto)</p>
-                        <p class="text-xs text-gray-600">Trust Score: ${data.trustScore ?? '—'}/100</p>
                         <p class="text-xs text-gray-600">Human Review: skipped</p>
                     </div>
                 `;
-            } else if (data.newState === 'published' && data.publishSummary) {
-                const ps = data.publishSummary;
+            } else if (publishStatus === 'completed') {
                 publishPanel.innerHTML = `
                     <div class="ml-7 space-y-2 mt-2">
                         <p class="text-sm text-gray-700">
                             <span class="font-semibold">Status:</span>
-                            <span id="publish-status-value" class="${ps.status === 'published' ? 'text-green-600' : 'text-yellow-600'}">${ps.status}</span>
-                        </p>
-                        ${ps.publishedAt ? `<p class="text-sm text-gray-700" id="publish-at-line"><span class="font-semibold">Published At:</span> ${ps.publishedAt}</p>` : ''}
-                        <p class="text-sm text-gray-700" id="publish-trust-line">
-                            <span class="font-semibold">Trust Score:</span> ${ps.trustScore ?? '—'}/100
+                            <span id="publish-status-value" class="text-green-600">published</span>
                         </p>
                     </div>
                 `;
@@ -2935,10 +3024,120 @@
                 const toolEl = document.querySelector('[data-judge-tool]');
                 const autoEl = document.querySelector('[data-judge-autonomy]');
                 const safetyEl = document.querySelector('[data-judge-safety]');
-                if (taskEl && js.taskCompletion !== undefined) taskEl.textContent = `${js.taskCompletion}/100`;
-                if (toolEl && js.tool !== undefined) toolEl.textContent = `${js.tool}/100`;
-                if (autoEl && js.autonomy !== undefined) autoEl.textContent = `${js.autonomy}/100`;
-                if (safetyEl && js.safety !== undefined) safetyEl.textContent = `${js.safety}/100`;
+                if (taskEl && js.taskCompletion !== undefined) taskEl.textContent = `${js.taskCompletion}/40`;
+                if (toolEl && js.tool !== undefined) toolEl.textContent = `${js.tool}/30`;
+                if (autoEl && js.autonomy !== undefined) autoEl.textContent = `${js.autonomy}/20`;
+                if (safetyEl && js.safety !== undefined) safetyEl.textContent = `${js.safety}/10`;
+
+                // Show detailed scores section when judge summary is received
+                const detailedScoresSection = document.getElementById('magi-detailed-scores');
+                if (detailedScoresSection) {
+                    detailedScoresSection.style.display = '';
+                }
+            }
+
+            // Trust Scoreに基づいてPublishエリア・Human Reviewエリアを即時更新
+            // バックエンドのauto_decision処理を待たずにフロントエンドで表示
+            if (data.scores.trust_score !== undefined) {
+                const trustScore = data.scores.trust_score;
+                // 両方のID形式に対応（評価済み: publish-panel, 評価中: publish-content）
+                const publishPanel = document.getElementById('publish-panel') || document.getElementById('publish-content');
+                const humanReviewContent = document.getElementById('human-review-content');
+                const humanReviewDetails = document.getElementById('details-human-review');
+                const publishDetails = document.getElementById('details-publish');
+                const humanStageEl = document.querySelector('[data-stage="human"]');
+                const publishStageEl = document.querySelector('[data-stage="publish"]');
+
+                console.log(`[DEBUG] Trust Score received: ${trustScore}, publishPanel: ${publishPanel ? 'found' : 'not found'}, humanReviewContent: ${humanReviewContent ? 'found' : 'not found'}`);
+
+                if (trustScore >= 90) {
+                    // auto_approved -> published
+                    if (humanReviewContent) {
+                        humanReviewContent.innerHTML = `
+                            <p class="text-sm text-gray-500">スキップされました（Trust Score ${trustScore} >= 90 で自動承認）</p>
+                        `;
+                    }
+                    if (publishPanel) {
+                        publishPanel.innerHTML = `
+                            <div class="ml-7 space-y-2 mt-2">
+                                <p class="text-sm text-gray-700">
+                                    <span class="font-semibold">Status:</span>
+                                    <span class="text-green-600">published (auto-approved)</span>
+                                </p>
+                                <p class="text-xs text-gray-500">Trust Score ${trustScore} >= 90</p>
+                            </div>
+                        `;
+                    }
+                    // Open both human review and publish details
+                    if (humanReviewDetails) humanReviewDetails.open = true;
+                    if (publishDetails) publishDetails.open = true;
+                    // Update progress bar stages
+                    if (humanStageEl) {
+                        humanStageEl.classList.remove('bg-gray-100', 'border-gray-300', 'bg-yellow-100', 'border-yellow-500', 'animate-pulse');
+                        humanStageEl.classList.add('bg-gray-200', 'border-gray-400', 'opacity-60');
+                    }
+                    if (publishStageEl) {
+                        publishStageEl.classList.remove('bg-gray-100', 'border-gray-300');
+                        publishStageEl.classList.add('bg-green-100', 'border-green-500');
+                    }
+                    console.log(`[DEBUG] ✅ Auto-approved: Trust Score ${trustScore} >= 90`);
+                } else if (trustScore <= 50) {
+                    // auto_rejected
+                    if (humanReviewContent) {
+                        humanReviewContent.innerHTML = `
+                            <p class="text-sm text-gray-500">スキップされました（Trust Score ${trustScore} <= 50 で自動却下）</p>
+                        `;
+                    }
+                    if (publishPanel) {
+                        publishPanel.innerHTML = `
+                            <div class="ml-7 space-y-2 mt-2" id="publish-rejected-block">
+                                <p class="text-sm text-red-600 font-semibold">Rejected (auto)</p>
+                                <p class="text-xs text-gray-600">Human Review: skipped</p>
+                                <p class="text-xs text-gray-500">Trust Score ${trustScore} <= 50</p>
+                            </div>
+                        `;
+                    }
+                    // Open both human review and publish details
+                    if (humanReviewDetails) humanReviewDetails.open = true;
+                    if (publishDetails) publishDetails.open = true;
+                    // Update progress bar stages
+                    if (humanStageEl) {
+                        humanStageEl.classList.remove('bg-gray-100', 'border-gray-300', 'bg-yellow-100', 'border-yellow-500', 'animate-pulse');
+                        humanStageEl.classList.add('bg-gray-200', 'border-gray-400', 'opacity-60');
+                    }
+                    if (publishStageEl) {
+                        publishStageEl.classList.remove('bg-gray-100', 'border-gray-300');
+                        publishStageEl.classList.add('bg-red-100', 'border-red-500');
+                    }
+                    console.log(`[DEBUG] ❌ Auto-rejected: Trust Score ${trustScore} <= 50`);
+                } else {
+                    // requires_human_review (51-89)
+                    if (humanReviewContent) {
+                        humanReviewContent.innerHTML = `
+                            <div class="space-y-2">
+                                <p class="text-sm text-yellow-600 font-semibold">🔍 レビュー中</p>
+                                <p class="text-xs text-gray-600">Trust Score ${trustScore}（51-89）のため、人間によるレビューが必要です。</p>
+                                <p class="text-xs text-gray-500">管理者が内容を確認し、承認または却下を行います。</p>
+                            </div>
+                        `;
+                    }
+                    if (publishPanel) {
+                        publishPanel.innerHTML = `
+                            <div class="ml-7 space-y-2 mt-2">
+                                <p class="text-sm text-yellow-600 font-semibold">Human Reviewの完了待ち</p>
+                                <p class="text-xs text-gray-500">Trust Score ${trustScore} (51-89 requires review)</p>
+                            </div>
+                        `;
+                    }
+                    // Open human review details
+                    if (humanReviewDetails) humanReviewDetails.open = true;
+                    // Update progress bar stages
+                    if (humanStageEl) {
+                        humanStageEl.classList.remove('bg-gray-100', 'border-gray-300');
+                        humanStageEl.classList.add('bg-yellow-100', 'border-yellow-500', 'animate-pulse');
+                    }
+                    console.log(`[DEBUG] ⏳ Requires human review: Trust Score ${trustScore}`);
+                }
             }
 
         }

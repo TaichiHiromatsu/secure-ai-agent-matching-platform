@@ -241,32 +241,39 @@
             </div>
         </div>
 
-        <!-- Detailed Scores (Collapsed by default) -->
-        {% if submission.score_breakdown and submission.score_breakdown.judge_summary %}
-        <details class="magi-details-section mt-6">
+        <!-- Detailed Scores (shown after Jury Judge completes, or dynamically via SSE) -->
+        <details id="magi-detailed-scores" class="magi-details-section mt-6" {% if not (submission.score_breakdown and submission.score_breakdown.judge_summary) %}style="display: none;"{% endif %}>
             <summary class="magi-details-summary">詳細スコア・設定</summary>
             <div class="magi-details-content bg-gray-800 p-4 rounded-lg mt-2">
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                     <div class="bg-blue-900/50 p-3 rounded border border-blue-500/30">
                         <div class="text-xs text-blue-300">Task Completion</div>
-                        <div class="text-2xl font-bold text-blue-400" data-judge-task>{{ submission.score_breakdown.judge_summary.taskCompletion or 0 }}/40</div>
+                        <div class="text-2xl font-bold text-blue-400" data-judge-task>{{ (submission.score_breakdown.judge_summary.taskCompletion or 0) if submission.score_breakdown and submission.score_breakdown.judge_summary else 0 }}/40</div>
                     </div>
                     <div class="bg-green-900/50 p-3 rounded border border-green-500/30">
                         <div class="text-xs text-green-300">Tool Usage</div>
-                        <div class="text-2xl font-bold text-green-400" data-judge-tool>{{ submission.score_breakdown.judge_summary.tool or 0 }}/30</div>
+                        <div class="text-2xl font-bold text-green-400" data-judge-tool>{{ (submission.score_breakdown.judge_summary.tool or 0) if submission.score_breakdown and submission.score_breakdown.judge_summary else 0 }}/30</div>
                     </div>
                     <div class="bg-yellow-900/50 p-3 rounded border border-yellow-500/30">
                         <div class="text-xs text-yellow-300">Autonomy</div>
-                        <div class="text-2xl font-bold text-yellow-400" data-judge-autonomy>{{ submission.score_breakdown.judge_summary.autonomy or 0 }}/20</div>
+                        <div class="text-2xl font-bold text-yellow-400" data-judge-autonomy>{{ (submission.score_breakdown.judge_summary.autonomy or 0) if submission.score_breakdown and submission.score_breakdown.judge_summary else 0 }}/20</div>
                     </div>
                     <div class="bg-red-900/50 p-3 rounded border border-red-500/30">
                         <div class="text-xs text-red-300">Safety</div>
-                        <div class="text-2xl font-bold text-red-400" data-judge-safety>{{ submission.score_breakdown.judge_summary.safety or 0 }}/10</div>
+                        <div class="text-2xl font-bold text-red-400" data-judge-safety>{{ (submission.score_breakdown.judge_summary.safety or 0) if submission.score_breakdown and submission.score_breakdown.judge_summary else 0 }}/10</div>
                     </div>
+                </div>
+                <!-- Artifacts Download -->
+                <div class="border-t border-gray-600 pt-4 mt-4">
+                    <h4 class="text-sm font-semibold mb-2 text-gray-300">Artifacts</h4>
+                    <a href="/api/submissions/{{ submission.id }}/artifacts/judge"
+                       class="px-3 py-1.5 text-sm font-medium text-purple-300 bg-purple-900/50 hover:bg-purple-800/50 border border-purple-500/30 rounded-md transition-colors"
+                       download="jury_judge_report.jsonl">
+                        ↓ Jury Judge
+                    </a>
                 </div>
             </div>
         </details>
-        {% endif %}
     </div>
 </details>
 

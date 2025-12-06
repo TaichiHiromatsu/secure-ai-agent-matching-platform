@@ -33,4 +33,12 @@
       "tags": ["sales", "contract", "legal", "document"]
     }
   ]
+  ,
+  "useCases": [
+    "customer search",
+    "proposal drafting",
+    "quote creation",
+    "contract drafting",
+    "lead qualification"
+  ]
 }

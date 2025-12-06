@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from typing import List
 from .. import models, schemas
@@ -588,7 +589,7 @@ def process_submission(submission_id: str):
                     sse_callback=sse_callback
                 )
                 wandb_logger.log_stage_summary("security", security_summary)
-                wandb_logger.save_artifact("security", output_dir / "security" / "security_report.jsonl", name="security-report")
+                wandb_logger.save_artifact("security", output_dir / "security" / "security_gate_report.jsonl", name="security-report")
             except Exception as e:
                 security_summary = {"error": str(e), "status": "failed"}
                 print(f"Security Gate failed for submission {submission_id}: {e}")
@@ -625,12 +626,12 @@ def process_submission(submission_id: str):
         failed_total = errors
 
         # Load security report for detailed scenario information
-        security_report_path = output_dir / "security" / "security_report.jsonl"
+        security_gate_report_path = output_dir / "security" / "security_gate_report.jsonl"
         security_scenarios = []
         if security_summary:
             try:
-                if security_report_path.exists():
-                    with open(security_report_path, "r") as f:
+                if security_gate_report_path.exists():
+                    with open(security_gate_report_path, "r") as f:
                         for line in f:
                             line = line.strip()
                             if line:
@@ -656,7 +657,7 @@ def process_submission(submission_id: str):
             "scenarios": security_scenarios,
             "artifacts": {
                 "prompts": security_summary.get("promptsArtifact") if security_summary else None,
-                "report": str(output_dir / "security" / "security_report.jsonl"),
+                "report": str(output_dir / "security" / "security_gate_report.jsonl"),
                 "summary": str(output_dir / "security" / "security_summary.json"),
             }
         }
@@ -750,7 +751,7 @@ def process_submission(submission_id: str):
             )
 
             wandb_logger.log_stage_summary("agent_card_accuracy", functional_summary)
-            wandb_logger.save_artifact("agent_card_accuracy", output_dir / "functional" / "functional_report.jsonl", name="agent-card-accuracy-report")
+            wandb_logger.save_artifact("agent_card_accuracy", output_dir / "functional" / "agent_card_accuracy_report.jsonl", name="agent-card-accuracy-report")
         else:
             functional_summary = None
             current_breakdown = dict(submission.score_breakdown)
@@ -805,12 +806,12 @@ def process_submission(submission_id: str):
             total_scenarios = passed_scenarios = needs_review_scenarios = failed_scenarios = 0
             errors_count = 0
 
-        functional_report_path = output_dir / "functional" / "functional_report.jsonl"
+        agent_card_accuracy_report_path = output_dir / "functional" / "agent_card_accuracy_report.jsonl"
         functional_scenarios = []
         if functional_summary:
             try:
-                if functional_report_path.exists():
-                    with open(functional_report_path, "r") as f:
+                if agent_card_accuracy_report_path.exists():
+                    with open(agent_card_accuracy_report_path, "r") as f:
                         for line in f:
                             line = line.strip()
                             if line:
@@ -848,7 +849,7 @@ def process_submission(submission_id: str):
 
             # Artifacts
             "artifacts": {
-                "report": str(output_dir / "functional" / "functional_report.jsonl"),
+                "report": str(output_dir / "functional" / "agent_card_accuracy_report.jsonl"),
                 "summary": str(output_dir / "functional" / "functional_summary.json"),
                 "prompts": fs.get("promptsArtifact"),
             }
@@ -960,22 +961,19 @@ def process_submission(submission_id: str):
                 agent_card_path=agent_card_path,
                 output_dir=output_dir / "judge",
                 dry_run=False,
-                endpoint_url=endpoint_url,
-                endpoint_token=None,
-                max_questions=5,
                 security_gate_results=security_gate_results,
                 agent_card_accuracy=agent_card_accuracy,
                 sse_callback=sse_callback
             )
 
             wandb_logger.log_stage_summary("judge", judge_summary)
-            wandb_logger.save_artifact("judge", output_dir / "judge" / "judge_report.jsonl", name="judge-report")
+            wandb_logger.save_artifact("judge", output_dir / "judge" / "jury_judge_report.jsonl", name="judge-report")
 
-            judge_report_path = output_dir / "judge" / "judge_report.jsonl"
+            jury_judge_report_path = output_dir / "judge" / "jury_judge_report.jsonl"
             judge_scenarios = []
             try:
-                if judge_report_path.exists():
-                    with open(judge_report_path, "r") as f:
+                if jury_judge_report_path.exists():
+                    with open(jury_judge_report_path, "r") as f:
                         for line in f:
                             line = line.strip()
                             if line:
@@ -999,7 +997,7 @@ def process_submission(submission_id: str):
                 "llmJudge": judge_summary.get("llmJudge", {}),
                 "scenarios": judge_scenarios,
                 "artifacts": {
-                    "report": str(output_dir / "judge" / "judge_report.jsonl"),
+                    "report": str(output_dir / "judge" / "jury_judge_report.jsonl"),
                     "summary": str(output_dir / "judge" / "judge_summary.json"),
                 }
             }
@@ -1278,3 +1276,42 @@ def read_submission(submission_id: str, db: Session = Depends(get_db)):
     if submission is None:
         raise HTTPException(status_code=404, detail="Submission not found")
     return submission
+
+
+@router.get("/{submission_id}/artifacts/{artifact_type}")
+def download_artifact(submission_id: str, artifact_type: str, db: Session = Depends(get_db)):
+    """
+    Download artifact file for a submission.
+
+    artifact_type: security, functional, judge
+    """
+    # Verify submission exists
+    submission = db.query(models.Submission).filter(models.Submission.id == submission_id).first()
+    if submission is None:
+        raise HTTPException(status_code=404, detail="Submission not found")
+
+    # Map artifact type to file path (folder, filename)
+    artifact_map = {
+        "security": ("security", "security_gate_report.jsonl"),
+        "functional": ("functional", "agent_card_accuracy_report.jsonl"),
+        "judge": ("judge", "jury_judge_report.jsonl"),
+    }
+
+    if artifact_type not in artifact_map:
+        raise HTTPException(status_code=400, detail=f"Invalid artifact type: {artifact_type}. Valid types: security, functional, judge")
+
+    folder, filename = artifact_map[artifact_type]
+
+    # Build file path
+    app_base_dir = os.getenv("APP_BASE_DIR", "/app")
+    base_dir = Path(app_base_dir) if app_base_dir else Path("/app")
+    file_path = base_dir / "data" / "artifacts" / submission_id / folder / filename
+
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail=f"Artifact file not found: {artifact_type}")
+
+    return FileResponse(
+        path=str(file_path),
+        filename=f"{submission_id[:8]}_{filename}",
+        media_type="application/x-ndjson"
+    )

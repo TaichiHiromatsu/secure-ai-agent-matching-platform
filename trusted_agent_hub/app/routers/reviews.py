@@ -85,6 +85,13 @@ def submit_review_decision(
             "message": "Human review rejected",
             "warnings": []
         }
+        # Mark publish stage as failed due to manual rejection
+        current_breakdown["stages"]["publish"] = {
+            "status": "failed",
+            "attempts": 1,
+            "message": "Rejected by human reviewer",
+            "warnings": []
+        }
         submission.score_breakdown = current_breakdown
 
     # Log the decision (simplified logic)

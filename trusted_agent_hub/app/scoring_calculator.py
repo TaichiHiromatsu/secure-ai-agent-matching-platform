@@ -62,15 +62,16 @@ def determine_auto_decision(
     trust_score: int,
     judge_verdict: str,
 ) -> str:
+    """
+    Trust Score のみで自動判定を行う。
+    - 90以上: auto_approved
+    - 50以下: auto_rejected
+    - 51-89: requires_human_review
+    judge_verdict は参考値として記録されるが、自動判定には使用しない。
+    """
     auto_approve = int(os.getenv("AUTO_APPROVE_THRESHOLD", "90"))
     auto_reject = int(os.getenv("AUTO_REJECT_THRESHOLD", "50"))
 
-    # Safety guard: if thresholds are inverted, prefer the stricter (higher) value for approval
-    # and always give precedence to explicit judge rejection.
-    if judge_verdict == "reject":
-        return "auto_rejected"
-
-    # Prefer auto-approve when both thresholds overlap (e.g., AUTO_REJECT_THRESHOLD=100)
     if trust_score >= auto_approve:
         return "auto_approved"
 

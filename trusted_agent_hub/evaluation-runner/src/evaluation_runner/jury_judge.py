@@ -8,12 +8,8 @@ from __future__ import annotations
 
 import asyncio
 import json
-import time
-import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-from datetime import datetime
-from urllib.parse import urlparse, urlunparse
 import os
 
 # W&B Weave integration
@@ -37,9 +33,7 @@ except ImportError:
 try:
     from jury_judge_worker.multi_model_judge import MultiModelJudge
     from jury_judge_worker.question_generator import QuestionSpec
-    from jury_judge_worker.question_generator import generate_questions
     from jury_judge_worker.execution_agent import ExecutionResult
-    from jury_judge_worker.execution_agent import _detect_flags, _build_response_snippet
     from jury_judge_worker.jury_judge_collaborative import CollaborativeJuryJudge
     HAS_JURY_JUDGE_WORKER = True
 except ImportError:
@@ -57,9 +51,6 @@ def run_judge_panel(
     agent_card_path: Path,
     output_dir: Path,
     dry_run: bool = False,
-    endpoint_url: Optional[str] = None,
-    endpoint_token: Optional[str] = None,
-    max_questions: int = 5,
     enable_openai: bool = True,
     enable_anthropic: bool = True,
     enable_google: bool = True,
@@ -68,19 +59,22 @@ def run_judge_panel(
     sse_callback = None,
 ) -> Dict[str, Any]:
     """
-    Run Multi-Model Judge Panel evaluation - W&B Weaveでトレース
+    Run Collaborative Jury Judge evaluation - W&B Weaveでトレース
+
+    Security GateとAgent Card Accuracyの結果を基にCollaborative Jury Judgeで最終評価を行う。
 
     Args:
         agent_id: Agent identifier
         revision: Agent revision/version
-        functional_report_path: Path to functional_report.jsonl
+        agent_card_path: Path to agent card JSON file
         output_dir: Directory to save judge results
         dry_run: If True, skip actual LLM calls
-        endpoint_url: Agent endpoint URL (for context)
-        endpoint_token: Agent endpoint token (for context)
         enable_openai: Enable GPT-4o
         enable_anthropic: Enable Claude 3.5 Sonnet
         enable_google: Enable Gemini 2.0 Flash
+        security_gate_results: Security Gate evaluation results (enhanced summary)
+        agent_card_accuracy: Agent Card Accuracy evaluation results (enhanced summary)
+        sse_callback: SSE callback for real-time updates
 
     Returns:
         Judge panel summary with AISI scores and verdict
@@ -100,63 +94,14 @@ def run_judge_panel(
         raise RuntimeError("jury-judge-worker is required for Judge Panel but is not available")
     if not agent_card_path.exists():
         raise FileNotFoundError(f"Agent card not found: {agent_card_path}")
-    if not endpoint_url:
-        raise ValueError("endpoint_url is required for Judge Panel execution")
 
-    # 1) Generate questions from Agent Card
-    questions = generate_questions(agent_card_path, max_questions=max_questions)
-
-    # 2) Execute questions against agent endpoint (A2A)
-    executions = _execute_questions_a2a(
-        questions=questions,
-        endpoint_url=endpoint_url,
-        endpoint_token=endpoint_token,
-        timeout=20.0,
-        dry_run=dry_run,
-    )
-
-    # 3) Save judge input (execution results) for transparency
-    judge_input_path = output_dir / "judge_input.jsonl"
-    output_dir.mkdir(parents=True, exist_ok=True)
-    with judge_input_path.open("w", encoding="utf-8") as f:
-        for q, ex in zip(questions, executions):
-            record = {
-                "scenarioId": q.question_id,
-                "use_case": getattr(q, "use_case", None),
-                "prompt": q.prompt,
-                "expected": q.expected_behaviour,
-                "source": q.source,
-                "response": ex.response,
-                "status": ex.status,
-                "error": ex.error,
-                "latencyMs": ex.latency_ms,
-                "flags": ex.flags,
-            }
-            f.write(json.dumps(record, ensure_ascii=False) + "\n")
-
-    # 4) Build scenarios list for panel judge
-    scenarios = []
-    for q, ex in zip(questions, executions):
-        scenarios.append(
-            {
-                "scenarioId": q.question_id,
-                "use_case": getattr(q, "use_case", None),
-                "prompt": q.prompt,
-                "expected": q.expected_behaviour,
-                "response": ex.response,
-                "error": ex.error,
-                "latencyMs": ex.latency_ms,
-                "status": ex.status,
-                "source": q.source,
-                "flags": ex.flags,
-            }
-        )
-
-    # Use Multi-Model Judge Panel if available
+    # Collaborative Jury Judgeを直接実行
+    # Security GateとAgent Card Accuracyの結果を使用して評価
+    # （Agent Cardから質問を生成してエンドポイントに実行する処理は不要 - 各ステージの結果を直接使用）
     if HAS_JURY_JUDGE_WORKER and not dry_run:
         def _eval_once():
             return _run_stage_multi_model_judge_panel(
-                scenarios,
+                [],  # scenarios は使用しない（Security Gate/Agent Card Accuracyの結果を使用）
                 output_dir,
                 agent_id,
                 revision,
@@ -170,151 +115,14 @@ def run_judge_panel(
 
         params = MCTSParams()
         return orchestrate_mcts(
-            scenarios=scenarios,
+            scenarios=[],  # scenarios は使用しない
             eval_fn=_eval_once,
             output_dir=output_dir,
             params=params,
         )
     else:
         # Fallback to mock implementation
-        return _generate_mock_judge_results(scenarios, output_dir, agent_id, revision)
-
-
-def _execute_questions_a2a(
-    questions,
-    *,
-    endpoint_url: Optional[str],
-    endpoint_token: Optional[str],
-    timeout: float,
-    dry_run: bool,
-):
-    """Execute prompts using Google ADK RemoteA2aAgent (sync)."""
-    results: List[ExecutionResult] = []
-    if dry_run:
-        for q in questions:
-            results.append(
-                ExecutionResult(
-                    question_id=q.question_id,
-                    prompt=q.prompt,
-                    response=f"(dry-run) {q.prompt}",
-                    latency_ms=0.0,
-                    relay_endpoint=endpoint_url,
-                    status="dry_run",
-                )
-            )
-        return results
-
-    try:
-        import httpx
-        from google.adk.agents.remote_a2a_agent import RemoteA2aAgent
-        from google.adk import Runner
-        from google.adk.sessions.in_memory_session_service import InMemorySessionService
-        from google.genai import types
-    except ImportError as e:
-        raise RuntimeError(f"A2A dependencies missing: {e}")
-
-    parsed = urlparse(endpoint_url)
-    service_name = endpoint_url.rstrip("/").split("/")[-1]
-    port = parsed.port or (443 if parsed.scheme == "https" else 80)
-    netloc = f"{service_name}:{port}" if parsed.hostname == "0.0.0.0" else parsed.netloc
-    normalized_endpoint = urlunparse((parsed.scheme, netloc, parsed.path, parsed.params, parsed.query, parsed.fragment))
-
-    # A2A Protocol v0.3.16 spec: agent cards are at /.well-known/agent-card.json
-    card_url = f"{normalized_endpoint.rstrip('/')}/.well-known/agent-card.json"
-    try:
-        card_resp = httpx.get(card_url, timeout=10.0)
-        card_resp.raise_for_status()
-        agent_card_data = card_resp.json()
-        print(f"[JudgePanel] fetched agent card: {card_url}")
-    except Exception as exc:
-        print(f"[JudgePanel] Failed to fetch agent card: {exc}")
-        for q in questions:
-            results.append(ExecutionResult(
-                question_id=q.question_id,
-                prompt=q.prompt,
-                response=None,
-                latency_ms=0.0,
-                relay_endpoint=normalized_endpoint,
-                status="error",
-                error=str(exc),
-            ))
-        return results
-
-    if "url" in agent_card_data and "0.0.0.0" in agent_card_data["url"]:
-        agent_card_data["url"] = agent_card_data["url"].replace("0.0.0.0", urlparse(card_url).hostname)
-
-    # Write temp file and pass path to RemoteA2aAgent
-    import tempfile, json as _json
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
-        _json.dump(agent_card_data, f)
-        agent_card_path = f.name
-    remote_agent = RemoteA2aAgent(
-        name=service_name,
-        agent_card=agent_card_path,
-        timeout=timeout
-    )
-    session_service = InMemorySessionService()
-    runner = Runner(agent=remote_agent, app_name="judge_panel", session_service=session_service)
-
-    for q in questions:
-        start = time.perf_counter()
-        session_id = f"judge-{uuid.uuid4().hex[:8]}"
-        try:
-            session_service.create_session_sync(
-                app_name="judge_panel",
-                user_id="judge-panel",
-                session_id=session_id,
-                state={}
-            )
-            resp_parts: List[str] = []
-            new_message = types.Content(parts=[types.Part(text=q.prompt)], role="user")
-            for event in runner.run(user_id="judge-panel", session_id=session_id, new_message=new_message):
-                if hasattr(event, "content") and event.content:
-                    if isinstance(event.content, str):
-                        resp_parts.append(event.content)
-                    elif hasattr(event.content, "parts"):
-                        for part in event.content.parts:
-                            if hasattr(part, "text") and part.text:
-                                resp_parts.append(part.text)
-                elif hasattr(event, "parts"):
-                    for part in event.parts:
-                        if hasattr(part, "text") and part.text:
-                            resp_parts.append(part.text)
-
-            response_text = "\n".join(resp_parts).strip()
-            latency_ms = (time.perf_counter() - start) * 1000.0
-            status = "ok" if response_text else "error"
-            error = None if response_text else "empty response"
-            if status != "ok":
-                print(f"[JudgePanel] Empty/invalid response for {q.question_id} from {normalized_endpoint}")
-            results.append(
-                ExecutionResult(
-                    question_id=q.question_id,
-                    prompt=q.prompt,
-                    response=response_text,
-                    latency_ms=latency_ms,
-                    relay_endpoint=normalized_endpoint,
-                    status=status,
-                    error=error,
-                    flags=_detect_flags(response_text),
-                    response_snippet=_build_response_snippet(response_text),
-                )
-            )
-        except Exception as exc:
-            latency_ms = (time.perf_counter() - start) * 1000.0
-            print(f"[JudgePanel] A2A invoke failed for {q.question_id}: {exc}")
-            results.append(
-                ExecutionResult(
-                    question_id=q.question_id,
-                    prompt=q.prompt,
-                    response=None,
-                    latency_ms=latency_ms,
-                    relay_endpoint=normalized_endpoint,
-                    status="error",
-                    error=str(exc),
-                )
-            )
-    return results
+        return _generate_mock_judge_results([], output_dir, agent_id, revision)
 
 
 @weave.op()
@@ -574,7 +382,7 @@ def _run_collaborative_jury_evaluation(
     with summary_path.open("w", encoding="utf-8") as f:
         json.dump(summary, f, indent=2, ensure_ascii=False)
 
-    report_path = output_dir / "judge_report.jsonl"
+    report_path = output_dir / "jury_judge_report.jsonl"
     with report_path.open("w", encoding="utf-8") as f:
         for report in detailed_reports:
             f.write(json.dumps(report, ensure_ascii=False) + "\n")
@@ -806,7 +614,7 @@ def _run_stage_multi_model_judge_panel(
     with summary_path.open("w", encoding="utf-8") as f:
         json.dump(summary, f, indent=2, ensure_ascii=False)
 
-    report_path = output_dir / "judge_report.jsonl"
+    report_path = output_dir / "jury_judge_report.jsonl"
     with report_path.open("w", encoding="utf-8") as f:
         for report in detailed_reports:
             f.write(json.dumps(report, ensure_ascii=False) + "\n")
@@ -896,7 +704,7 @@ def _generate_mock_judge_results(
             "rationale": f"[DRY RUN] Based on functional test verdict: {evaluation.get('verdict')}"
         })
 
-    report_path = output_dir / "judge_report.jsonl"
+    report_path = output_dir / "jury_judge_report.jsonl"
     with open(report_path, "w") as f:
         for entry in report:
             f.write(json.dumps(entry) + "\n")

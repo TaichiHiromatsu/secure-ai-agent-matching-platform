@@ -72,10 +72,10 @@ def test_cli_generates_artifacts(tmp_path: Path) -> None:
     assert (artifacts_dir / "response_samples.jsonl").exists()
     assert (artifacts_dir / "policy_score.json").exists()
     assert (artifacts_dir / "fairness_probe.json").exists()
-    security_report = (artifacts_dir / "security" / "security_report.jsonl").read_text(encoding="utf-8")
+    security_report = (artifacts_dir / "security" / "security_gate_report.jsonl").read_text(encoding="utf-8")
     assert security_report.count("\n") == 1 or security_report.strip() != ""
-    functional_report = (artifacts_dir / "functional" / "functional_report.jsonl").read_text(encoding="utf-8")
-    assert "scenarioId" in functional_report
+    agent_card_accuracy_report = (artifacts_dir / "functional" / "agent_card_accuracy_report.jsonl").read_text(encoding="utf-8")
+    assert "scenarioId" in agent_card_accuracy_report
 
     metadata_text = (artifacts_dir / "metadata.json").read_text(encoding="utf-8")
     assert "demo" in metadata_text

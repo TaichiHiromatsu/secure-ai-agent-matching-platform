@@ -1037,7 +1037,7 @@ def run_functional_accuracy(
     agent_evaluator = AgentResponseEvaluator()
     logger.info(f"Capability Validation評価開始 (model: {agent_evaluator.model_name})")
 
-  report_path = output_dir / "functional_report.jsonl"
+  report_path = output_dir / "agent_card_accuracy_report.jsonl"
   prompts_path = output_dir / "functional_scenarios.jsonl"
   passes = 0
   needs_review = 0

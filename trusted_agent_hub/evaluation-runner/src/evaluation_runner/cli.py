@@ -255,7 +255,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         metadata["securityGate"] = security_summary
         wandb_logger.log_stage_summary("security", security_summary)
-        wandb_logger.save_artifact("security", security_output / "security_report.jsonl", name="security-report")
+        wandb_logger.save_artifact("security", security_output / "security_gate_report.jsonl", name="security-report")
         wandb_logger.save_artifact("security", security_output / "security_prompts.jsonl", name="security-prompts")
 
     functional_summary = None
@@ -277,7 +277,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         metadata["functionalAccuracy"] = functional_summary
         wandb_logger.log_stage_summary("functional", functional_summary)
-        wandb_logger.save_artifact("functional", functional_output / "functional_report.jsonl", name="functional-report")
+        wandb_logger.save_artifact("functional", functional_output / "agent_card_accuracy_report.jsonl", name="functional-report")
 
     metadata["wandbLogger"] = wandb_logger.export_metadata()
     (output_dir / "metadata.json").write_text(json.dumps(metadata, ensure_ascii=False, indent=2))
