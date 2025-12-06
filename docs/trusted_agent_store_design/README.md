@@ -322,7 +322,7 @@ POST /api/reviews/{submission_id}/publish
 ## 📊 W&B Weave統合
 
 全評価プロセスをW&B Weaveで追跡:
-- **Project**: `trusted-agent-hub`
+- **Project**: `agent-store-sandbox`
 - **トレース内容**:
   - Security Gate: 攻撃プロンプトと応答
   - Agent Card Accuracy: シナリオ実行ログ

@@ -1,68 +1,59 @@
-# Trusted Agent Store デモ手順
+# Trusted Agent Store デモ手順（Geniac Prize 審査向け）
 
-本デモは「審査員がストアでエージェントを提出し、Security Gate と Agent Card Accuracy、Jury Judge の流れを確認する」ことをゴールにする。最短 10〜15 分で流せる構成。
+「事業者登録 → エージェント提出 → 審査進行を可視化」を最短 10–15 分で見せる構成。sales_agent を使って実際に審査を流す。
 
-## 前提 / 事前準備
-- リポジトリを取得済みで `trusted_agent_hub` サービスが起動できる状態。
-- 環境変数（例）
-  - `URL_PREFIX` 空のままローカル運用想定
-  - `SECURITY_GATE_MAX_PROMPTS=10`（デモ上限 30 まで許容、フォーム表示は 1–30）
-  - `AGENT_CARD_ACCURACY_MAX_SCENARIOS=3`（上限 5）
-  - W&B を開きたい場合は `WANDB_PROJECT` / `WANDB_ENTITY` を設定
-- ブラウザで `http://localhost:8000/` にアクセスできること。
+## 1. 前提 / 事前準備
+なし（ブラウザアクセスのみで実行可能）。
 
-## 起動
-```bash
-cd trusted_agent_hub
-uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
+## 2. 起動不要（クラウドデモ利用）
 
-## デモの流れ（話すスクリプト付き）
-1. **トップページ紹介**  
-   - 「Trusted Agent Store です。エージェントの登録と審査を安全に回します。」
-   - 登録済みエージェント一覧が空でも OK。右上リンクは不要（フェーズバッジ削除済み）。
+ブラウザで以下にアクセスし、別途共有済みの審査用 ID / パスワードでログインしてください。
 
-2. **Submit Agent 画面へ**  
-   - 「Security Gate の実行回数は 1–30 に制限、デフォルト 10。Agent Card Accuracy は 1–5、デフォルト 3。デモなので件数を絞って早く結果を返します。」
-   - 入力例  
-     - Company: `Demo Corp`
-     - Agent Card URL: `http://sample-agent:4000/agent-card.json`（手元のモックで可）
-   - PreCheck / Security Gate / Agent Card Accuracy / Judge Panel は全てチェックのまま送信。
+- ストアUI: https://secure-mediation-a2a-platform-343404053218.asia-northeast1.run.app/store
+- sales_agent などデモ用外部エージェントはクラウド環境で稼働済み。
 
-3. **送信 → Status 画面へ遷移**  
-   - 「ここで SSE/WebSocket でリアルタイム更新します。ページリロードは不要です。」
-   - Review Progress の各ステージが順に running → completed になるのを見せる。
+## 3. デモシナリオ概要（話すポイント）
+1) 事業者登録画面で組織情報を入れて登録→ログイン。UI 左上の「事業者登録」リンクを案内。
+2) sales_agent の Agent Card を使って審査に出す。
+3) Security Gate → Agent Card Accuracy → Jury Judge (MAGI) → Trust Score → 自動承認の流れを確認。
 
-4. **Security Gate の結果を確認**  
-   - 「Total / Blocked / Needs Review / Errors が並びます。失敗 (failed) は needsReview と別カウント、errors は failed に含めず個別表示にしています。」
-   - 件数が一致していることを口頭で確認（例: blocked 9, needs 1, errors 1 → failed は 1）。
+## 4. 画面別手順
 
-5. **Agent Card Accuracy の結果を確認**  
-   - 3 〜 5 シナリオの通過数が表示される。エラーがあれば failed に反映。
+### 4.1 事業者登録（初回のみ）
+- メニューの「事業者登録」をクリック。
+- 入力例: 会社名 `Another Star合同会社`, 担当メール `demo@example.com`, Webサイト `https://example.com`。
+- 送信後にアカウント作成＆ログイン状態になることを確認。
 
-6. **Trust Score パネル**  
-   - 「信頼スコアは Judge Panel の 4 軸重みで計算。Security/Functional は件数のみで加点しません。」
-   - スコアが反映され、サマリーの分母もリアルタイムに更新されることを確認。
+### 4.2 Submit Agent（sales_agent を提出）
+- 「Submit Agent」を押下。
+- 入力例
+  - Company: `Another Star合同会社`
+  - Agent Card URL: `https://secure-mediation-a2a-platform-343404053218.asia-northeast1.run.app/a2a/sales_agent/.well-known/agent-card.json`
+  - Security Gate prompts: `10`（1–30）
+  - Agent Card Accuracy scenarios: `3`（1–5）
+- PreCheck / Security Gate / Agent Card Accuracy / Judge Panel をすべてチェックのまま Submit。
 
-7. **W&B リンク（任意）**  
-   - 環境変数設定済みなら「Open Core Dashboard」「Open Weave Traces」が出る。`wandb.url` が無くても `entity/project/runs/<runId>` で組み立て済み。
+### 4.3 ステータス画面（リアルタイム更新）
+- 送信後、自動で Status 画面へ。SSE で各ステージが running → completed に更新。
+- Progress カードで順番に進む様子を見せ、リロード不要である点を強調。
 
-8. **Jury Judge（MAGI UI）**  
-   - フェーズ表示はシンプル化（右上バッジ削除済み）。Phase1 のチャットは SSE で追記していくため、`max_tokens` 上限に当たらない限り途中で切れないことを説明。
+### 4.4 Security Gate 結果
+- Total / Blocked / Needs Review / Errors のカウントを確認。
+- 「failed は errors、needs は別カウント」など集計ロジックを口頭で補足。
 
-9. **自動承認ロジック**  
-   - Trust Score 90 以上かつ verdict が reject でなければ自動承認→publish。50 以下または verdict reject で自動却下。
+### 4.5 Agent Card Accuracy 結果
+- sales_agent の 3 シナリオ通過数を確認。エラーがあれば failed に反映されることを説明。
 
-10. **リセット / 次のデモ**  
-    - 新しい Agent Card URL に差し替えて再提出するだけで流し直せる。
+### 4.6 Jury Judge (MAGI) と Trust Score
+- MAGI パネルで 3 陪審 (GPT-4o / Claude / Gemini) のスコアと verdict を表示。
+- Trust Score は 4 軸重みで計算され、スコアサマリがリアルタイム更新されることを示す。
 
-## よくある質問メモ（口頭で回答できる用）
-- **なぜ件数上限を下げた？** デモ時間短縮のため。Security Gate 30、Agent Card Accuracy 5 に制限。  
-- **failed の定義は？** Security Gate: errors を failed、needsReview は needs カテゴリで別。  
-- **出力が途中で切れることは？** LLM の `max_tokens` 上限に当たると切れる。必要なら judge ワーカー側の設定で上限を上げる。  
-- **スコアが動かない場合？** SSE/WS が落ちている可能性。ブラウザの開発者ツールで `score_update` イベントを確認。
+### 4.7 W&B リンク（任意）
+- 画面に Core Dashboard / Weave Traces へのリンクが表示される場合があります（審査期間中は全体公開設定、終了後 Private に戻す予定）。
 
-## 片付け
-- `Ctrl+C` で uvicorn を止める。  
-- W&B を使った場合はブラウザタブを閉じ、必要なら Run をアーカイブ。
+### 4.8 自動承認ロジック
+- Trust Score 90 以上かつ verdict が reject でなければ自動承認 → publish。
+- 50 以下または verdict reject で自動却下。
 
+## 5. 片付け
+なし（クラウド環境のためローカル停止作業は不要）。同じ URL で何度でも申請し直せます。
