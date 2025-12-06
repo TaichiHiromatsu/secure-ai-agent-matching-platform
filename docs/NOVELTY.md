@@ -17,7 +17,7 @@
 
 ### 1.2 6段階評価パイプライン
 
-**新規性**: 既存のエージェントストアは審査プロセスが**ブラックボックス**であるのに対し、本システムは[UK AI Safety Institute (AISI) Inspect Evals](https://www.aisi.gov.uk/blog/inspect-evals)に基づく**公開ベンチマーク**で評価し、W&B Weaveで全評価ログを可視化。
+**新規性**: 既存のエージェントストアは審査プロセスが**ブラックボックス**であるのに対し、本システムは[Japan AISI（AIセーフティ・インスティテュート）の評価環境](https://github.com/Japan-AISI/aisev)に基づく**公開ベンチマーク**で評価し、W&B Weaveで全評価ログを可視化。公開と透明性の詳細は `docs/NOVELTY_PUBLICATION.md` を参照。
 
 | 段階 | 評価内容 |
 |------|----------|
@@ -62,6 +62,7 @@
 - 既存研究の多くは**単一エージェントシステム**を対象としており、マルチエージェント環境でのセキュリティは未成熟
 - [Prompt Infection: LLM-to-LLM Prompt Injection within Multi-Agent Systems](https://arxiv.org/abs/2410.07283) (2024) では、マルチエージェント間で悪意あるプロンプトが**ウイルスのように伝播**する脅威が指摘されている
 - 本システムは**異常検知サブエージェント**と**セキュリティジャッジ**の2層構造でこれに対処
+- CourtGuard (Wu & Maslowski, 2025年10月, [arXiv:2510.19844](https://arxiv.org/abs/2510.19844)) は「検察官・弁護人・裁判官」3役をLLMで構成する合議型防御を提案し、単一判定器の偏りを低減する一方で一部ケースで検出力が落ちることを報告。本システムはリアルタイム監視＋ストア側スコア反映の閉ループでその弱点を補完する。
 
 ### 2.2 プラン逸脱検出（Plan Deviation Detection）
 
@@ -131,7 +132,7 @@
 - Microsoft Agent StoreのA2A対応はまだPublic Preview段階
 
 **本システムの差別化**
-- [UK AISI Inspect Evals](https://www.aisi.gov.uk/blog/inspect-evals)に基づく**公開ベンチマーク**で6段階評価、W&B Weaveで全評価ログを可視化
+- [Japan AISI評価環境](https://github.com/Japan-AISI/aisev)に基づく**公開ベンチマーク**で6段階評価、W&B Weaveで全評価ログを可視化
 - [Google A2A Protocol](https://developers.googleblog.com/en/a2a-a-new-era-of-agent-interoperability/)（2025年4月発表）に**完全対応**した唯一のエージェントストア
 - [LLMs-as-Judges](https://arxiv.org/abs/2412.05579)の研究を発展させ、**3人の陪審員による並列ラウンド議論**と**Final Judge（Gemini 2.5 Pro）による最終合議**を実装
 
@@ -172,12 +173,13 @@
 - [Prompt Infection in Multi-Agent Systems (arXiv:2410.07283)](https://arxiv.org/abs/2410.07283)
 - [Design Patterns for Securing LLM Agents (arXiv:2506.08837)](https://arxiv.org/abs/2506.08837)
 - [OWASP LLM Top 10 2025](https://genai.owasp.org/llmrisk/llm01-prompt-injection/)
+- [CourtGuard: Adversarial Court for LLM Safety (arXiv:2510.19844)](https://arxiv.org/abs/2510.19844)
 
 ### LLM-as-a-Judge関連
 - [LLMs-as-Judges: A Comprehensive Survey (arXiv:2412.05579)](https://arxiv.org/abs/2412.05579)
 
 ### AI安全性評価関連
-- [UK AISI Inspect Evals](https://www.aisi.gov.uk/blog/inspect-evals)
+- [Japan AISI評価環境（AIセーフティ・インスティテュート）](https://github.com/Japan-AISI/aisev)
 
 ### 信頼スコア・エージェント経済関連
 - [WEF: Trust in AI Agent Economy](https://www.weforum.org/stories/2025/07/ai-agent-economy-trust/)
