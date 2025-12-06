@@ -119,8 +119,9 @@ def generate_scenarios(card: Dict[str, Any], *, agent_id: str, revision: str, ma
   Generate evaluation scenarios from agent card.
 
   シナリオ生成の優先順位:
-  1. skills配列から生成（各skillのdescriptionを使用）
-  2. max_scenariosに達していなければ、descriptionから追加シナリオを生成
+  1. useCases配列から生成（A2A Protocol標準、具体的な利用シナリオ）
+  2. skills配列から生成（Google ADKが出力、機能ベースのシナリオ）
+  3. max_scenariosに達していなければ、descriptionからLLM生成
 
   Args:
     card: Agent card dictionary (A2A Protocol or legacy format)
@@ -135,15 +136,47 @@ def generate_scenarios(card: Dict[str, Any], *, agent_id: str, revision: str, ma
   translation = select_translation(card)
   locale = translation.get("locale", card.get("defaultLocale", "ja-JP"))
 
-  # Extract skills with descriptions (A2A Protocol preferred)
+  # Extract data from agent card
+  use_cases = card.get("useCases", [])
   skills = card.get("skills", [])
   agent_description = card.get("description", "")
   agent_name = card.get("name", "Agent")
 
   scenarios: List[Scenario] = []
 
-  # Step 1: Generate scenarios from skills
-  if skills:
+  # Step 1: Generate scenarios from useCases (A2A Protocol standard, highest priority)
+  if use_cases:
+    for idx, use_case in enumerate(use_cases):
+      if len(scenarios) >= max_scenarios:
+        break
+      if not use_case:
+        continue
+
+      # useCaseは文字列（シナリオ名）
+      use_case_name = use_case if isinstance(use_case, str) else str(use_case)
+
+      prompt = (
+        f"**ユースケース**: {use_case_name}\n\n"
+        f"このユースケースに基づいて、具体的なシナリオを想定してください。"
+        f"ユーザーとして{agent_name}に依頼や質問を行ってください。"
+      )
+      expected = (
+        f"{use_case_name} に関して、適切な応答を行う。"
+        f"エージェントカードに記載されたユースケースを正しく実行できることを示す。"
+      )
+
+      scenarios.append(
+        Scenario(
+          id=f"{agent_id}-{revision}-usecase-{idx+1}",
+          locale=locale,
+          use_case=use_case_name,
+          prompt=prompt,
+          expected_answer=expected
+        )
+      )
+
+  # Step 2: Generate scenarios from skills (if more needed)
+  if len(scenarios) < max_scenarios and skills:
     for idx, skill in enumerate(skills):
       if len(scenarios) >= max_scenarios:
         break
@@ -178,7 +211,7 @@ def generate_scenarios(card: Dict[str, Any], *, agent_id: str, revision: str, ma
         )
       )
 
-  # Step 2: If max_scenarios not reached and description exists, generate additional scenarios
+  # Step 3: If max_scenarios not reached and description exists, generate additional scenarios via LLM
   if len(scenarios) < max_scenarios and agent_description:
     remaining = max_scenarios - len(scenarios)
     # descriptionから追加シナリオを生成
