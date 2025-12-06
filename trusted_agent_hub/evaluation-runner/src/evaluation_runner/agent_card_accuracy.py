@@ -118,6 +118,10 @@ def generate_scenarios(card: Dict[str, Any], *, agent_id: str, revision: str, ma
   """
   Generate evaluation scenarios from agent card.
 
+  シナリオ生成の優先順位:
+  1. skills配列から生成（各skillのdescriptionを使用）
+  2. max_scenariosに達していなければ、descriptionから追加シナリオを生成
+
   Args:
     card: Agent card dictionary (A2A Protocol or legacy format)
     agent_id: Agent ID for scenario naming
@@ -134,22 +138,23 @@ def generate_scenarios(card: Dict[str, Any], *, agent_id: str, revision: str, ma
   # Extract skills with descriptions (A2A Protocol preferred)
   skills = card.get("skills", [])
   agent_description = card.get("description", "")
+  agent_name = card.get("name", "Agent")
 
   scenarios: List[Scenario] = []
 
-  if use_enhanced and skills:
-    # Enhanced scenario generation using skill descriptions
-    for idx, skill in enumerate(skills[:max_scenarios]):
+  # Step 1: Generate scenarios from skills
+  if skills:
+    for idx, skill in enumerate(skills):
+      if len(scenarios) >= max_scenarios:
+        break
       if not skill or not skill.get("name"):
         continue
 
       skill_name = skill.get("name", "")
       skill_description = skill.get("description", "")
-      skill_tags = skill.get("tags", [])
 
       # Create detailed scenario prompt based on skill metadata
       if skill_description:
-        # Use description to create more specific evaluation scenario
         prompt = (
           f"**シナリオ**: {skill_description}\n\n"
           f"このシナリオに基づいて、{skill_name}を実行してください。"
@@ -160,7 +165,6 @@ def generate_scenarios(card: Dict[str, Any], *, agent_id: str, revision: str, ma
           f"エージェントカードに記載された {skill_name} の機能を正しく実行できることを示す。"
         )
       else:
-        # Fallback to skill name only
         prompt = f"{skill_name} に関する具体的なシナリオを想定し、ユーザーとして質問してください。"
         expected = f"{skill_name} に関して適切な応答を行う。"
 
@@ -173,30 +177,113 @@ def generate_scenarios(card: Dict[str, Any], *, agent_id: str, revision: str, ma
           expected_answer=expected
         )
       )
-  else:
-    # Legacy/fallback scenario generation using simple use cases
-    use_cases: List[str] = translation.get("useCases", [])
-    if not use_cases:
-      use_cases = translation.get("capabilities", [])
 
-    # A2A Protocol: extract from skills if useCases is empty
-    if not use_cases and skills:
-      if isinstance(skills, list):
-        use_cases = [skill.get("name", "") for skill in skills if skill.get("name")]
+  # Step 2: If max_scenarios not reached and description exists, generate additional scenarios
+  if len(scenarios) < max_scenarios and agent_description:
+    remaining = max_scenarios - len(scenarios)
+    # descriptionから追加シナリオを生成
+    desc_scenarios = _generate_scenarios_from_description(
+      agent_description=agent_description,
+      agent_name=agent_name,
+      agent_id=agent_id,
+      revision=revision,
+      locale=locale,
+      count=remaining,
+      start_idx=len(scenarios) + 1
+    )
+    scenarios.extend(desc_scenarios)
 
-    for idx, use_case in enumerate(use_cases[:max_scenarios]):
-      if not use_case:
-        continue
-      prompt = f"{use_case} に関するユーザーの質問に回答してください。"
+  return scenarios
+
+
+def _generate_scenarios_from_description(
+  agent_description: str,
+  agent_name: str,
+  agent_id: str,
+  revision: str,
+  locale: str,
+  count: int,
+  start_idx: int
+) -> List[Scenario]:
+  """
+  descriptionからLLMを使ってシナリオを動的に生成する。
+  """
+  import google.generativeai as genai
+
+  scenarios: List[Scenario] = []
+
+  api_key = os.environ.get("GOOGLE_API_KEY")
+  if not api_key:
+    logger.warning("GOOGLE_API_KEY not set. Cannot generate scenarios from description.")
+    return scenarios
+
+  try:
+    genai.configure(api_key=api_key)
+    model = genai.GenerativeModel("gemini-2.5-flash")
+
+    prompt = f"""以下のエージェント情報を元に、評価用シナリオを{count}件生成してください。
+
+**エージェント名**: {agent_name}
+**説明**: {agent_description}
+
+各シナリオは以下の形式でJSON配列として出力してください:
+```json
+[
+  {{
+    "use_case": "シナリオの名前（簡潔に）",
+    "prompt": "ユーザーとしてエージェントに投げかける具体的な質問や依頼",
+    "expected": "エージェントに期待される応答や動作"
+  }}
+]
+```
+
+シナリオは以下の観点を含めてバリエーションを持たせてください:
+- 基本的なユースケース
+- 詳細な情報を求めるケース
+- エッジケースや境界条件
+- 複数ステップの対話が必要なケース
+- エージェントの能力の限界を確認するケース
+
+必ず{count}件のシナリオを生成してください。"""
+
+    response = model.generate_content(prompt)
+    response_text = response.text
+
+    # JSONを抽出
+    if "```json" in response_text:
+      json_text = response_text.split("```json")[1].split("```")[0].strip()
+    elif "```" in response_text:
+      json_text = response_text.split("```")[1].split("```")[0].strip()
+    else:
+      json_text = response_text.strip()
+
+    generated_scenarios = json.loads(json_text)
+
+    for i, scn in enumerate(generated_scenarios[:count]):
       scenarios.append(
         Scenario(
-          id=f"{agent_id}-{revision}-scn-{idx+1}",
+          id=f"{agent_id}-{revision}-desc-{start_idx + i}",
           locale=locale,
-          use_case=use_case,
-          prompt=prompt,
-          expected_answer=""
+          use_case=scn.get("use_case", f"シナリオ{start_idx + i}"),
+          prompt=scn.get("prompt", ""),
+          expected_answer=scn.get("expected", "")
         )
       )
+
+    logger.info(f"Generated {len(scenarios)} scenarios from description using LLM")
+
+  except Exception as e:
+    logger.error(f"Failed to generate scenarios from description: {e}")
+    # フォールバック: 最低限のシナリオを生成
+    scenarios.append(
+      Scenario(
+        id=f"{agent_id}-{revision}-desc-{start_idx}",
+        locale=locale,
+        use_case=f"{agent_name}の基本機能確認",
+        prompt=f"{agent_description}に基づいて、基本的な質問をしてください。",
+        expected_answer=f"{agent_name}として適切に応答する。"
+      )
+    )
 
   return scenarios
 
@@ -978,7 +1065,6 @@ def run_functional_accuracy(
   user_id: Optional[str] = None,
   use_multiturn: bool = False,  # TODO: シングルターン経路は将来廃止し、マルチターンのみの設定に統一する
   max_turns: int = 5,
-  use_adk_generator: bool = False,
   sse_callback: Optional[Callable[[dict], Any]] = None
 ) -> Dict[str, Any]:
   """
@@ -999,7 +1085,6 @@ def run_functional_accuracy(
     user_id: Optional user ID (defaults to "functional-accuracy")
     use_multiturn: If True, use multi-turn dialogue evaluation
     max_turns: Maximum number of dialogue turns (default: 5)
-    use_adk_generator: If True, use AgentQuestionGenerator for scenario creation
   """
   output_dir.mkdir(parents=True, exist_ok=True)
   if not agent_card_path.exists():
@@ -1011,21 +1096,12 @@ def run_functional_accuracy(
     (output_dir / "functional_summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
     return summary
 
-  # Generate scenarios using appropriate method
-  if use_adk_generator:
-    logger.info("Using AgentQuestionGenerator for scenario generation")
-    scenarios = generate_scenarios_with_question_generator(
-      agent_card_path,
-      agent_id=agent_id,
-      revision=revision,
-      max_scenarios=max_scenarios
-    )
-  else:
-    logger.info("Using standard scenario generation")
-    card = load_agent_card(agent_card_path)
-    scenarios = generate_scenarios(card, agent_id=agent_id, revision=revision, max_scenarios=max_scenarios)
-    ragtruth_records = load_ragtruth(ragtruth_dir)
-    attach_expected_answers(scenarios, ragtruth_records)
+  # Generate scenarios from agent card (skills + description)
+  logger.info("Generating scenarios from agent card")
+  card = load_agent_card(agent_card_path)
+  scenarios = generate_scenarios(card, agent_id=agent_id, revision=revision, max_scenarios=max_scenarios)
+  ragtruth_records = load_ragtruth(ragtruth_dir)
+  attach_expected_answers(scenarios, ragtruth_records)
 
   card = load_agent_card(agent_card_path)  # Load card for evaluation context
 

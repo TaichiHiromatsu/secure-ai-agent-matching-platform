@@ -188,7 +188,10 @@ def publish_agent(submission: models.Submission) -> dict:
     try:
         from app.services.agent_registry import AgentEntry, upsert_agent, new_agent_id
         card = submission.card_document or {}
-        use_cases = card.get("useCases") or card.get("capabilities") or []
+        # Try useCases first, then extract from skills if not available
+        use_cases = card.get("useCases") or []
+        if not use_cases and card.get("skills"):
+            use_cases = [skill.get("name") or skill.get("id") for skill in card.get("skills", []) if skill.get("name") or skill.get("id")]
         name = card.get("name") or submission.agent_id or f"agent-{submission.id[:8]}"
 
         # Get provider from organization_meta (submitted company name), fallback to card, then "unknown"
@@ -746,7 +749,6 @@ def process_submission(submission_id: str):
                 user_id="functional-accuracy",
                 use_multiturn=os.getenv("FUNCTIONAL_USE_MULTITURN", "true").lower() == "true",
                 max_turns=int(os.getenv("FUNCTIONAL_MAX_TURNS", "5")),
-                use_adk_generator=os.getenv("FUNCTIONAL_USE_ADK_GENERATOR", "false").lower() == "true",
                 sse_callback=sse_callback
             )
 

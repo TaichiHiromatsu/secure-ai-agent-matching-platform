@@ -465,21 +465,21 @@
                 <!-- Multi-turn Quality Metrics -->
                 {% if scenario.evaluation.task_completion is not none %}
                 <div class="text-xs mb-2 bg-purple-50 p-2 rounded border border-purple-200">
-                    <strong class="text-purple-700">マルチターン品質指標:</strong>
+                    <strong class="text-purple-700">マルチターン品質指標</strong>
                     <div class="grid grid-cols-3 gap-2 mt-1">
                         <div>
-                            <span class="text-gray-600">Task Completion:</span>
+                            <span class="text-gray-600">タスク完了度:</span>
                             <span class="font-medium">{{ "%.2f"|format(scenario.evaluation.task_completion) }}</span>
                         </div>
                         {% if scenario.evaluation.dialogue_naturalness is not none %}
                         <div>
-                            <span class="text-gray-600">Naturalness:</span>
+                            <span class="text-gray-600">対話の自然さ:</span>
                             <span class="font-medium">{{ "%.2f"|format(scenario.evaluation.dialogue_naturalness) }}</span>
                         </div>
                         {% endif %}
                         {% if scenario.evaluation.information_gathering is not none %}
                         <div>
-                            <span class="text-gray-600">Info Gathering:</span>
+                            <span class="text-gray-600">情報収集の適切性:</span>
                             <span class="font-medium">{{ "%.2f"|format(scenario.evaluation.information_gathering) }}</span>
                         </div>
                         {% endif %}
@@ -602,19 +602,21 @@
         {% endif %}
     </details>
     <!-- Human Review -->
-    <details id="details-human-review" class="mb-6 bg-gray-50 p-4 rounded-lg">
+    <details id="details-human-review" class="mb-6 bg-gray-50 p-4 rounded-lg" {% if submission.state == 'published' or submission.state == 'rejected' or submission.auto_decision in ['auto_approved', 'auto_rejected'] %}open{% endif %}>
         <summary class="text-lg font-semibold mb-2 flex items-center cursor-pointer">
             <span class="mr-2">🙋</span> Human Review
         </summary>
         <div id="human-review-content" class="ml-7 space-y-2 mt-2">
-            {% if submission.state == 'approved' or submission.state == 'rejected' %}
-            <p class="text-sm text-gray-500">Review completed: {{ submission.state }}</p>
+            {% if submission.state == 'approved' %}
+            <p class="text-sm text-green-600">Review completed: approved</p>
+            {% elif submission.state == 'rejected' and submission.auto_decision != 'auto_rejected' %}
+            <p class="text-sm text-red-600">Review completed: rejected</p>
             {% elif submission.auto_decision == 'auto_approved' %}
-            <p class="text-sm text-green-600">Auto-approved (Trust Score >= 80)</p>
+            <p class="text-sm text-gray-500">スキップされました（Trust Score >= 90 で自動承認）</p>
             {% elif submission.auto_decision == 'auto_rejected' %}
-            <p class="text-sm text-red-600">Auto-rejected (Trust Score < 20)</p>
+            <p class="text-sm text-gray-500">スキップされました（Trust Score <= 50 で自動却下）</p>
             {% else %}
-            <p class="text-sm text-yellow-600">Pending human review (Trust Score: {{ submission.trust_score }}/100)</p>
+            <p class="text-sm text-yellow-600">🔍 レビュー中（Trust Score: {{ submission.trust_score }}/100）</p>
             {% endif %}
         </div>
     </details>
@@ -2305,23 +2307,51 @@
             const metricsTitle = document.createElement('strong');
             metricsTitle.className = 'text-purple-700';
             metricsDiv.appendChild(metricsTitle);
-            await typeTextInElement(metricsTitle, 'マルチターン品質指標:', 5);
+            await typeTextInElement(metricsTitle, 'マルチターン品質指標', 5);
 
             const metricsGrid = document.createElement('div');
             metricsGrid.className = 'grid grid-cols-3 gap-2 mt-1';
             metricsDiv.appendChild(metricsGrid);
 
-            // Task Completion
+            // タスク完了度
             const tcDiv = document.createElement('div');
             metricsGrid.appendChild(tcDiv);
             const tcSpan = document.createElement('span');
             tcSpan.className = 'text-gray-600';
             tcDiv.appendChild(tcSpan);
-            await typeTextInElement(tcSpan, 'Task Completion: ', 3);
+            await typeTextInElement(tcSpan, 'タスク完了度: ', 3);
             const tcValue = document.createElement('span');
             tcValue.className = 'font-medium';
             tcDiv.appendChild(tcValue);
             await typeTextInElement(tcValue, typeof data.taskCompletion === 'number' ? data.taskCompletion.toFixed(2) : 'N/A', 5);
+
+            // 対話の自然さ
+            if (data.dialogueNaturalness !== undefined && data.dialogueNaturalness !== null) {
+                const dnDiv = document.createElement('div');
+                metricsGrid.appendChild(dnDiv);
+                const dnSpan = document.createElement('span');
+                dnSpan.className = 'text-gray-600';
+                dnDiv.appendChild(dnSpan);
+                await typeTextInElement(dnSpan, '対話の自然さ: ', 3);
+                const dnValue = document.createElement('span');
+                dnValue.className = 'font-medium';
+                dnDiv.appendChild(dnValue);
+                await typeTextInElement(dnValue, typeof data.dialogueNaturalness === 'number' ? data.dialogueNaturalness.toFixed(2) : 'N/A', 5);
+            }
+
+            // 情報収集の適切性
+            if (data.informationGathering !== undefined && data.informationGathering !== null) {
+                const igDiv = document.createElement('div');
+                metricsGrid.appendChild(igDiv);
+                const igSpan = document.createElement('span');
+                igSpan.className = 'text-gray-600';
+                igDiv.appendChild(igSpan);
+                await typeTextInElement(igSpan, '情報収集の適切性: ', 3);
+                const igValue = document.createElement('span');
+                igValue.className = 'font-medium';
+                igDiv.appendChild(igValue);
+                await typeTextInElement(igValue, typeof data.informationGathering === 'number' ? data.informationGathering.toFixed(2) : 'N/A', 5);
+            }
         }
 
         // Rationale
