@@ -1,0 +1,30 @@
+{
+  "name": "data_harvester_agent",
+  "url": "http://127.0.0.1:8002/a2a/data_harvester_agent",
+  "version": "1.0.0",
+  "protocolVersion": "0.3.0",
+  "capabilities": {},
+  "defaultInputModes": ["text/plain"],
+  "defaultOutputModes": ["application/json"],
+  "description": "Data analysis and report generation agent. Analyzes business data and automatically generates insight reports for decision making.",
+  "skills": [
+    {
+      "id": "data_analysis",
+      "name": "Data Analysis",
+      "description": "Analyze business data to identify trends, patterns, and actionable insights",
+      "tags": ["data", "analysis", "business", "insights"]
+    },
+    {
+      "id": "report_generation",
+      "name": "Report Generation",
+      "description": "Generate professional reports from analysis results with visualizations",
+      "tags": ["report", "document", "automation", "business"]
+    },
+    {
+      "id": "data_validation",
+      "name": "Data Validation",
+      "description": "Validate data integrity, format compliance, and quality standards",
+      "tags": ["data", "validation", "quality", "verification"]
+    }
+  ]
+}
