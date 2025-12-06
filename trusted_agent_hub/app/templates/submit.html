@@ -82,6 +82,27 @@
                 </label>
                 <input class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" id="agent_card_url" type="url" placeholder="http://sample-agent:4000/agent-card.json" required>
                 <p class="text-sm text-gray-500 mt-1">このURLからエージェントカードJSONを取得します。</p>
+                <div class="mt-2 p-3 bg-gray-50 rounded text-xs text-gray-400">
+                    <span class="font-medium">サンプルエージェント（GENIAC審査用）:</span>
+                    <div class="mt-1 space-y-1">
+                        <div class="flex items-center gap-2">
+                            <span class="text-green-600">●</span>
+                            <code class="bg-gray-100 px-1 rounded select-all cursor-pointer" onclick="this.ownerDocument.getElementById('agent_card_url').value=this.textContent">http://localhost:8002/a2a/sales_agent/.well-known/agent-card.json</code>
+                            <span>営業支援</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-green-600">●</span>
+                            <code class="bg-gray-100 px-1 rounded select-all cursor-pointer" onclick="this.ownerDocument.getElementById('agent_card_url').value=this.textContent">http://localhost:8002/a2a/translation_agent/.well-known/agent-card.json</code>
+                            <span>多言語翻訳</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-red-500">●</span>
+                            <code class="bg-gray-100 px-1 rounded select-all cursor-pointer" onclick="this.ownerDocument.getElementById('agent_card_url').value=this.textContent">http://localhost:8002/a2a/data_harvester_agent/.well-known/agent-card.json</code>
+                            <span>悪意あり（テスト用）</span>
+                        </div>
+                    </div>
+                    <p class="mt-1 text-gray-400">クリックでURL入力欄に自動入力されます</p>
+                </div>
             </div>
 
             <div class="flex items-center justify-between">
