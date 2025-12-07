@@ -247,14 +247,26 @@ def _sample_by_priority(
     remaining = max_count - len(selected)
 
     if remaining > 0:
-      # 残りを60%, 30%, 10%で配分
-      p2_quota = min(int(remaining * 0.60), len(p2))
-      p3_quota = min(int(remaining * 0.30), len(p3))
+      # 残りを60%, 30%, 10%で配分（roundで四捨五入、max_count厳守）
+      p2_quota = min(round(remaining * 0.60), len(p2))
+      p3_quota = min(round(remaining * 0.30), len(p3))
+      # P4は残り全部を割り当て（max_count厳守のため）
       p4_quota = min(remaining - p2_quota - p3_quota, len(p4))
+      # P4が足りない場合はP2/P3から補充
+      shortfall = remaining - p2_quota - p3_quota - p4_quota
+      if shortfall > 0:
+        # P2から補充
+        extra_p2 = min(shortfall, len(p2) - p2_quota)
+        p2_quota += extra_p2
+        shortfall -= extra_p2
+        # まだ足りなければP3から補充
+        if shortfall > 0:
+          extra_p3 = min(shortfall, len(p3) - p3_quota)
+          p3_quota += extra_p3
 
       if p2: selected.extend(random.sample(p2, p2_quota))
       if p3: selected.extend(random.sample(p3, p3_quota))
-      if p4: selected.extend(random.sample(p4, p4_quota))
+      if p4 and p4_quota > 0: selected.extend(random.sample(p4, p4_quota))
 
     return selected
 
