@@ -408,6 +408,22 @@ echo "GOOGLE_API_KEY=your-gemini-api-key" > .env
 
 **期待される結果**: 攻撃を検知し、実行を拒否。個人情報は保護される
 
+### デモ3: エージェントストア審査フロー
+
+悪意のあるエージェントをストアに提出し、Security Gateでブロックされる様子を確認：
+
+1. 🧾 Agent Card URLを提出
+2. 🛡️ Security Gate で有害プロンプト耐性テスト
+3. 🧪 Agent Card Accuracy で記載内容と実動作の整合性確認
+4. ⚖️ MAGI（Multi-model Judge）による合議評価
+5. 📊 Trust Score算出と自動判定（90以上: 承認 / 50以下: 却下）
+
+**期待される結果**: 悪意あるエージェント（data_harvester_agent）は低スコアで自動却下
+
+**詳細手順**: [Trusted Agent Store デモ台本](docs/demo/trusted_agent_store/demo_script.md)
+
+---
+
 詳細は [docs/demo/DEMO.md](docs/demo/DEMO.md) を参照してください。
 
 ---
