@@ -134,19 +134,19 @@ artifacts/
 !package-lock.json
 !tsconfig.json
 !.vscode/*.json
-!trusted_agent_hub/data/agents/registered-agents.json
+!trusted_agent_store/data/agents/registered-agents.json
 !**/agent.json
 artifacts/**/*.json
 
 # Jury Judge Worker temporary files
-trusted_agent_hub/jury-judge-worker/out/
-trusted_agent_hub/jury-judge-worker/.venv/
-trusted_agent_hub/jury-judge-worker/.pytest_cache/
-trusted_agent_hub/jury-judge-worker/.env.inspect
+trusted_agent_store/jury-judge-worker/out/
+trusted_agent_store/jury-judge-worker/.venv/
+trusted_agent_store/jury-judge-worker/.pytest_cache/
+trusted_agent_store/jury-judge-worker/.env.inspect
 
 # Backup files
 *.bak
 *.backup
 *.old
 
-trusted_agent_hub/wandb/
+trusted_agent_store/wandb/

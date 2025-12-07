@@ -5,7 +5,7 @@
 # Options:
 #   --no-build     Skip build, use existing image
 #   --no-cache     Force full rebuild without Docker cache
-#   --store-only   Only rebuild store (trusted_agent_hub/app) - fast rebuild
+#   --store-only   Only rebuild store (trusted_agent_store/app) - fast rebuild
 
 set -e
 
@@ -55,9 +55,9 @@ if [ "$NO_BUILD" = false ]; then
         # Fast rebuild: only invalidate store layer by adding build timestamp
         echo "🏪 Store-only rebuild (fast)..."
         # Write timestamp to a file that gets copied, invalidating that layer and all after it
-        echo "BUILD_TIME=$(date +%s)" > trusted_agent_hub/app/.build_timestamp
+        echo "BUILD_TIME=$(date +%s)" > trusted_agent_store/app/.build_timestamp
         docker build -t "${IMAGE_NAME}" .
-        rm -f trusted_agent_hub/app/.build_timestamp
+        rm -f trusted_agent_store/app/.build_timestamp
     elif [ "$NO_CACHE" = true ]; then
         echo "🔄 Full rebuild (no cache)..."
         docker build --no-cache -t "${IMAGE_NAME}" .

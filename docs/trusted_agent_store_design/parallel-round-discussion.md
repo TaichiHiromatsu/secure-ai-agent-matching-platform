@@ -126,7 +126,7 @@ class CollaborativeJuryResult:
 
 ### 4.1 並列ラウンド議論の実装
 
-**ファイル**: `trusted_agent_hub/jury-judge-worker/jury_judge_worker/jury_judge_collaborative.py`
+**ファイル**: `trusted_agent_store/jury-judge-worker/jury_judge_worker/jury_judge_collaborative.py`
 
 ```python
 async def _phase2_discussion(self, ...):
@@ -276,7 +276,7 @@ def _check_consensus(
 
 ### 連続したディスカッションエリア
 
-**ファイル**: `trusted_agent_hub/app/templates/partials/submission_content.html`
+**ファイル**: `trusted_agent_store/app/templates/partials/submission_content.html`
 
 ```html
 <!-- Phase 2: ディスカッション (連続エリア) -->
@@ -391,13 +391,13 @@ except Exception as e:
 ## 9. 参考資料
 
 ### 主要ファイル
-- `trusted_agent_hub/jury-judge-worker/jury_judge_worker/jury_judge_collaborative.py` - コア実装
-- `trusted_agent_hub/jury-judge-worker/jury_judge_worker/llm_judge.py` - LLM評価ロジック
-- `trusted_agent_hub/evaluation-runner/src/evaluation_runner/jury_judge.py` - 評価ランナー
-- `trusted_agent_hub/app/templates/partials/submission_content.html` - UI表示
+- `trusted_agent_store/jury-judge-worker/jury_judge_worker/jury_judge_collaborative.py` - コア実装
+- `trusted_agent_store/jury-judge-worker/jury_judge_worker/llm_judge.py` - LLM評価ロジック
+- `trusted_agent_store/evaluation-runner/src/evaluation_runner/jury_judge.py` - 評価ランナー
+- `trusted_agent_store/app/templates/partials/submission_content.html` - UI表示
 
 ### WebSocket実装
-- `trusted_agent_hub/app/routers/submissions.py` - WebSocketエンドポイント
+- `trusted_agent_store/app/routers/submissions.py` - WebSocketエンドポイント
 
 ---
 

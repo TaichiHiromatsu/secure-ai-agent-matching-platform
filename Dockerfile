@@ -1,5 +1,5 @@
 # Multi-service container for Cloud Run
-# Combines: secure_mediation_agent, trusted_agent_hub, external-agents
+# Combines: secure_mediation_agent, trusted_agent_store, external-agents
 # Uses Nginx as reverse proxy, supervisord for process management
 
 FROM python:3.12-slim
@@ -28,20 +28,20 @@ RUN uv sync --frozen
 # ============================================
 # Trusted Agent Store dependencies (evaluation-runner, jury-judge-worker)
 # ============================================
-COPY trusted_agent_hub/evaluation-runner /app/evaluation-runner
-COPY trusted_agent_hub/third_party /app/third_party
-COPY trusted_agent_hub/jury-judge-worker /app/jury-judge-worker
+COPY trusted_agent_store/evaluation-runner /app/evaluation-runner
+COPY trusted_agent_store/third_party /app/third_party
+COPY trusted_agent_store/jury-judge-worker /app/jury-judge-worker
 
 RUN uv pip install -e /app/evaluation-runner
 RUN uv pip install --no-cache-dir -r /app/jury-judge-worker/requirements.txt
 RUN uv pip install -e /app/jury-judge-worker
 
-# Copy trusted_agent_hub application
-COPY trusted_agent_hub/app /app/trusted_agent_hub/app
-COPY trusted_agent_hub/static /app/trusted_agent_hub/static
-RUN mkdir -p /app/trusted_agent_hub/data/agents /app/data/agents
-COPY trusted_agent_hub/data/agents/registered-agents.json /app/trusted_agent_hub/data/agents/
-COPY trusted_agent_hub/data/agents/registered-agents.json /app/data/agents/
+# Copy trusted_agent_store application
+COPY trusted_agent_store/app /app/trusted_agent_store/app
+COPY trusted_agent_store/static /app/trusted_agent_store/static
+RUN mkdir -p /app/trusted_agent_store/data/agents /app/data/agents
+COPY trusted_agent_store/data/agents/registered-agents.json /app/trusted_agent_store/data/agents/
+COPY trusted_agent_store/data/agents/registered-agents.json /app/data/agents/
 
 # ============================================
 # Secure Mediation Agent & External Agents
@@ -73,8 +73,8 @@ RUN chmod +x /app/start.sh /app/start-nginx.sh
 RUN mkdir -p /var/log/nginx /var/log/supervisor /app/logs
 
 # Set environment variables
-ENV PYTHONPATH=/app:/app/trusted_agent_hub:/app/jury-judge-worker:/app/evaluation-runner/src
-ENV DATABASE_URL=sqlite:////app/trusted_agent_hub/data/agent_store.db
+ENV PYTHONPATH=/app:/app/trusted_agent_store:/app/jury-judge-worker:/app/evaluation-runner/src
+ENV DATABASE_URL=sqlite:////app/trusted_agent_store/data/agent_store.db
 
 # Cloud Run uses port 8080
 EXPOSE 8080

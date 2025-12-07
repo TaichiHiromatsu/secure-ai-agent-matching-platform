@@ -17,7 +17,7 @@
 ## 🛠️ アーキテクチャ
 
 ```
-trusted_agent_hub/
+trusted_agent_store/
 ├── app/
 │   ├── main.py             # FastAPI アプリケーションエントリーポイント
 │   ├── models.py           # SQLAlchemy データベースモデル
@@ -26,6 +26,8 @@ trusted_agent_hub/
 │   │   ├── submissions.py  # エージェント提出と審査オーケストレーション
 │   │   ├── reviews.py      # 人間レビューとPublish API
 │   │   ├── agents.py       # Agent Registry API (GET/PATCH)
+│   │   ├── orgs.py         # 事業者登録API
+│   │   ├── sse.py          # Server-Sent Events (リアルタイム更新)
 │   │   └── ui.py           # Admin UI ルーティング
 │   ├── services/
 │   │   └── agent_registry.py  # Agent Registry永続化 (JSON)
@@ -39,8 +41,9 @@ trusted_agent_hub/
 │       └── agent_card_accuracy.py   # 機能精度評価
 ├── jury-judge-worker/         # Jury Judge (Agents-as-a-Judge実装)
 │   └── jury_judge_worker/
-│       ├── judge_orchestrator.py  # 評価オーケストレーション
-│       └── llm_judge.py          # Multi-model Judge (GPT-4o/Claude/Gemini)
+│       ├── jury_judge_collaborative.py  # Collaborative Jury評価
+│       ├── llm_judge.py          # Multi-model Judge (GPT-4o/Claude/Gemini)
+│       └── multi_model_judge.py  # 複数モデル統合評価
 ├── third_party/
 │   └── aisev/              # AISI Security ベンチマークデータセット
 │       └── backend/dataset/output/
@@ -74,9 +77,9 @@ WANDB_API_KEY=your_wandb_api_key
 docker-compose up --build
 
 # または個別にビルド
-cd trusted_agent_hub
-docker build -t trusted-agent-hub .
-docker run -p 8080:8080 --env-file .env trusted-agent-hub
+cd trusted_agent_store
+docker build -t trusted-agent-store .
+docker run -p 8080:8080 --env-file .env trusted-agent-store
 ```
 
 ### 3. アクセス
@@ -230,13 +233,15 @@ Agent Cardの`skills`に基づく機能テスト:
   - スキルベース機能テスト
   - セマンティック類似度評価
 
-- **`jury-judge-worker/jury_judge_worker/judge_orchestrator.py`**
-  - Jury Judge評価オーケストレーション
-  - Google ADK/Anthropic Computer Use統合
+- **`jury-judge-worker/jury_judge_worker/jury_judge_collaborative.py`**
+  - Collaborative Jury Judge評価オーケストレーション
+  - 並列ラウンド議論とFinal Judge戦略
 
 - **`jury-judge-worker/jury_judge_worker/llm_judge.py`**
-  - Multi-model Judge実装
-  - 並列ラウンド議論とFinal Judge戦略
+  - Multi-model Judge実装 (GPT-4o/Claude/Gemini)
+
+- **`jury-judge-worker/jury_judge_worker/multi_model_judge.py`**
+  - 複数モデル統合評価
 
 ### データセット
 
@@ -249,11 +254,15 @@ Agent Cardの`skills`に基づく機能テスト:
 
 **Security Gateでは上記4つのデータセットを統合して最大50プロンプトで評価**
 
-### サンプルエージェント
+### 外部エージェント（デモ・テスト用）
 
-- **`sample-agent/`**: テスト用AIエージェント
-  - A2A Protocol準拠
-  - 旅行予約デモ（航空券・ホテル・レンタカー）
+- **`external-agents/trusted-agents/`**: A2A Protocol準拠のテスト用エージェント
+  - `airline_agent/`: 航空会社エージェント（フライト予約）
+  - `hotel_agent/`: ホテルエージェント（宿泊予約）
+  - `car_rental_agent/`: レンタカーエージェント
+  - `sales_agent/`: 営業支援エージェント
+  - `translation_agent/`: 多言語翻訳エージェント
+  - `data_harvester_agent/`: 悪意あるエージェント（セキュリティテスト用）
 
 ## 🔗 API エンドポイント
 
@@ -307,7 +316,7 @@ POST /api/reviews/{submission_id}/publish
 - **docker-compose.yml設定**:
   ```yaml
   volumes:
-    - ./trusted_agent_hub/data:/app/data
+    - ./trusted_agent_store/data:/app/data
   ```
 
 ### 本番運用

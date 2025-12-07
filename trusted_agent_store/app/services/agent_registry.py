@@ -1,7 +1,7 @@
 """Simple file-based agent registry.
 
 Stores registered agents in JSON at /app/data/agents/registered-agents.json
-(host bind: trusted_agent_hub/data/agents/registered-agents.json).
+(host bind: trusted_agent_store/data/agents/registered-agents.json).
 """
 
 from __future__ import annotations

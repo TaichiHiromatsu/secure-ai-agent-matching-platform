@@ -274,7 +274,7 @@ secure-ai-agent-matching-platform/
 │   │   └── final_anomaly_detection_agent.py    # Final-PI-Checker
 │   └── utils/                        # ユーティリティ
 │
-├── trusted_agent_hub/                # 🏪 Trusted Agent Store (エージェントストア)
+├── trusted_agent_store/              # 🏪 Trusted Agent Store (エージェントストア)
 │   ├── app/                          # FastAPI アプリケーション
 │   │   ├── routers/                  # APIルーター
 │   │   ├── schemas/                  # Pydanticスキーマ
@@ -282,12 +282,10 @@ secure-ai-agent-matching-platform/
 │   │   └── templates/                # HTMLテンプレート
 │   ├── data/                         # データ
 │   │   └── agents/                   # エージェント定義
-│   ├── evaluation-runner/            # 評価実行エンジン
-│   ├── inspect-worker/               # 検査ワーカー
-│   ├── jury-judge-worker/            # 審査ワーカー
-│   ├── sandbox-runner/               # サンドボックス実行
+│   ├── evaluation-runner/            # 評価実行エンジン (Security Gate, Agent Card Accuracy)
+│   ├── jury-judge-worker/            # 審査ワーカー (Multi-model Judge)
 │   ├── static/                       # 静的ファイル
-│   └── third_party/                  # サードパーティツール
+│   └── third_party/                  # サードパーティツール (AISIベンチマーク)
 │
 ├── user-agent/                       # 👤 ユーザーエージェント
 │   └── agent.py                      # ユーザー側エージェント
@@ -297,7 +295,9 @@ secure-ai-agent-matching-platform/
 │       ├── airline_agent/            # ✈️ 航空会社エージェント
 │       ├── hotel_agent/              # 🏨 ホテルエージェント
 │       ├── car_rental_agent/         # 🚗 レンタカーエージェント
-│       └── sales_agent/              # 💼 営業エージェント
+│       ├── sales_agent/              # 💼 営業エージェント
+│       ├── translation_agent/        # 🌐 多言語翻訳エージェント
+│       └── data_harvester_agent/     # 🔴 悪意あるエージェント (セキュリティテスト用)
 │
 ├── deploy/                           # 🚀 デプロイ設定
 │   ├── auth/                         # 認証設定
@@ -420,7 +420,7 @@ echo "GOOGLE_API_KEY=your-gemini-api-key" > .env
 | [SPECIFICATION.md](docs/secure_mediation_agent_design/SPECIFICATION.md) | 技術仕様書（実装詳細） |
 | [SECURITY_IMPLEMENTATION.md](docs/secure_mediation_agent_design/SECURITY_IMPLEMENTATION.md) | セキュリティ実装詳細 |
 | [DEMO.md](docs/demo/DEMO.md) | デモ概要 |
-| [trusted_agent_store_design/](docs/trusted_agent_store_design/) | Trusted Agent Store設計ドキュメント |
+| [trusted_agent_store_design/](docs/trusted_agent_store_design/) | エージェントストア設計ドキュメント |
 
 ---
 

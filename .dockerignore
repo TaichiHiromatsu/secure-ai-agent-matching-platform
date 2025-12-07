@@ -69,5 +69,5 @@ temp
 !third_party/
 
 # Explicitly exclude all venvs in subdirectories
-trusted_agent_hub/**/.venv
-trusted_agent_hub/**/venv
+trusted_agent_store/**/.venv
+trusted_agent_store/**/venv

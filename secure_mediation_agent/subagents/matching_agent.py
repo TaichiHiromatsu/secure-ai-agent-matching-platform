@@ -24,8 +24,8 @@ from google.genai import types
 from ..config.safety import SAFETY_SETTINGS_RELAXED
 
 # Agent Store API configuration
-# Default to 127.0.0.1:8001 for container deployment (trusted_agent_hub internal port)
-# In Cloud Run container, nginx is on 8080, but trusted_agent_hub listens directly on 8001
+# Default to 127.0.0.1:8001 for container deployment (trusted_agent_store internal port)
+# In Cloud Run container, nginx is on 8080, but trusted_agent_store listens directly on 8001
 # Override via environment variable for different configurations
 AGENT_STORE_API_URL = os.getenv("AGENT_STORE_API_URL", "http://127.0.0.1:8001/api/agents")
 
@@ -59,7 +59,7 @@ def _convert_agent_entry_to_matcher_format(agent: dict[str, Any]) -> dict[str, A
     """Convert Agent Store API response to matcher format.
 
     Args:
-        agent: Agent entry from trusted_agent_hub API.
+        agent: Agent entry from trusted_agent_store API.
 
     Returns:
         Agent dictionary in matcher format.
@@ -113,7 +113,7 @@ async def search_agent_store(
 ) -> str:
     """Search the agent store for matching agents.
 
-    Fetches agents from the trusted_agent_hub API and filters them
+    Fetches agents from the trusted_agent_store API and filters them
     based on the search query.
 
     Args:
