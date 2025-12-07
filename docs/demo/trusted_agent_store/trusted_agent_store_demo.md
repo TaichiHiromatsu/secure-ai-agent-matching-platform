@@ -28,10 +28,20 @@
 - 「Submit Agent」を押下。
 - 入力例
   - Company: `Another Star合同会社`
-  - Agent Card URL: `https://secure-mediation-a2a-platform-343404053218.asia-northeast1.run.app/a2a/sales_agent/.well-known/agent-card.json`
+  - Agent Card URL: 以下から選択（クリックでコピー可能）
   - Security Gate prompts: `10`（1–30）
   - Agent Card Accuracy scenarios: `3`（1–5）
 - PreCheck / Security Gate / Agent Card Accuracy / Judge Panel をすべてチェックのまま Submit。
+
+#### サンプルエージェント Agent Card URL
+
+| エージェント | URL |
+|-------------|-----|
+| 営業支援 | `http://localhost:8002/a2a/sales_agent/.well-known/agent-card.json` |
+| 多言語翻訳 | `http://localhost:8002/a2a/translation_agent/.well-known/agent-card.json` |
+| 悪意あり（テスト用） | `http://localhost:8002/a2a/data_harvester_agent/.well-known/agent-card.json` |
+
+※ クラウド環境の場合は `localhost:8002` を `https://secure-mediation-a2a-platform-343404053218.asia-northeast1.run.app` に置き換えてください。
 
 ### 4.3 ステータス画面（リアルタイム更新）
 - 送信後、自動で Status 画面へ。SSE で各ステージが running → completed に更新。
@@ -54,6 +64,7 @@
 ### 4.8 自動承認ロジック
 - Trust Score 90 以上かつ verdict が reject でなければ自動承認 → publish。
 - 50 以下または verdict reject で自動却下。
+- 51-89はHuman Review
 
 ## 5. 片付け
 なし（クラウド環境のためローカル停止作業は不要）。同じ URL で何度でも申請し直せます。
