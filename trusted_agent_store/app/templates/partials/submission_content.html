@@ -1112,6 +1112,7 @@
     // State management for progressive display
     let securityState = { total: 0, blocked: 0, needsReview: 0, errors: 0 };
     let securityTestsStarted = 0;  // 開始したテスト数（プログレス表示用）
+    let processedScenarios = new Set();  // 処理済みシナリオID（二重カウント防止）
     let functionalState = { total: 0, passed: 0, failed: 0, needsReview: 0, currentScenario: 0, currentTurn: 0, currentTotalTurns: 0 };
 
     // ==== PreCheck Event Handlers ====
@@ -1176,15 +1177,23 @@
 
     // シナリオ結果を処理する共通関数
     async function processSecurityScenarioResult(data) {
+        // シナリオIDを取得（重複カウント防止用）
+        const scenarioId = data.promptId || `idx-${data.scenario_index}`;
+
         // バッチ更新の場合はカウンター処理を調整（pending→最終verdictへの変換）
         if (data.is_batch_update) {
             // バッチ更新：pendingから最終verdictへの変換
+            // 重要：カウンターは初回のみ更新（二重カウント防止）
             if (securityState.pending > 0) {
                 securityState.pending--;
             }
-            if (data.verdict === 'blocked') securityState.blocked++;
-            else if (data.verdict === 'needs_review') securityState.needsReview++;
-            else if (data.verdict === 'error') securityState.errors++;
+            // 既に処理済みのシナリオはカウンターをスキップ（verdict更新のみ）
+            if (!processedScenarios.has(scenarioId)) {
+                processedScenarios.add(scenarioId);
+                if (data.verdict === 'blocked') securityState.blocked++;
+                else if (data.verdict === 'needs_review') securityState.needsReview++;
+                else if (data.verdict === 'error') securityState.errors++;
+            }
             // ※ バッチ更新時はverdictカラムのみ更新するため、prompt/responseのマージは不要
         } else {
             // 通常更新：カテゴリに応じてカウンター更新
@@ -1194,9 +1203,13 @@
                 if (securityState.pending > 0 && data.verdict !== 'blocked' && data.verdict !== 'error') {
                     securityState.pending--;
                 }
-                if (data.verdict === 'blocked') securityState.blocked++;
-                else if (data.verdict === 'needs_review') securityState.needsReview++;
-                else if (data.verdict === 'error') securityState.errors++;
+                // 既に処理済みのシナリオはカウンターをスキップ
+                if (!processedScenarios.has(scenarioId)) {
+                    processedScenarios.add(scenarioId);
+                    if (data.verdict === 'blocked') securityState.blocked++;
+                    else if (data.verdict === 'needs_review') securityState.needsReview++;
+                    else if (data.verdict === 'error') securityState.errors++;
+                }
             }
 
             // シナリオを蓄積（バッチ更新時は重複するためスキップ）
@@ -1344,6 +1357,8 @@
         securityEventQueue = [];  // キューをリセット
         securityProcessingQueue = false;  // 処理中フラグをリセット
         securityTestsStarted = 0;  // 開始テスト数をリセット
+        processedScenarios = new Set();  // 処理済みシナリオをリセット（二重カウント防止）
+        securityCompleted = false;  // 完了フラグをリセット
         securityState = { total: data.total_scenarios || 0, blocked: 0, needsReview: 0, errors: 0, pending: 0 };
 
         // サーバーサイドで既に表示済みの場合はストリーミングをスキップ
@@ -1373,7 +1388,14 @@
         }
     });
 
+    let securityCompleted = false;  // security_completed受信フラグ
+
     juryStream.on('security_scenario_result', (data) => {
+        // security_completed後のイベントは無視（重複カウント防止）
+        if (securityCompleted) {
+            console.log('[Streaming] security_scenario_result ignored (after security_completed):', data);
+            return;
+        }
         // asyncを削除、常にキューに追加して逐次処理
         console.log('[Streaming] security_scenario_result received:', data);
         securityEventQueue.push({ ...data, _eventType: 'scenario_result' });
@@ -1387,6 +1409,11 @@
     juryStream.on('security_completed', async (data) => {
         console.log('[Streaming] security_completed received:', data);
 
+        // security_completed後のsecurity_scenario_resultを無視するためのフラグ
+        securityCompleted = true;
+        // キューをクリア（security_completed後の遅延イベントを無視）
+        securityEventQueue = [];
+
         // 集計リコンシリエーション（リアルタイム更新漏れ補正）
         const summary = data.data || {};
         const summaryCounts = {
@@ -1395,11 +1422,11 @@
             needsReview: summary.needsReview ?? securityState.needsReview,
             errors: summary.errors ?? securityState.errors,
         };
-        // サーバ集計がフロントより大きい場合だけ補正
-        if (summaryCounts.total > securityState.total) securityState.total = summaryCounts.total;
-        if (summaryCounts.blocked > securityState.blocked) securityState.blocked = summaryCounts.blocked;
-        if (summaryCounts.needsReview > securityState.needsReview) securityState.needsReview = summaryCounts.needsReview;
-        if (summaryCounts.errors > securityState.errors) securityState.errors = summaryCounts.errors;
+        // サーバー集計値で上書き（正確な最終値を使用）
+        securityState.total = summaryCounts.total;
+        securityState.blocked = summaryCounts.blocked;
+        securityState.needsReview = summaryCounts.needsReview;
+        securityState.errors = summaryCounts.errors;
         updateSecurityCounts();
         updateSecurityProgress();
 

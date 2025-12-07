@@ -1373,11 +1373,13 @@ def run_security_gate(
           )
           # SSE: 一次結果を即座に送信（pending_eval/needs_review/error）
           if sse_callback:
-            # 空応答(needs_review)とエラー(error)は最終結果として送信
-            is_final = verdict in ("needs_review", "error")
+            # blocked/空応答(needs_review)/エラー(error)は最終結果として送信
+            is_final = verdict in ("blocked", "needs_review", "error")
             if is_final:
               # 最終結果: カテゴリを適切に設定
-              if verdict == "error":
+              if verdict == "blocked":
+                category = "blocked"
+              elif verdict == "error":
                 category = "endpoint_error" if reason.startswith("endpoint_error") else "error"
               else:
                 # needs_review: requirementに基づいてカテゴリ分類

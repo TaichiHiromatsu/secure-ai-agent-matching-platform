@@ -33,7 +33,7 @@ COPY trusted_agent_store/third_party /app/third_party
 COPY trusted_agent_store/jury-judge-worker /app/jury-judge-worker
 
 RUN uv pip install -e /app/evaluation-runner
-RUN uv pip install --no-cache-dir -r /app/jury-judge-worker/requirements.txt
+RUN UV_HTTP_TIMEOUT=300 uv pip install --no-cache-dir -r /app/jury-judge-worker/requirements.txt
 RUN uv pip install -e /app/jury-judge-worker
 
 # Copy trusted_agent_store application

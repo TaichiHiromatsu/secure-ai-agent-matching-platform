@@ -17,10 +17,15 @@ router = APIRouter(
 from evaluation_runner.security_gate import run_security_gate, SecurityGateConfig, DatasetConfig
 from evaluation_runner.agent_card_accuracy import run_functional_accuracy
 from evaluation_runner.jury_judge import run_judge_panel
+from evaluation_runner.payload_compressor import compress_security_results, compress_functional_results
+from evaluation_runner.artifact_storage import store_weave_artifact
 from pathlib import Path
 import os
 import json
 from datetime import datetime
+
+# Feature flag for payload compression (default: enabled)
+USE_COMPRESSED_JUDGE_PAYLOADS = os.environ.get("USE_COMPRESSED_JUDGE_PAYLOADS", "true").lower() == "true"
 from ..scoring_calculator import (
     get_trust_weights,
     calculate_trust_score,
@@ -665,7 +670,20 @@ def process_submission(submission_id: str):
             }
         }
 
-        # Store enhanced security summary for UI
+        # Create compressed payload for Judge Panel (token optimization)
+        if USE_COMPRESSED_JUDGE_PAYLOADS:
+            sg_artifact_uri = store_weave_artifact(
+                security_gate_report_path,
+                f"sg-report-{submission_id}",
+                "security-gate-report"
+            )
+            security_gate_for_judge = compress_security_results(
+                enhanced_security_summary,
+                artifact_uri=sg_artifact_uri
+            )
+        else:
+            security_gate_for_judge = enhanced_security_summary
+
         # Store enhanced security summary for UI
         current_breakdown = dict(submission.score_breakdown)
         current_breakdown["security_summary"] = enhanced_security_summary
@@ -704,11 +722,10 @@ def process_submission(submission_id: str):
         print(f"Security Gate completed for submission {submission_id}, score: {security_score}")
 
         # WebSocket notification for Security Gate completion
+        # Note: security_gate.py already sends "security_completed" event via sse_callback
+        # Only send state change and stage update here to avoid duplicate count notifications
         try:
             asyncio.run(notify_state_change(submission_id, "security_gate_running", "security_gate_completed"))
-            asyncio.run(notify_score_update(submission_id, {
-                "security_summary": enhanced_security_summary
-            }))
             asyncio.run(notify_stage_update(submission_id, "security", "completed"))
         except RuntimeError as e:
             print(f"[WebSocket] Could not send Security Gate completion notification: {e}")
@@ -857,6 +874,20 @@ def process_submission(submission_id: str):
             }
         }
 
+        # Create compressed payload for Judge Panel (token optimization)
+        if USE_COMPRESSED_JUDGE_PAYLOADS:
+            aca_artifact_uri = store_weave_artifact(
+                agent_card_accuracy_report_path,
+                f"aca-report-{submission_id}",
+                "aca-report"
+            )
+            functional_for_judge = compress_functional_results(
+                enhanced_functional_summary,
+                artifact_uri=aca_artifact_uri
+            )
+        else:
+            functional_for_judge = enhanced_functional_summary
+
         # Functional は件数レポートのみ。Trust Score に加算しない。
         if stages_cfg["agent_card_accuracy"] and total_scenarios > 0:
             functional_score = int((passed_scenarios / total_scenarios) * 100)
@@ -936,9 +967,10 @@ def process_submission(submission_id: str):
             asyncio.run(notify_stage_update(submission_id, "judge", "running"))
 
             # Prepare security_gate_results and agent_card_accuracy for collaborative jury judge
-            # Use mock data if stages were skipped but judge is enabled
+            # Use compressed payloads for token optimization (when feature flag is enabled)
             if security_summary:
-                security_gate_results = enhanced_security_summary
+                # Use compressed payload for judge, full payload for other uses
+                security_gate_results = security_gate_for_judge if USE_COMPRESSED_JUDGE_PAYLOADS else enhanced_security_summary
             elif not stages_cfg["security"]:
                 # Use mock data if Security Gate was intentionally skipped
                 print(f"Using mock Security Gate results for Jury Judge testing")
@@ -947,7 +979,8 @@ def process_submission(submission_id: str):
                 security_gate_results = None
 
             if functional_summary:
-                agent_card_accuracy = enhanced_functional_summary
+                # Use compressed payload for judge, full payload for other uses
+                agent_card_accuracy = functional_for_judge if USE_COMPRESSED_JUDGE_PAYLOADS else enhanced_functional_summary
             elif not stages_cfg["agent_card_accuracy"]:
                 # Use mock data if Agent Card Accuracy was intentionally skipped
                 print(f"Using mock Agent Card Accuracy results for Jury Judge testing")
