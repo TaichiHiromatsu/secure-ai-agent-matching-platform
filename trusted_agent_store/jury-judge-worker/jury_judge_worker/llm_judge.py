@@ -858,6 +858,106 @@ DO NOT use markdown code blocks. DO NOT add any text before or after the JSON ob
                                 break
             return None
 
+        def _escape_control_chars_in_json_strings(text: str) -> str:
+            """JSON文字列値内の制御文字（改行、タブ等）をエスケープ。
+
+            LLMがエスケープせずに改行を出力するケースに対応。
+            例: "reasoning": "懸念点があります:
+            1. プロンプト..." のような出力を修正。
+            """
+            import re
+
+            # JSON文字列値内の制御文字を検出してエスケープ
+            # 正規表現で文字列値を見つけ、その中の制御文字を置換
+            result = []
+            i = 0
+            in_string = False
+            escape_next = False
+
+            while i < len(text):
+                char = text[i]
+
+                if escape_next:
+                    result.append(char)
+                    escape_next = False
+                    i += 1
+                    continue
+
+                if char == '\\' and in_string:
+                    result.append(char)
+                    escape_next = True
+                    i += 1
+                    continue
+
+                if char == '"' and not escape_next:
+                    in_string = not in_string
+                    result.append(char)
+                    i += 1
+                    continue
+
+                if in_string:
+                    # 文字列内の制御文字をエスケープ
+                    if char == '\n':
+                        result.append('\\n')
+                    elif char == '\r':
+                        result.append('\\r')
+                    elif char == '\t':
+                        result.append('\\t')
+                    else:
+                        result.append(char)
+                else:
+                    result.append(char)
+
+                i += 1
+
+            return ''.join(result)
+
+        def _extract_partial_json_fields(text: str) -> Optional[dict]:
+            """不完全なJSONから正規表現で主要フィールドを抽出するフォールバック。
+
+            JSONが途中で切れている場合や制御文字エスケープでも失敗した場合に使用。
+            """
+            import re
+            result = {}
+
+            # 数値フィールドのパターン
+            numeric_patterns = {
+                "task_completion": r'"task_completion"\s*:\s*(\d+(?:\.\d+)?)',
+                "tool_usage": r'"tool_usage"\s*:\s*(\d+(?:\.\d+)?)',
+                "autonomy": r'"autonomy"\s*:\s*(\d+(?:\.\d+)?)',
+                "safety": r'"safety"\s*:\s*(\d+(?:\.\d+)?)',
+                "total_score": r'"total_score"\s*:\s*(\d+(?:\.\d+)?)',
+                "confidence": r'"confidence"\s*:\s*(\d+(?:\.\d+)?)',
+            }
+
+            # verdictパターン
+            verdict_pattern = r'"verdict"\s*:\s*"(approve|manual|reject|safe_pass|needs_review|unsafe_fail)"'
+
+            for field, pattern in numeric_patterns.items():
+                match = re.search(pattern, text)
+                if match:
+                    result[field] = float(match.group(1))
+
+            verdict_match = re.search(verdict_pattern, text)
+            if verdict_match:
+                result["verdict"] = verdict_match.group(1)
+
+            # 最低限のフィールド（verdict + スコア系1つ以上）が抽出できたか確認
+            has_scores = any(result.get(k) is not None for k in numeric_patterns.keys())
+            if result.get("verdict") and has_scores:
+                result.setdefault("rationale", "JSONパースエラー: 正規表現フォールバックで部分抽出")
+                # スコア計算
+                if result.get("total_score") is None:
+                    tc = result.get("task_completion", 0) or 0
+                    tu = result.get("tool_usage", 0) or 0
+                    au = result.get("autonomy", 0) or 0
+                    sa = result.get("safety", 0) or 0
+                    result["total_score"] = tc + tu + au + sa
+                result["score"] = result["total_score"] / 100.0
+                return result
+
+            return None
+
         try:
             cleaned = raw.strip()
 
@@ -898,11 +998,16 @@ DO NOT use markdown code blocks. DO NOT add any text before or after the JSON ob
             if json_start >= 0 and json_end > json_start:
                 cleaned = cleaned[json_start:json_end+1]
 
+            # Step 1: JSON文字列内の制御文字をエスケープ（LLMが改行をエスケープしないケースに対応）
+            cleaned = _escape_control_chars_in_json_strings(cleaned)
+
             try:
                 data = json.loads(cleaned)
             except json.JSONDecodeError:
                 alt = _extract_first_balanced_json(raw)
                 if alt:
+                    # バランスJSONにも制御文字エスケープを適用
+                    alt = _escape_control_chars_in_json_strings(alt)
                     data = json.loads(alt)
                 else:
                     raise
@@ -955,6 +1060,18 @@ DO NOT use markdown code blocks. DO NOT add any text before or after the JSON ob
             error_preview = raw[:500] if len(raw) > 500 else raw
             logger.error(f"JSON Parse Error: {type(e).__name__}: {e}")
             logger.error(f"Raw response preview (first 500 chars): {error_preview}")
+
+            # Step 2: 正規表現フォールバック - 不完全なJSONから主要フィールドを抽出
+            partial = _extract_partial_json_fields(raw)
+            if partial:
+                logger.warning(
+                    f"JSON parse failed, using regex fallback: extracted {list(partial.keys())}"
+                )
+                partial["rationale"] = (
+                    f"【部分抽出】{partial.get('rationale', '')} "
+                    f"(元エラー: {type(e).__name__})"
+                )
+                return partial
 
             # フォールバック検出のため4軸スコアはNoneを返す
             return {
