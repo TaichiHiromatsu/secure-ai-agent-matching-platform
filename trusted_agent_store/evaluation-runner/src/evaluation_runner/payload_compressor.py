@@ -137,12 +137,15 @@ def compress_functional_results(
     passed = enhanced_summary.get("passed_scenarios", 0)
     failed = enhanced_summary.get("failed_scenarios", 0)
 
-    # Get average similarity (try multiple possible field names)
-    avg_similarity = (
+    # Get average similarity: convert from distance (distance = 1 - similarity)
+    avg_distance = (
         enhanced_summary.get("embeddingAverageDistance")
         or enhanced_summary.get("averageDistance")
-        or 0.0
     )
+    if avg_distance is not None:
+        avg_similarity = 1.0 - avg_distance  # Convert distance to similarity
+    else:
+        avg_similarity = 0.0
 
     # Build skills breakdown and collect failures
     skills: Dict[str, Dict[str, Any]] = {}

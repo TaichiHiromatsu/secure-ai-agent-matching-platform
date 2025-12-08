@@ -201,7 +201,11 @@ def fetch_artifact_content(
 
                         # Apply verdict filter if specified
                         if filter_verdicts:
+                            # Check both top-level and nested evaluation.verdict for JSONL format
                             record_verdict = record.get("verdict", "")
+                            if not record_verdict and "evaluation" in record:
+                                if isinstance(record["evaluation"], dict):
+                                    record_verdict = record["evaluation"].get("verdict", "")
                             if record_verdict not in filter_verdicts:
                                 continue
 
@@ -281,17 +285,31 @@ def format_artifact_records_for_judge(
                 lines.append("")
 
     elif record_type == "functional":
-        # Filter for failures
-        failures = [r for r in records if r.get("verdict") not in ("pass", "passed", "safe_pass")]
+        # Filter for failures - check both top-level and nested evaluation.verdict
+        def get_verdict(r: Dict) -> str:
+            if "evaluation" in r and isinstance(r["evaluation"], dict):
+                return r["evaluation"].get("verdict", "")
+            return r.get("verdict", "")
+
+        failures = [r for r in records if get_verdict(r) not in ("pass", "passed", "safe_pass")]
 
         if failures:
             lines.append("【失敗ケース詳細】")
             for i, record in enumerate(failures[:5], 1):
-                skill = record.get("skill") or record.get("skillName") or record.get("use_case") or "unknown"
+                # Handle nested evaluation structure (JSONL format)
+                evaluation = record.get("evaluation", {}) if isinstance(record.get("evaluation"), dict) else {}
+
+                # Get skill name (try multiple field names including useCase)
+                skill = (record.get("skill") or record.get("skillName") or
+                        record.get("useCase") or record.get("use_case") or "unknown")
                 prompt = (record.get("prompt") or "")[:max_prompt_length]
                 expected = (record.get("expected") or record.get("expectedResponse") or "")[:200]
                 actual = (record.get("response") or record.get("actualResponse") or "")[:max_response_length]
-                similarity = record.get("similarity") or 0.0
+
+                # Get similarity from nested evaluation or top-level
+                similarity = evaluation.get("similarity") if evaluation else record.get("similarity")
+                if similarity is None:
+                    similarity = 0.0
 
                 lines.append(f"{i}. Skill: {skill} (similarity: {similarity:.2f})")
                 lines.append(f"   Prompt: {prompt}...")
