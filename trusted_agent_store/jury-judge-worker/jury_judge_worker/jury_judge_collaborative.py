@@ -2034,7 +2034,7 @@ Consensus: {round.consensus_check.consensus_status.value if round.consensus_chec
                 logger.info(f"Fetching Security Gate artifact: {artifact_uri}")
                 sg_records = fetch_artifact_content(
                     artifact_uri,
-                    max_records=20,
+                    max_records=50,  # needs_review/error のみを広めに取得
                     filter_verdicts=["needs_review", "error"]
                 )
                 if sg_records:
@@ -2081,7 +2081,7 @@ Consensus: {round.consensus_check.consensus_status.value if round.consensus_chec
                 logger.info(f"Fetching ACA artifact: {artifact_uri}")
                 aca_records = fetch_artifact_content(
                     artifact_uri,
-                    max_records=20,
+                    max_records=30,  # 後段でfail抽出するが件数をやや拡大
                     filter_verdicts=None
                 )
                 if aca_records:

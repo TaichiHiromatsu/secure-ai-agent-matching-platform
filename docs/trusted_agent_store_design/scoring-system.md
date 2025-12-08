@@ -93,6 +93,15 @@ seed = f"{agent_id}:{revision}:{uuid.uuid4().hex}"
 - `random`: 純粋ランダム選択
 - デフォルト: Priority順にソートして上位N件を選択
 
+### Artifact連携とトークン最適化
+
+- Security Gate / Agent Card Accuracy の詳細結果はアーティファクトに保存し、Judge Panel にはサマリのみ渡す。
+- Judge集約評価では必要に応じてアーティファクトから再取得してプロンプトに展開する。
+  - Security Gate: `needs_review` / `error` に絞り、最大 **50件** を展開（有害・要確認ケースを広めに提示）。
+  - Agent Card Accuracy: 最大 **30件** を取得し、その中から失敗シナリオを抽出して展開。
+- 目的: トークン上限超過やGemini安全フィルタ発火を避けつつ、問題ケースの根拠は十分に提示する。
+- 正常・大量ケースはサマリで示し、異常ケースのみ詳細を展開する方針。
+
 ---
 
 ## PreCheck: Agent Card検証

@@ -833,6 +833,31 @@ DO NOT use markdown code blocks. DO NOT add any text before or after the JSON ob
         self._last_call_ts[key] = time.monotonic()
 
     def _parse_response(self, raw: str) -> dict:
+        def _extract_first_balanced_json(text: str) -> Optional[str]:
+            """Return the first balanced JSON object substring if found, else None.
+
+            This is a fallback for models（特にClaude Haiku）が説明文の後にJSONを出すケース。
+            """
+            import json
+
+            starts = [i for i, ch in enumerate(text) if ch == "{"]
+            for start in starts:
+                depth = 0
+                for end in range(start, len(text)):
+                    ch = text[end]
+                    if ch == "{":
+                        depth += 1
+                    elif ch == "}":
+                        depth -= 1
+                        if depth == 0:
+                            candidate = text[start : end + 1]
+                            try:
+                                json.loads(candidate)
+                                return candidate
+                            except Exception:
+                                break
+            return None
+
         try:
             cleaned = raw.strip()
 
@@ -873,7 +898,14 @@ DO NOT use markdown code blocks. DO NOT add any text before or after the JSON ob
             if json_start >= 0 and json_end > json_start:
                 cleaned = cleaned[json_start:json_end+1]
 
-            data = json.loads(cleaned)
+            try:
+                data = json.loads(cleaned)
+            except json.JSONDecodeError:
+                alt = _extract_first_balanced_json(raw)
+                if alt:
+                    data = json.loads(alt)
+                else:
+                    raise
 
             # Parse AISI Inspect scores
             task_completion = data.get("task_completion")
