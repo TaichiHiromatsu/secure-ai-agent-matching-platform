@@ -1256,6 +1256,54 @@ def run_security_gate(
         # レート制限回避: 環境変数で待機時間を設定可能 (デフォルト1秒)
         import os
         throttle_seconds = float(os.getenv("SECURITY_GATE_THROTTLE_SECONDS", "1.0"))
+        # バッチサイズ: 環境変数で変更可能 (デフォルト5件)
+        batch_size = int(os.getenv("SECURITY_GATE_BATCH_SIZE", "5"))
+
+        # バッチ評価タスクのリスト
+        evaluation_tasks: List[asyncio.Task] = []
+        current_batch: List[AttackResult] = []
+
+        # バッチ評価用の非同期ヘルパー関数
+        async def evaluate_batch_async(batch: List[AttackResult], batch_num: int):
+          """バッチ内の各結果を非同期で評価"""
+          evaluator = get_security_evaluator()
+          for res in batch:
+            if res.verdict != "pending_eval" or res.response_text is None:
+              continue
+            try:
+              eval_result = await evaluator._async_security_evaluation(
+                prompt_text=res.prompt_text,
+                response_text=res.response_text,
+                agent_card=agent_card_data,
+                session_id=session_id,
+                user_id=user_id
+              )
+              res.verdict = eval_result.get("verdict", "needs_review")
+              rationale = eval_result.get("rationale", "")
+              confidence = eval_result.get("confidence")
+              if confidence is not None and isinstance(confidence, (int, float)) and confidence < 0.5:
+                res.verdict = "needs_review"
+                rationale = f"Low confidence ({confidence:.2f}): {rationale}"
+              res.reason = rationale or res.reason
+            except Exception as exc:
+              logger.error(f"Batch {batch_num} evaluation failed for {res.prompt_id}: {exc}")
+              res.verdict = "needs_review"
+              res.reason = f"evaluation error: {exc}"
+
+            # SSE: 評価完了後に最終verdictを送信
+            if sse_callback:
+              res_idx = results_local.index(res)
+              _notify_sse_sync(sse_callback, {
+                "type": "security_scenario_result",
+                "scenario_index": res_idx,
+                "total_scenarios": len(enriched_prompts),
+                "category": categorize_result(res),
+                "verdict": res.verdict,
+                "rationale": res.reason,
+                "is_batch_update": True,
+                "promptId": res.prompt_id,
+              })
+          logger.info(f"Batch {batch_num} evaluation completed ({len(batch)} items)")
 
         for idx, (prompt, prepared_text) in enumerate(enriched_prompts):
           # 各プロンプト間に待機時間を追加
@@ -1412,6 +1460,40 @@ def run_security_gate(
             print(f"[DEBUG SSE A2A] prepared_text[:100]={prepared_text[:100] if prepared_text else 'None'}")
             print(f"[DEBUG SSE A2A] response_text[:100]={response_text[:100] if response_text else 'None'}")
             _notify_sse_sync(sse_callback, sse_payload)
+
+          # バッチに結果を追加（pending_evalの場合のみ評価対象）
+          if verdict == "pending_eval":
+            current_batch.append(results_local[-1])
+            print(f"[DEBUG BATCH] Added to batch: idx={idx}, current_batch_size={len(current_batch)}, batch_size={batch_size}")
+
+          # バッチが満杯になったら評価をバックグラウンドで開始
+          if len(current_batch) >= batch_size:
+            print(f"[DEBUG BATCH] Batch full, starting evaluation")
+            batch_num = len(evaluation_tasks) + 1
+            logger.info(f"Starting batch {batch_num} evaluation ({len(current_batch)} items) in background")
+            eval_task = asyncio.create_task(
+              evaluate_batch_async(current_batch[:], batch_num)  # コピーを渡す
+            )
+            evaluation_tasks.append(eval_task)
+            current_batch = []
+
+        # 残りのバッチを処理
+        print(f"[DEBUG BATCH] After loop: current_batch_size={len(current_batch)}, evaluation_tasks={len(evaluation_tasks)}")
+        if current_batch:
+          batch_num = len(evaluation_tasks) + 1
+          print(f"[DEBUG BATCH] Starting final batch {batch_num} with {len(current_batch)} items")
+          logger.info(f"Starting final batch {batch_num} evaluation ({len(current_batch)} items) in background")
+          eval_task = asyncio.create_task(
+            evaluate_batch_async(current_batch[:], batch_num)
+          )
+          evaluation_tasks.append(eval_task)
+
+        # 全評価タスクの完了を待機
+        if evaluation_tasks:
+          logger.info(f"Waiting for {len(evaluation_tasks)} evaluation batch(es) to complete...")
+          await asyncio.gather(*evaluation_tasks)
+          logger.info("All evaluation batches completed")
+
         return results_local
 
     a2a_results = asyncio.run(invoke_prompts_a2a())
@@ -1467,11 +1549,14 @@ def run_security_gate(
         })
 
   # 逐次評価（pending_evalのみ対象）- 各評価完了後に即座にSSE送信
+  # Note: A2Aモードでは既にinvoke_prompts_a2a内で評価完了しているため、
+  #       pending_evalは残っていない（evaluableは空リスト）
   evaluable = [
     res for res in results
     if res.verdict == "pending_eval" and res.response_text is not None
   ]
   if evaluable:
+    logger.info(f"Phase 2: Evaluating {len(evaluable)} pending_eval results (non-A2A mode)")
     evaluator = get_security_evaluator()
     for res in evaluable:
       try:

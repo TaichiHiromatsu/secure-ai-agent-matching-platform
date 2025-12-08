@@ -1095,6 +1095,17 @@ def process_submission(submission_id: str):
                 "enabled": wandb_info.get("enabled", False)
             }
 
+            # Log key metrics to W&B (Trust Score + verdict)
+            try:
+                if wandb_info.get("enabled"):
+                    import wandb  # type: ignore
+                    wandb.log({
+                        "trust_score": float(trust_score_from_judge),
+                        "verdict": verdict,
+                    })
+            except Exception as e:
+                print(f"[WARN] wandb log failed: {e}")
+
             # Build unified breakdown (Trust Score中心)
             current_breakdown["scoring_breakdown"] = build_score_breakdown(
                 trust_score=trust_score_from_judge,

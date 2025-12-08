@@ -858,6 +858,93 @@ DO NOT use markdown code blocks. DO NOT add any text before or after the JSON ob
                                 break
             return None
 
+        def _repair_incomplete_json(text: str) -> Optional[str]:
+            """不完全なJSONを修復する。
+
+            よくあるケース:
+            1. 閉じ括弧 } が足りない
+            2. 文字列が閉じられていない（末尾に " を追加）
+            3. 配列が閉じられていない（末尾に ] を追加）
+
+            Returns:
+                修復されたJSON文字列、または修復不可能な場合はNone
+            """
+            import json
+            import re
+
+            # 最初の { を見つける
+            start = text.find('{')
+            if start < 0:
+                return None
+
+            # { から始まる部分を取得
+            text = text[start:]
+
+            # 括弧の深さをカウント
+            depth_brace = 0    # {}
+            depth_bracket = 0  # []
+            in_string = False
+            escape_next = False
+
+            for i, ch in enumerate(text):
+                if escape_next:
+                    escape_next = False
+                    continue
+
+                if ch == '\\' and in_string:
+                    escape_next = True
+                    continue
+
+                if ch == '"' and not escape_next:
+                    in_string = not in_string
+                    continue
+
+                if in_string:
+                    continue
+
+                if ch == '{':
+                    depth_brace += 1
+                elif ch == '}':
+                    depth_brace -= 1
+                elif ch == '[':
+                    depth_bracket += 1
+                elif ch == ']':
+                    depth_bracket -= 1
+
+            # 修復が必要な場合
+            repaired = text
+
+            # 文字列が閉じられていない場合（末尾が途中で切れている）
+            if in_string:
+                repaired += '"'
+
+            # 配列が閉じられていない場合
+            while depth_bracket > 0:
+                repaired += ']'
+                depth_bracket -= 1
+
+            # オブジェクトが閉じられていない場合
+            while depth_brace > 0:
+                repaired += '}'
+                depth_brace -= 1
+
+            # 修復後にパースを試みる
+            try:
+                json.loads(repaired)
+                logger.debug(f"JSON repair succeeded: added closing brackets/braces")
+                return repaired
+            except json.JSONDecodeError:
+                # さらなる修復を試みる
+                # 末尾のカンマを削除（"field": value, } のケース）
+                cleaned = re.sub(r',\s*([\]}])', r'\1', repaired)
+                try:
+                    json.loads(cleaned)
+                    logger.debug(f"JSON repair succeeded: removed trailing comma")
+                    return cleaned
+                except json.JSONDecodeError:
+                    logger.debug(f"JSON repair failed: could not fix the JSON")
+                    return None
+
         def _escape_control_chars_in_json_strings(text: str) -> str:
             """JSON文字列値内の制御文字（改行、タブ等）をエスケープ。
 
@@ -1004,13 +1091,24 @@ DO NOT use markdown code blocks. DO NOT add any text before or after the JSON ob
             try:
                 data = json.loads(cleaned)
             except json.JSONDecodeError:
+                # Step 1: バランスしたJSON抽出を試みる
                 alt = _extract_first_balanced_json(raw)
                 if alt:
                     # バランスJSONにも制御文字エスケープを適用
                     alt = _escape_control_chars_in_json_strings(alt)
-                    data = json.loads(alt)
-                else:
-                    raise
+                    try:
+                        data = json.loads(alt)
+                    except json.JSONDecodeError:
+                        alt = None
+
+                if not alt:
+                    # Step 2: 不完全JSON修復を試みる
+                    repaired = _repair_incomplete_json(cleaned)
+                    if repaired:
+                        logger.info("Using repaired JSON after incomplete output")
+                        data = json.loads(repaired)
+                    else:
+                        raise
 
             # Parse AISI Inspect scores
             task_completion = data.get("task_completion")

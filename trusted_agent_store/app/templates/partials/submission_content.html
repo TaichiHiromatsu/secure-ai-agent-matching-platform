@@ -1392,8 +1392,9 @@
 
     juryStream.on('security_scenario_result', (data) => {
         // security_completed後のイベントは無視（重複カウント防止）
-        if (securityCompleted) {
-            console.log('[Streaming] security_scenario_result ignored (after security_completed):', data);
+        // ただし、is_batch_update: trueの場合は評価結果の更新なので処理する
+        if (securityCompleted && !data.is_batch_update) {
+            console.log('[Streaming] security_scenario_result ignored (after security_completed, non-batch):', data);
             return;
         }
         // asyncを削除、常にキューに追加して逐次処理
@@ -1411,8 +1412,14 @@
 
         // security_completed後のsecurity_scenario_resultを無視するためのフラグ
         securityCompleted = true;
-        // キューをクリア（security_completed後の遅延イベントを無視）
-        securityEventQueue = [];
+        // is_batch_update: true のイベントは保持（評価結果の更新が必要）
+        // それ以外のイベントはクリア（重複防止）
+        securityEventQueue = securityEventQueue.filter(e => e.is_batch_update === true);
+        // 残っている is_batch_update イベントを処理
+        if (securityEventQueue.length > 0) {
+            console.log('[Streaming] Processing remaining batch update events:', securityEventQueue.length);
+            processSecurityEventQueue();
+        }
 
         // 集計リコンシリエーション（リアルタイム更新漏れ補正）
         const summary = data.data || {};
