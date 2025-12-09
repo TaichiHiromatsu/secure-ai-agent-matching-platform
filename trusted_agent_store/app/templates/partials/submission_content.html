@@ -1225,31 +1225,30 @@
             await updateSecurityCurrentTestResponse(data);
         }
 
-        // Phase 1: テーブルに行を追加（prompt/response含む）
-        // Phase 2: Verdictのみ更新（prompt/responseはそのまま保持）
-        if (!data.is_batch_update) {
-            await appendSecurityScenarioToTable(data);
-        } else {
-            // Phase 2: Verdictだけを更新
-            // promptIdが無い場合はsecurityScenariosから取得
-            let promptId = data.promptId;
-            if (!promptId && data.scenario_index !== undefined) {
-                const savedScenario = securityScenarios.find(s => s.scenario_index === data.scenario_index);
-                if (savedScenario) {
-                    promptId = savedScenario.promptId;
-                }
+        // テーブルへの行追加またはVerdict更新
+        // is_batch_update=true でも、行が存在しなければ追加する（blocked等の最終結果）
+        let promptId = data.promptId;
+        if (!promptId && data.scenario_index !== undefined) {
+            const savedScenario = securityScenarios.find(s => s.scenario_index === data.scenario_index);
+            if (savedScenario) {
+                promptId = savedScenario.promptId;
             }
-            const rowId = `security-row-${promptId || data.scenario_index}`;
-            const row = document.getElementById(rowId);
-            if (row) {
-                const verdictCell = row.querySelector('td:last-child span');
-                if (verdictCell) {
-                    const verdictClass = data.verdict === 'blocked' ? 'bg-green-100 text-green-800' :
-                                         data.verdict === 'needs_review' ? 'bg-yellow-100 text-yellow-800' :
-                                         data.verdict === 'error' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800';
-                    verdictCell.className = `px-2 py-1 rounded text-xs ${verdictClass}`;
-                    verdictCell.textContent = data.verdict;
-                }
+        }
+        const rowId = `security-row-${promptId || data.scenario_index}`;
+        const existingRow = document.getElementById(rowId);
+
+        if (!existingRow) {
+            // 行が存在しない場合は追加（Phase 1 または is_batch_update=true の最終結果）
+            await appendSecurityScenarioToTable(data);
+        } else if (data.is_batch_update) {
+            // Phase 2: 既存行がある場合はVerdictだけを更新
+            const verdictCell = existingRow.querySelector('td:last-child span');
+            if (verdictCell) {
+                const verdictClass = data.verdict === 'blocked' ? 'bg-green-100 text-green-800' :
+                                     data.verdict === 'needs_review' ? 'bg-yellow-100 text-yellow-800' :
+                                     data.verdict === 'error' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800';
+                verdictCell.className = `px-2 py-1 rounded text-xs ${verdictClass}`;
+                verdictCell.textContent = data.verdict;
             }
         }
         if (data.verdict === 'needs_review' || data.verdict === 'error') {
@@ -1354,7 +1353,7 @@
         securityRenderer.openSection();
         securityScenarios = [];  // リセット
         securityTableReady = false;  // テーブル準備中
-        securityEventQueue = [];  // キューをリセット
+        // securityEventQueue は リセットしない（先に到着したイベントを保持）
         securityProcessingQueue = false;  // 処理中フラグをリセット
         securityTestsStarted = 0;  // 開始テスト数をリセット
         processedScenarios = new Set();  // 処理済みシナリオをリセット（二重カウント防止）
@@ -1833,11 +1832,34 @@
     // ==== Agent Card Accuracy (Functional) Event Handlers ====
     // シナリオ結果を蓄積
     let functionalScenarios = [];
+    let functionalEventQueue = [];      // イベントをキューイング
+    let functionalTableReady = false;   // テーブルが準備完了したかどうか
+    let functionalProcessingQueue = false; // キュー処理中フラグ
+
+    // Functionalイベントキュー処理
+    async function processFunctionalEventQueue() {
+        if (functionalProcessingQueue) return;
+        functionalProcessingQueue = true;
+
+        while (functionalEventQueue.length > 0) {
+            const data = functionalEventQueue.shift();
+            if (data._eventType === 'turn_progress') {
+                await processFunctionalTurnProgress(data);
+            } else if (data._eventType === 'scenario_result') {
+                await processFunctionalScenarioResult(data);
+            }
+        }
+
+        functionalProcessingQueue = false;
+    }
 
     juryStream.on('functional_started', async (data) => {
         console.log('[Streaming] functional_started received:', data);
         functionalRenderer.openSection();
         functionalScenarios = [];  // リセット
+        functionalTableReady = false;  // テーブル準備中
+        // functionalEventQueue は リセットしない（先に到着したイベントを保持）
+        functionalProcessingQueue = false;  // 処理中フラグをリセット
         functionalState = { total: data.total_scenarios || 0, passed: 0, failed: 0, needsReview: 0, currentScenario: 0, currentTurn: 0, currentTotalTurns: 0 };
 
         // サーバーサイドで既に表示済みの場合はストリーミングをスキップ
@@ -1846,10 +1868,28 @@
             // ストリーミングアニメーション表示
             await renderFunctionalSectionStreaming();
         }
+
+        // テーブル準備完了
+        functionalTableReady = true;
+
+        // キューに蓄積されたイベントを処理
+        console.log(`[Streaming] Processing ${functionalEventQueue.length} queued functional events`);
+        processFunctionalEventQueue();
     });
 
-    juryStream.on('functional_scenario_result', async (data) => {
+    juryStream.on('functional_scenario_result', (data) => {
         console.log('[Streaming] functional_scenario_result received:', data);
+        // キューに追加
+        functionalEventQueue.push({ ...data, _eventType: 'scenario_result' });
+
+        // テーブルが準備完了していればキュー処理を開始
+        if (functionalTableReady) {
+            processFunctionalEventQueue();
+        }
+    });
+
+    // シナリオ結果の実処理
+    async function processFunctionalScenarioResult(data) {
         // カウンター更新
         if (data.verdict === 'pass') functionalState.passed++;
         else if (data.verdict === 'fail') functionalState.failed++;
@@ -1884,10 +1924,21 @@
         if (data.verdict !== 'pass') {
             await appendFunctionalFailedScenario(data);
         }
+    }
+
+    juryStream.on('functional_turn_progress', (data) => {
+        console.log('[Streaming] functional_turn_progress received:', data);
+        // キューに追加
+        functionalEventQueue.push({ ...data, _eventType: 'turn_progress' });
+
+        // テーブルが準備完了していればキュー処理を開始
+        if (functionalTableReady) {
+            processFunctionalEventQueue();
+        }
     });
 
-    juryStream.on('functional_turn_progress', async (data) => {
-        console.log('[Streaming] functional_turn_progress received:', data);
+    // ターン進捗の実処理
+    async function processFunctionalTurnProgress(data) {
         functionalState.currentScenario = data.scenario_index;
         functionalState.currentTurn = data.turn;
         functionalState.currentTotalTurns = data.total_turns;
@@ -1928,7 +1979,7 @@
                 contentEl.innerHTML = '<div class="text-gray-400">応答待ち...</div>';
             }
         }
-    });
+    }
 
     juryStream.on('functional_completed', async (data) => {
         console.log('[Streaming] functional_completed received:', data);
