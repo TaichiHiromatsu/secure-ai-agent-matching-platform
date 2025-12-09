@@ -16,17 +16,23 @@ import httpx
 
 class RateLimitError(Exception):
     pass
-BASE_URL = "http://localhost:8000"  # e.g., https://secure-mediation-a2a-platform-343404053218.asia-northeast1.run.app/store
-NORMAL_CARD = "http://localhost:8002/a2a/sales_agent/.well-known/agent-card.json"
-MAL_CARD = "http://localhost:8002/a2a/data_harvester_agent/.well-known/agent-card.json"
+BASE_URL_CANDIDATES = [
+    "http://localhost:8080/api",  # nginx exposes store API here
+    "http://127.0.0.1:8000/api",  # uvicorn (host)
+    "http://localhost:8000/api",   # uvicorn (host alt)
+    "http://localhost:8001/api",   # uvicorn (container alt)
+]
+SUBMIT_PATH = "/submissions/"
+NORMAL_CARD = "http://localhost:8080/a2a/sales_agent/.well-known/agent-card.json"
+MAL_CARD = "http://localhost:8080/a2a/data_harvester_agent/.well-known/agent-card.json"
 SG_PROMPTS = 30
 ACA_SCENARIOS = 5
-RUNS_PER_TYPE = 60  # per agent type
+RUNS_PER_TYPE = 2  # per agent type (reduce for quick sanity run)
 MAX_PARALLEL = 2
 POLL_INTERVAL = 10  # seconds
-TIMEOUT_SECONDS = 480  # per submission
+TIMEOUT_SECONDS = 0  # 0 = no timeout (wait until terminal state)
 
-BASE_URL = BASE_URL.rstrip("/")
+BASE_URL = None  # will be chosen at runtime
 
 LOG_PATH = Path("logs/trust_scores.csv")
 LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -50,7 +56,7 @@ async def submit_once(client: httpx.AsyncClient, agent_card_url: str) -> str:
             },
         },
     }
-    resp = await client.post(f"{BASE_URL}/submissions", json=payload, timeout=30)
+    resp = await client.post(SUBMIT_URL, json=payload, timeout=30)
     if resp.status_code in (429, 503):
         raise RateLimitError(f"rate limited: {resp.status_code}")
     resp.raise_for_status()
@@ -59,9 +65,9 @@ async def submit_once(client: httpx.AsyncClient, agent_card_url: str) -> str:
 
 
 async def poll_result(client: httpx.AsyncClient, submission_id: str) -> dict:
-    deadline = asyncio.get_event_loop().time() + TIMEOUT_SECONDS
+    deadline = None if TIMEOUT_SECONDS == 0 else asyncio.get_event_loop().time() + TIMEOUT_SECONDS
     while True:
-        resp = await client.get(f"{BASE_URL}/submissions/{submission_id}", timeout=15)
+        resp = await client.get(f"{SUBMIT_URL}{submission_id}", timeout=15)
         if resp.status_code in (429, 503):
             raise RateLimitError(f"rate limited during poll: {resp.status_code}")
         resp.raise_for_status()
@@ -76,7 +82,7 @@ async def poll_result(client: httpx.AsyncClient, submission_id: str) -> dict:
         if auto_decision in {"auto_approved", "auto_rejected", "requires_human_review"}:
             return data
 
-        if asyncio.get_event_loop().time() > deadline:
+        if deadline and asyncio.get_event_loop().time() > deadline:
             data["auto_decision"] = "timeout"
             return data
 
@@ -164,6 +170,25 @@ async def run_job(agent_type: str, idx: int, card_url: str, client: httpx.AsyncC
 
 
 async def main():
+    # Auto-detect base URL
+    global BASE_URL, SUBMIT_URL
+    for cand in BASE_URL_CANDIDATES:
+        url = cand.rstrip("/") + SUBMIT_PATH
+        try:
+            async with httpx.AsyncClient(follow_redirects=True, timeout=5) as client:
+                resp = await client.get(url)
+                if resp.status_code < 400:
+                    BASE_URL = cand.rstrip("/")
+                    SUBMIT_URL = BASE_URL + SUBMIT_PATH
+                    print(f"[INFO] Selected base URL: {BASE_URL}")
+                    break
+        except Exception as e:
+            continue
+
+    if not BASE_URL:
+        print("[ERROR] No reachable base URL from candidates", file=sys.stderr)
+        return
+
     jobs = []
     for i in range(1, RUNS_PER_TYPE + 1):
         jobs.append(("normal", i, NORMAL_CARD))
@@ -173,7 +198,7 @@ async def main():
     stop_event = asyncio.Event()
     sem = asyncio.Semaphore(MAX_PARALLEL)
 
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(follow_redirects=True) as client:
         tasks = [
             asyncio.create_task(run_job(t, idx, url, client, stop_event, sem))
             for (t, idx, url) in jobs

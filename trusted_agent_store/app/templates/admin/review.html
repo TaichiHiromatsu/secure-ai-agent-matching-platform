@@ -21,10 +21,10 @@
             <div class="p-6 border-t border-gray-200 bg-gray-50">
                 <h2 class="text-xl font-semibold mb-4">Review Actions</h2>
 
-                {% if submission.state == 'published' %}
-                <!-- Already Published -->
+                {% if submission.state == 'published' or submission.auto_decision == 'auto_approved' %}
+                <!-- Already Published / Auto-approved -->
                 <div class="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded">
-                    <strong>✓ Published</strong> - This agent is already in the registry.
+                    <strong>✓ Published</strong> - Automatically approved/published. Manual actions are not required.
                 </div>
 
                 {% elif submission.state in ['rejected', 'failed'] %}

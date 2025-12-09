@@ -742,7 +742,7 @@ def process_submission(submission_id: str):
                 "message": "Agent Card Accuracy is running..."
             }
             submission.score_breakdown = current_breakdown
-            submission.state = "capability_validation_running"
+            submission.state = "agent_card_accuracy_running"
             submission.updated_at = datetime.utcnow()
             db.commit()
 
@@ -938,7 +938,7 @@ def process_submission(submission_id: str):
 
         # WebSocket notification for Functional Accuracy completion
         try:
-            asyncio.run(notify_state_change(submission_id, "capability_validation_running", "functional_accuracy_completed"))
+            asyncio.run(notify_state_change(submission_id, "agent_card_accuracy_running", "functional_accuracy_completed"))
             asyncio.run(notify_score_update(submission_id, {
                 "functional_summary": enhanced_functional_summary
             }))

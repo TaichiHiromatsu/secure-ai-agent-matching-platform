@@ -313,14 +313,21 @@ reasoningフィールドには評価理由を日本語で詳しく記述し、�
                     )
                     return await self._evaluate_with_claude_fallback_async(question, execution)
 
-                # JSONパースエラー（verdict="error"）の場合はリトライ
-                if parsed.get("verdict") == "error" and attempt < max_attempts:
+                # JSONパースエラー（verdict="error"）の場合は1回だけリトライ、その後Claudeフォールバック
+                if parsed.get("verdict") == "error":
+                    if attempt < 2:  # 1回だけリトライ
+                        logger.warning(
+                            f"Google ADK JSON parse error detected, retrying... "
+                            f"(attempt {attempt}/2)"
+                        )
+                        await asyncio.sleep(1.0)
+                        continue
+                    # 2回目以降はClaudeフォールバック
                     logger.warning(
-                        f"Google ADK JSON parse error detected, retrying... "
-                        f"(attempt {attempt}/{max_attempts})"
+                        "Google ADK JSON parse error persists after retry. "
+                        "Falling back to Claude..."
                     )
-                    await asyncio.sleep(1.0)  # 少し待ってからリトライ
-                    continue
+                    return await self._evaluate_with_claude_fallback_async(question, execution)
 
                 result = LLMJudgeResult(
                     score=parsed.get("score"),
@@ -356,17 +363,14 @@ reasoningフィールドには評価理由を日本語で詳しく記述し、�
 
                 return result
             except Exception as error:  # pragma: no cover - env/429 dependent
-                # 429の場合はRetryInfoの秒数を待ってリトライ
+                # 429の場合は即座にClaudeフォールバック（リトライでquotaを消費しない）
                 err_str = str(error)
                 if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
-                    retry_sec = 60
-                    m = re.search(r"retryDelay': '([0-9]+)s'", err_str)
-                    if m:
-                        retry_sec = int(m.group(1))
-                    if attempt < max_attempts:
-                        logger.warning(f"Google ADK 429 detected. Sleeping {retry_sec}s before retry {attempt}/{max_attempts}")
-                        await asyncio.sleep(retry_sec)
-                        continue
+                    logger.warning(
+                        f"Google ADK 429/quota error detected. "
+                        f"Falling back to Claude immediately..."
+                    )
+                    return await self._evaluate_with_claude_fallback_async(question, execution)
                 logger.error(f"Google ADK evaluation failed: {error}")
                 return self._fallback_result(f"google_adk_error:{error}")
 
