@@ -1150,6 +1150,7 @@ def run_functional_accuracy(
   prompts_path = output_dir / "functional_scenarios.jsonl"
   passes = 0
   needs_review = 0
+  fails = 0
   distances: List[float] = []
   embedding_distances: List[float] = []
 
@@ -1283,6 +1284,8 @@ def run_functional_accuracy(
 
           if evaluation["verdict"] == "pass":
             passes += 1
+          elif evaluation["verdict"] == "fail":
+            fails += 1
           else:
             needs_review += 1
 
@@ -1319,10 +1322,12 @@ def run_functional_accuracy(
         elif status == "dry_run":
           evaluation.setdefault("reason", "dry_run")
 
-        # エラーでない場合のみ、pass/needs_reviewをカウント
+        # エラーでない場合のみ、pass/fail/needs_reviewをカウント
         if status != "error":
           if evaluation["verdict"] == "pass":
             passes += 1
+          elif evaluation["verdict"] == "fail":
+            fails += 1
           else:
             needs_review += 1
 
@@ -1396,6 +1401,7 @@ def run_functional_accuracy(
     "scenarios": len(scenarios),
     "passes": passes,
     "passed": passes,
+    "failed": fails,
     "needsReview": needs_review,
     "averageDistance": round(avg_distance, 4) if not math.isnan(avg_distance) else 0.0,
     "embeddingAverageDistance": round(avg_embedding_distance, 4) if not math.isnan(avg_embedding_distance) else 0.0,

@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import flag_modified
 from typing import List
 from .. import models, schemas
 from ..database import get_db, SessionLocal
@@ -1165,6 +1166,7 @@ def process_submission(submission_id: str):
                     "message": "Agent published automatically"
                 }
                 submission.score_breakdown = current_breakdown
+                flag_modified(submission, "score_breakdown")
                 if publish_summary.get("status") == "published":
                     submission.state = "published"
                 # Send SSE notification for auto_approved -> published with stage updates
@@ -1184,6 +1186,7 @@ def process_submission(submission_id: str):
                     "message": "Agent rejected automatically"
                 }
                 submission.score_breakdown = current_breakdown
+                flag_modified(submission, "score_breakdown")
                 # Send SSE notification for auto_rejected with stage updates
                 asyncio.run(notify_state_change(submission_id, old_state, submission.state, {
                     "human": {"status": "skipped"},
@@ -1197,6 +1200,7 @@ def process_submission(submission_id: str):
                     "message": "Awaiting human review (Trust Score: 51-89)"
                 }
                 submission.score_breakdown = current_breakdown
+                flag_modified(submission, "score_breakdown")
                 # Send SSE notification for under_review with stage updates
                 asyncio.run(notify_state_change(submission_id, old_state, submission.state, {
                     "human": {"status": "running"}
