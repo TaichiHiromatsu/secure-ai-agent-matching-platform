@@ -958,6 +958,28 @@ Rationale: {my_eval.rationale if my_eval else ""}
 
         result = await judge.evaluate_async(temp_question, execution)
 
+        # Geminiが不完全なJSONを出力した場合、Claudeフォールバックを呼び出す
+        rationale_text = result.rationale or ""
+        needs_claude_fallback = (
+            (rationale_text.strip().startswith("{") and len(rationale_text.strip()) < 200) or
+            result.verdict == "error" or
+            not result.rationale or
+            getattr(result, '_parse_failed', False)
+        )
+
+        if needs_claude_fallback and hasattr(judge, '_evaluate_with_claude_fallback_async'):
+            logger.warning(f"Discussion statement (turn-based) for {juror_id} has incomplete JSON, calling Claude fallback")
+            try:
+                fallback_result = await judge._evaluate_with_claude_fallback_async(temp_question, execution)
+                result = fallback_result
+                rationale_text = result.rationale or "(Claudeフォールバックからの応答なし)"
+                logger.info(f"Claude fallback successful for {juror_id}")
+            except Exception as e:
+                logger.error(f"Claude fallback failed for {juror_id}: {e}")
+                rationale_text = "(議論発言の生成に失敗しました - 評価は初期評価を維持)"
+        elif needs_claude_fallback:
+            rationale_text = "(議論発言の生成に失敗しました - 評価は初期評価を維持)"
+
         # 結果をパース
         juror_idx = self.jurors.index(juror_id)
         statement = JurorStatement(
@@ -965,7 +987,7 @@ Rationale: {my_eval.rationale if my_eval else ""}
             round_number=turn_number,  # ターン番号をround_numberに格納
             statement_order=juror_idx,
             position=my_eval.verdict if my_eval else "needs_review",
-            reasoning=result.rationale,
+            reasoning=rationale_text,
         )
 
         # 評価が更新された場合
@@ -981,7 +1003,7 @@ Rationale: {my_eval.rationale if my_eval else ""}
                 "overall_score": result.total_score,
                 "verdict": self._convert_verdict(result.verdict),
                 "confidence": result.confidence if result.confidence is not None else 0.0,
-                "rationale": result.rationale,
+                "rationale": rationale_text,
                 "role_name": role_name,
                 "role_focus": role_focus,
             })
@@ -1202,13 +1224,36 @@ Rationale: {my_eval.rationale if my_eval else ""}
 
         result = await judge.evaluate_async(temp_question, execution)
 
-        # 結果をパース
+        # Geminiが不完全なJSONを出力した場合（Claudeフォールバックが動作していない場合）、
+        # 明示的にClaudeフォールバックを呼び出す
+        rationale_text = result.rationale or ""
+        needs_claude_fallback = (
+            (rationale_text.strip().startswith("{") and len(rationale_text.strip()) < 200) or
+            result.verdict == "error" or
+            not result.rationale or
+            getattr(result, '_parse_failed', False)
+        )
+
+        if needs_claude_fallback and hasattr(judge, '_evaluate_with_claude_fallback_async'):
+            logger.warning(f"Discussion statement for {juror_id} has incomplete JSON or error, calling Claude fallback")
+            try:
+                fallback_result = await judge._evaluate_with_claude_fallback_async(temp_question, execution)
+                result = fallback_result
+                rationale_text = result.rationale or "(Claudeフォールバックからの応答なし)"
+                logger.info(f"Claude fallback successful for {juror_id}, rationale length: {len(rationale_text)}")
+            except Exception as e:
+                logger.error(f"Claude fallback failed for {juror_id}: {e}")
+                rationale_text = "(議論発言の生成に失敗しました - 評価は初期評価を維持)"
+        elif needs_claude_fallback:
+            # Claudeフォールバックメソッドが利用できない場合のみエラーメッセージ
+            rationale_text = "(議論発言の生成に失敗しました - 評価は初期評価を維持)"
+
         statement = JurorStatement(
             juror_id=juror_id,
             round_number=round_num,
             statement_order=juror_idx,
             position=my_eval.verdict if my_eval else "needs_review",
-            reasoning=result.rationale,
+            reasoning=rationale_text,
         )
 
         # 評価が更新された場合
@@ -1466,10 +1511,15 @@ You must be objective and not favor any specific juror's model.
             result.verdict == "error"
         )
         if used_fallback:
+            # 生のLLM出力にJSONフラグメントが含まれている場合は表示しない（可読性向上）
+            raw_output = result.rationale or ""
+            # 不完全なJSON（{で始まる短い出力）は表示しない
+            if raw_output.strip().startswith("{") and len(raw_output.strip()) < 500:
+                raw_output = "(JSONパースエラー - 出力省略)"
             fallback_rationale = (
                 "【注意】最終ジャッジLLMからの4軸スコア取得に失敗したため、"
                 "陪審員3名の評価平均値を使用しています。\n\n"
-                f"元のLLM出力:\n{result.rationale}"
+                f"元のLLM出力:\n{raw_output}"
             )
             final_rationale = fallback_rationale
         else:
@@ -2576,6 +2626,42 @@ Round {round_num}として、他のJurorの評価と比較し、あなたの専�
             llm_judge = LLMJudge(config)
             # Use _send_prompt for simple text generation (run in thread to avoid blocking)
             response_text = await asyncio.to_thread(llm_judge._send_prompt, prompt)
+
+            # Geminiが不完全なJSONを出力した場合、Claudeフォールバックを呼び出す
+            # 条件: 空、または { で始まる不完全なJSON
+            def _is_incomplete_json(text: str) -> bool:
+                """不完全なJSONかどうかを判定"""
+                import json
+                stripped = text.strip() if text else ""
+                if not stripped:
+                    return True
+                # { で始まる場合、JSONとしてパースを試みる
+                if stripped.startswith("{"):
+                    try:
+                        json.loads(stripped)
+                        return False  # 正常にパースできた = 完全なJSON
+                    except json.JSONDecodeError:
+                        return True  # パース失敗 = 不完全なJSON
+                return False  # { で始まらない場合は通常のテキスト
+
+            needs_claude_fallback = _is_incomplete_json(response_text)
+
+            if needs_claude_fallback:
+                logger.warning(f"Collective discussion for {juror_id} has incomplete response, calling Claude fallback")
+                try:
+                    # Claude用のLLMJudgeを作成してフォールバック
+                    claude_config = LLMJudgeConfig(
+                        enabled=True,
+                        provider="anthropic",
+                        model="claude-3-haiku-20240307",
+                        dry_run=self.dry_run,
+                    )
+                    claude_judge = LLMJudge(claude_config)
+                    response_text = await asyncio.to_thread(claude_judge._send_prompt, prompt)
+                    logger.info(f"Claude fallback successful for {juror_id}")
+                except Exception as e:
+                    logger.error(f"Claude fallback failed for {juror_id}: {e}")
+                    response_text = f"[{role_name}の発言生成に失敗しました - 初期評価を維持]"
 
             # 評価更新の抽出（簡易版）
             updated_eval = my_eval

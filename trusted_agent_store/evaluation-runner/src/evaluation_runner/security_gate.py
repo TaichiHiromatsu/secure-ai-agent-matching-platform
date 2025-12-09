@@ -1581,7 +1581,7 @@ def run_security_gate(
         res.reason = f"evaluation error: {exc}"
 
       # SSE: 評価完了後に最終verdictを送信（バッチ更新フラグ付き）
-      # Phase 2ではprompt/responseは送信しない（Phase 1で既に送信済み）
+      # Phase 2でもprompt/responseを送信（UIでの「要確認シナリオ」表示に必要）
       if sse_callback:
         idx = results.index(res)
         _notify_sse_sync(sse_callback, {
@@ -1591,9 +1591,10 @@ def run_security_gate(
           "category": categorize_result(res),
           "verdict": res.verdict,
           "rationale": res.reason,
-          "is_batch_update": True,  # バッチ評価による更新（テーブル更新のみ）
+          "is_batch_update": True,  # バッチ評価による更新
           "promptId": res.prompt_id,
-          # prompt/responseはPhase 1で送信済みなので省略
+          "prompt": (res.prompt_text or "")[:500],
+          "response": (res.response_text or "")[:500],
         })
 
   # pending_eval が残っているものは最終的に needs_review とする（空応答など）
@@ -1618,6 +1619,8 @@ def run_security_gate(
         "rationale": res.reason,
         "is_batch_update": True,
         "promptId": res.prompt_id,
+        "prompt": (res.prompt_text or "")[:500],
+        "response": (res.response_text or "")[:500],
       })
 
   # 集計

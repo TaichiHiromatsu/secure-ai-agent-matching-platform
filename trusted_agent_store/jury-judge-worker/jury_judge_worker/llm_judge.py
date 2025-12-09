@@ -313,8 +313,9 @@ reasoningフィールドには評価理由を日本語で詳しく記述し、�
                     )
                     return await self._evaluate_with_claude_fallback_async(question, execution)
 
-                # JSONパースエラー（verdict="error"）の場合は1回だけリトライ、その後Claudeフォールバック
-                if parsed.get("verdict") == "error":
+                # JSONパースエラー（verdict="error" または _parse_failed=True）の場合は
+                # 1回だけリトライ、その後Claudeフォールバック
+                if parsed.get("_parse_failed") or parsed.get("verdict") == "error":
                     if attempt < 2:  # 1回だけリトライ
                         logger.warning(
                             f"Google ADK JSON parse error detected, retrying... "
@@ -329,10 +330,21 @@ reasoningフィールドには評価理由を日本語で詳しく記述し、�
                     )
                     return await self._evaluate_with_claude_fallback_async(question, execution)
 
+                # 必須フィールド検証: verdict と rationale が欠けている場合はClaudeフォールバック
+                # _repair_incomplete_json()で修復されても必須フィールドが欠けることがある
+                if not parsed.get("verdict") or not parsed.get("rationale"):
+                    logger.warning(
+                        f"Google ADK response missing required fields "
+                        f"(verdict={parsed.get('verdict')}, "
+                        f"rationale={'present' if parsed.get('rationale') else 'missing'}). "
+                        f"Falling back to Claude..."
+                    )
+                    return await self._evaluate_with_claude_fallback_async(question, execution)
+
                 result = LLMJudgeResult(
                     score=parsed.get("score"),
                     verdict=parsed.get("verdict"),
-                    rationale=parsed.get("rationale", "google_adk_response"),
+                    rationale=parsed.get("rationale"),
                     raw=response_text,
                     task_completion=parsed.get("task_completion"),
                     tool_usage=parsed.get("tool_usage"),
@@ -869,6 +881,7 @@ DO NOT use markdown code blocks. DO NOT add any text before or after the JSON ob
             1. 閉じ括弧 } が足りない
             2. 文字列が閉じられていない（末尾に " を追加）
             3. 配列が閉じられていない（末尾に ] を追加）
+            4. 複数のJSONオブジェクトが連続している（最初の完全なもののみ使用）
 
             Returns:
                 修復されたJSON文字列、または修復不可能な場合はNone
@@ -876,13 +889,47 @@ DO NOT use markdown code blocks. DO NOT add any text before or after the JSON ob
             import json
             import re
 
-            # 最初の { を見つける
-            start = text.find('{')
-            if start < 0:
+            # 複数JSONオブジェクト検出: 2つ目の { が出現する前に } で閉じる位置を探す
+            # 例: { "task_completion": 5 { "task_completion": → 不完全なJSONが連続
+            first_brace = text.find('{')
+            if first_brace < 0:
                 return None
 
             # { から始まる部分を取得
-            text = text[start:]
+            text_from_first = text[first_brace:]
+
+            # 2つ目の { を見つける（ネストされた { を除く）
+            depth = 0
+            second_object_start = -1
+            in_string = False
+            escape_next = False
+
+            for i, ch in enumerate(text_from_first):
+                if escape_next:
+                    escape_next = False
+                    continue
+                if ch == '\\' and in_string:
+                    escape_next = True
+                    continue
+                if ch == '"' and not escape_next:
+                    in_string = not in_string
+                    continue
+                if in_string:
+                    continue
+
+                if ch == '{':
+                    if depth == 0 and i > 0:
+                        # 2つ目のルートレベル { を発見
+                        second_object_start = i
+                        break
+                    depth += 1
+                elif ch == '}':
+                    depth -= 1
+
+            # 2つ目のオブジェクトがある場合、最初のオブジェクト部分のみを使用
+            if second_object_start > 0:
+                text_from_first = text_from_first[:second_object_start]
+                logger.warning(f"Multiple JSON objects detected, using first fragment only")
 
             # 括弧の深さをカウント
             depth_brace = 0    # {}
@@ -890,7 +937,7 @@ DO NOT use markdown code blocks. DO NOT add any text before or after the JSON ob
             in_string = False
             escape_next = False
 
-            for i, ch in enumerate(text):
+            for i, ch in enumerate(text_from_first):
                 if escape_next:
                     escape_next = False
                     continue
@@ -916,7 +963,7 @@ DO NOT use markdown code blocks. DO NOT add any text before or after the JSON ob
                     depth_bracket -= 1
 
             # 修復が必要な場合
-            repaired = text
+            repaired = text_from_first
 
             # 文字列が閉じられていない場合（末尾が途中で切れている）
             if in_string:
@@ -934,7 +981,15 @@ DO NOT use markdown code blocks. DO NOT add any text before or after the JSON ob
 
             # 修復後にパースを試みる
             try:
-                json.loads(repaired)
+                parsed = json.loads(repaired)
+                # 修復されたJSONに必須フィールドがあるか確認
+                # verdict と (rationale または reasoning) の両方が必要
+                # どちらか一方でも欠けていたら修復失敗とみなす（Claudeフォールバックを促す）
+                has_verdict = bool(parsed.get("verdict"))
+                has_rationale = bool(parsed.get("rationale") or parsed.get("reasoning"))
+                if not has_verdict or not has_rationale:
+                    logger.warning(f"Repaired JSON missing required fields (verdict={has_verdict}, rationale={has_rationale}), treating as parse failure")
+                    return None
                 logger.debug(f"JSON repair succeeded: added closing brackets/braces")
                 return repaired
             except json.JSONDecodeError:
@@ -942,7 +997,13 @@ DO NOT use markdown code blocks. DO NOT add any text before or after the JSON ob
                 # 末尾のカンマを削除（"field": value, } のケース）
                 cleaned = re.sub(r',\s*([\]}])', r'\1', repaired)
                 try:
-                    json.loads(cleaned)
+                    parsed = json.loads(cleaned)
+                    # 同様に必須フィールドチェック
+                    has_verdict = bool(parsed.get("verdict"))
+                    has_rationale = bool(parsed.get("rationale") or parsed.get("reasoning"))
+                    if not has_verdict or not has_rationale:
+                        logger.warning(f"Repaired JSON missing required fields (verdict={has_verdict}, rationale={has_rationale}), treating as parse failure")
+                        return None
                     logger.debug(f"JSON repair succeeded: removed trailing comma")
                     return cleaned
                 except json.JSONDecodeError:
@@ -1002,52 +1063,6 @@ DO NOT use markdown code blocks. DO NOT add any text before or after the JSON ob
                 i += 1
 
             return ''.join(result)
-
-        def _extract_partial_json_fields(text: str) -> Optional[dict]:
-            """不完全なJSONから正規表現で主要フィールドを抽出するフォールバック。
-
-            JSONが途中で切れている場合や制御文字エスケープでも失敗した場合に使用。
-            """
-            import re
-            result = {}
-
-            # 数値フィールドのパターン
-            numeric_patterns = {
-                "task_completion": r'"task_completion"\s*:\s*(\d+(?:\.\d+)?)',
-                "tool_usage": r'"tool_usage"\s*:\s*(\d+(?:\.\d+)?)',
-                "autonomy": r'"autonomy"\s*:\s*(\d+(?:\.\d+)?)',
-                "safety": r'"safety"\s*:\s*(\d+(?:\.\d+)?)',
-                "total_score": r'"total_score"\s*:\s*(\d+(?:\.\d+)?)',
-                "confidence": r'"confidence"\s*:\s*(\d+(?:\.\d+)?)',
-            }
-
-            # verdictパターン
-            verdict_pattern = r'"verdict"\s*:\s*"(approve|manual|reject|safe_pass|needs_review|unsafe_fail)"'
-
-            for field, pattern in numeric_patterns.items():
-                match = re.search(pattern, text)
-                if match:
-                    result[field] = float(match.group(1))
-
-            verdict_match = re.search(verdict_pattern, text)
-            if verdict_match:
-                result["verdict"] = verdict_match.group(1)
-
-            # 最低限のフィールド（verdict + スコア系1つ以上）が抽出できたか確認
-            has_scores = any(result.get(k) is not None for k in numeric_patterns.keys())
-            if result.get("verdict") and has_scores:
-                result.setdefault("rationale", "JSONパースエラー: 正規表現フォールバックで部分抽出")
-                # スコア計算
-                if result.get("total_score") is None:
-                    tc = result.get("task_completion", 0) or 0
-                    tu = result.get("tool_usage", 0) or 0
-                    au = result.get("autonomy", 0) or 0
-                    sa = result.get("safety", 0) or 0
-                    result["total_score"] = tc + tu + au + sa
-                result["score"] = result["total_score"] / 100.0
-                return result
-
-            return None
 
         try:
             cleaned = raw.strip()
@@ -1163,22 +1178,12 @@ DO NOT use markdown code blocks. DO NOT add any text before or after the JSON ob
             logger.error(f"JSON Parse Error: {type(e).__name__}: {e}")
             logger.error(f"Raw response preview (first 500 chars): {error_preview}")
 
-            # Step 2: 正規表現フォールバック - 不完全なJSONから主要フィールドを抽出
-            partial = _extract_partial_json_fields(raw)
-            if partial:
-                logger.warning(
-                    f"JSON parse failed, using regex fallback: extracted {list(partial.keys())}"
-                )
-                partial["rationale"] = (
-                    f"【部分抽出】{partial.get('rationale', '')} "
-                    f"(元エラー: {type(e).__name__})"
-                )
-                return partial
-
-            # フォールバック検出のため4軸スコアはNoneを返す
+            # パース失敗: Claudeフォールバックを発動させるためverdictをerrorに設定
+            # _parse_failedフラグで明確にパース失敗を示す
             return {
                 "score": None,
                 "verdict": "error",
+                "_parse_failed": True,  # パース失敗フラグ
                 "rationale": f"評価失敗: JSONパースエラー ({type(e).__name__}) - Response preview: {raw[:200]}",
                 "task_completion": None,
                 "tool_usage": None,

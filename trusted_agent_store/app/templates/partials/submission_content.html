@@ -1361,12 +1361,9 @@
         securityCompleted = false;  // 完了フラグをリセット
         securityState = { total: data.total_scenarios || 0, blocked: 0, needsReview: 0, errors: 0, pending: 0 };
 
-        // サーバーサイドで既に表示済みの場合はストリーミングをスキップ
-        const hasServerContent = document.querySelector('#security-content .grid');
-        if (!hasServerContent) {
-            // 初期レイアウト（フル構造）をストリーミング表示
-            await renderSecuritySectionStreaming();
-        }
+        // 新規評価開始時は常にストリーミングセクションを再描画
+        // （SSRで既存コンテンツがある場合も、新しい評価データに置き換える）
+        await renderSecuritySectionStreaming();
 
         // テーブル準備完了
         securityTableReady = true;
@@ -1693,8 +1690,12 @@
     }
 
     async function appendSecurityScenarioToTable(data) {
-        const tbody = document.getElementById('security-table-body');
-        if (!tbody) return;
+        // SSEストリーミング用（security-table-body）を優先、次にSSR用（securityScenariosTableBody）
+        const tbody = document.getElementById('security-table-body') || document.getElementById('securityScenariosTableBody');
+        if (!tbody) {
+            console.warn('[appendSecurityScenarioToTable] No table body found');
+            return;
+        }
 
         // promptIdベースで行を特定
         const rowId = `security-row-${data.promptId || data.scenario_index}`;
