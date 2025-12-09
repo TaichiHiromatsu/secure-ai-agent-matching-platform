@@ -242,7 +242,7 @@
         </div>
 
         <!-- Detailed Scores (shown after Jury Judge completes, or dynamically via SSE) -->
-        <details id="magi-detailed-scores" class="magi-details-section mt-6" {% if not (submission.score_breakdown and submission.score_breakdown.judge_summary) %}style="display: none;"{% endif %}>
+        <details id="magi-detailed-scores" class="magi-details-section mt-6" open {% if not (submission.score_breakdown and submission.score_breakdown.judge_summary) %}style="display: none;"{% endif %}>
             <summary class="magi-details-summary">詳細スコア・設定</summary>
             <div class="magi-details-content bg-gray-800 p-4 rounded-lg mt-2">
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">

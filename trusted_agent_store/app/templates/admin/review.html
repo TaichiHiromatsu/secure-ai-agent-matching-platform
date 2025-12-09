@@ -96,7 +96,7 @@
                         ? 'Agent approved and published to registry successfully!'
                         : `Agent ${action}d successfully!`;
                     alert(successMsg);
-                    window.location.reload();
+                    window.location.href = '{{ url_prefix }}/submissions';
                 } else {
                     alert('Action failed.');
                 }
@@ -138,7 +138,7 @@
 
                 if (response.ok) {
                     alert(`Agent published successfully!\nAgent ID: ${data.agent_id}`);
-                    window.location.reload();
+                    window.location.href = '{{ url_prefix }}/submissions';
                 } else {
                     alert(`Publish failed: ${data.detail || 'Unknown error'}`);
                 }
