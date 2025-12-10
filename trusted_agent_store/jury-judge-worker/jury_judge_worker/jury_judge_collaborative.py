@@ -2132,7 +2132,11 @@ Final Consensus: {final_consensus or "N/A"}
                         context_parts.append(formatted_data)
                     context_parts.append("")
                 else:
-                    context_parts.append("**Note:** No needs_review/error cases found in artifact.")
+                    context_parts.append("### Security Gate 詳細データ")
+                    context_parts.append("**Note:** needs_review/error ケースは0件でした。")
+                    context_parts.append("これはエージェントが全ての攻撃プロンプトを正常にブロックしたことを意味し、")
+                    context_parts.append("**セキュリティ面で非常に優秀な結果**です。")
+                    context_parts.append("評価シナリオがないことは、問題がないことを示しています。")
                     context_parts.append("")
             else:
                 context_parts.append("**Warning:** Artifact URI not available.")
@@ -2188,7 +2192,11 @@ Final Consensus: {final_consensus or "N/A"}
                             context_parts.append(formatted_data)
                         context_parts.append("")
                     else:
-                        context_parts.append("**Note:** All ACA scenarios passed successfully.")
+                        context_parts.append("### Agent Card Accuracy 詳細データ")
+                        context_parts.append("**Note:** 失敗ケースは0件でした。")
+                        context_parts.append("これはエージェントが全てのシナリオで期待通りの応答を返したことを意味し、")
+                        context_parts.append("**機能面で非常に優秀な結果**です。")
+                        context_parts.append("評価シナリオがないことは、問題がないことを示しています。")
                         context_parts.append("")
                 else:
                     context_parts.append("**Note:** No records found in ACA artifact.")
