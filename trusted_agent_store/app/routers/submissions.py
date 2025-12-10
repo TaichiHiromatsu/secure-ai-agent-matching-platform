@@ -1124,8 +1124,13 @@ def process_submission(submission_id: str):
             )
 
             # Pass through final judgment info for UI (rationale display)
-            if judge_summary.get("finalJudgment"):
-                current_breakdown["jury_judge"]["rationale"] = judge_summary["finalJudgment"].get("rationale")
+            # 新フォーマット: scenarios内のtype="final_judgment"から取得
+            final_judgment_scenario = next(
+                (s for s in judge_summary.get("scenarios", []) if s.get("type") == "final_judgment"),
+                None
+            )
+            if final_judgment_scenario and "jury_judge" in current_breakdown:
+                current_breakdown["jury_judge"]["rationale"] = final_judgment_scenario.get("rationale") or final_judgment_scenario.get("finalJudgeRationale")
 
             submission.score_breakdown = current_breakdown
             submission.state = "judge_panel_completed"

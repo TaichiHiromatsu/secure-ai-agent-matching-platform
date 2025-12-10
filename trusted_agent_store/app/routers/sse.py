@@ -139,36 +139,32 @@ def get_initial_state_events(submission: Submission) -> list:
     judge_summary = sb.get("judge_summary")
     if judge_summary and judge_summary.get("scenarios"):
         for scenario in judge_summary["scenarios"]:
-            if scenario.get("scenarioId") == "collective_judgment":
-                # Send phase1 evaluations
-                phase1_evals = scenario.get("phase1Evaluations", [])
-                for eval_data in phase1_evals:
-                    events.append({
-                        "type": "juror_evaluation",
-                        "phase": "collective_independent",
-                        "juror": eval_data.get("jurorId"),
-                        "verdict": eval_data.get("verdict"),
-                        "score": eval_data.get("overallScore"),
-                        "rationale": eval_data.get("rationale"),
-                        "taskCompletion": eval_data.get("taskCompletion"),
-                        "toolUsage": eval_data.get("toolUsage"),
-                        "autonomy": eval_data.get("autonomy"),
-                        "safety": eval_data.get("safety"),
-                        "isReplay": True  # Mark as replay so UI can handle differently if needed
-                    })
+            # 陪審員ごとの評価（3行）
+            if scenario.get("type") == "juror_evaluation":
+                events.append({
+                    "type": "juror_evaluation",
+                    "phase": "collective_independent",
+                    "juror": scenario.get("jurorId"),
+                    "verdict": scenario.get("verdict"),
+                    "score": scenario.get("overallScore"),
+                    "rationale": scenario.get("rationale"),
+                    "taskCompletion": scenario.get("taskCompletion"),
+                    "toolUsage": scenario.get("toolUsage"),
+                    "autonomy": scenario.get("autonomy"),
+                    "safety": scenario.get("safety"),
+                    "isReplay": True
+                })
 
-                # Send final judgment if available
-                final_judgment = scenario.get("finalJudgment")
-                if final_judgment:
-                    events.append({
-                        "type": "final_judgment",
-                        "finalVerdict": scenario.get("finalVerdict"),
-                        "finalScore": scenario.get("finalScore"),
-                        "confidence": scenario.get("confidence"),
-                        "rationale": final_judgment.get("rationale"),
-                        "isReplay": True
-                    })
-                break
+            # 裁判官の最終判定（1行）
+            elif scenario.get("type") == "final_judgment":
+                events.append({
+                    "type": "final_judgment",
+                    "finalVerdict": scenario.get("finalVerdict"),
+                    "finalScore": scenario.get("finalScore"),
+                    "confidence": scenario.get("confidence"),
+                    "rationale": scenario.get("rationale") or scenario.get("finalJudgeRationale"),
+                    "isReplay": True
+                })
 
     return events
 

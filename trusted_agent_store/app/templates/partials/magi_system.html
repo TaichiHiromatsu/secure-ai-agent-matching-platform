@@ -6,35 +6,33 @@
 
 {% set show_realtime = submission.state == 'judge_panel_running' %}
 {% set show_historical = submission.score_breakdown and submission.score_breakdown.judge_summary and submission.score_breakdown.judge_summary.scenarios %}
-{% set collective = namespace(found=none) %}
-{% if show_historical %}
-    {% for scenario in submission.score_breakdown.judge_summary.scenarios %}
-        {% if scenario.scenarioId == 'collective_judgment' %}
-            {% set collective.found = scenario %}
-        {% endif %}
-    {% endfor %}
-{% endif %}
 
-{# Extract evaluation data for each juror from historical data #}
+{# Extract evaluation data for each juror from historical data (新フォーマット: 各行がtype='juror_evaluation') #}
 {% set balthasar_eval = namespace(found=none) %}
 {% set casper_eval = namespace(found=none) %}
 {% set melchior_eval = namespace(found=none) %}
-{% if show_historical and collective.found and collective.found.phase1Evaluations %}
-    {% for eval in collective.found.phase1Evaluations %}
-        {% if 'claude' in eval.jurorId %}
-            {% set balthasar_eval.found = eval %}
-        {% elif 'gemini' in eval.jurorId %}
-            {% set casper_eval.found = eval %}
-        {% elif 'gpt-4o' in eval.jurorId %}
-            {% set melchior_eval.found = eval %}
+{% if show_historical %}
+    {% for scenario in submission.score_breakdown.judge_summary.scenarios %}
+        {% if scenario.type == 'juror_evaluation' %}
+            {% if 'claude' in scenario.jurorId %}
+                {% set balthasar_eval.found = scenario %}
+            {% elif 'gemini' in scenario.jurorId %}
+                {% set casper_eval.found = scenario %}
+            {% elif 'gpt-4o' in scenario.jurorId %}
+                {% set melchior_eval.found = scenario %}
+            {% endif %}
         {% endif %}
     {% endfor %}
 {% endif %}
 
-{# Extract final judgment data #}
+{# Extract final judgment data (新フォーマット: type='final_judgment') #}
 {% set final_judgment = namespace(found=none) %}
-{% if show_historical and collective.found and collective.found.finalJudgment %}
-    {% set final_judgment.found = collective.found.finalJudgment %}
+{% if show_historical %}
+    {% for scenario in submission.score_breakdown.judge_summary.scenarios %}
+        {% if scenario.type == 'final_judgment' %}
+            {% set final_judgment.found = scenario %}
+        {% endif %}
+    {% endfor %}
 {% endif %}
 
 {# Helper to get vote text #}
@@ -127,19 +125,19 @@
                 </div>
 
                 {# Phase判定: Phase1評価完了→Phase2、最終判定完了→Phase3 #}
-                {% set has_phase1 = show_historical and collective.found and collective.found.phase1Evaluations %}
-                {% set has_discussion = show_historical and collective.found and collective.found.discussionRounds %}
-                {% set has_final = show_historical and collective.found and collective.found.finalJudgment %}
+                {% set has_phase1 = show_historical and (balthasar_eval.found or casper_eval.found or melchior_eval.found) %}
+                {% set has_discussion = show_historical and balthasar_eval.found and balthasar_eval.found.discussionStatements %}
+                {% set has_final = show_historical and final_judgment.found %}
                 {% set phase_text = "Phase 3" if has_final else "Phase 2" if (has_phase1 or has_discussion) else "Phase 1" %}
 
                 {# Verdict判定: Phase1評価完了かつ最終判定未完→審議中 #}
                 {% set verdict_class = "" %}
                 {% set verdict_text = "評価中" %}
                 {% if has_final %}
-                    {% if collective.found.finalJudgment.finalVerdict == 'safe_pass' %}
+                    {% if final_judgment.found.finalVerdict == 'safe_pass' %}
                         {% set verdict_class = "magi-verdict-pass" %}
                         {% set verdict_text = "可決" %}
-                    {% elif collective.found.finalJudgment.finalVerdict == 'unsafe_fail' %}
+                    {% elif final_judgment.found.finalVerdict == 'unsafe_fail' %}
                         {% set verdict_class = "magi-verdict-fail" %}
                         {% set verdict_text = "否決" %}
                     {% else %}
@@ -217,10 +215,10 @@
 
                 <!-- FINAL JUDGE Chat (常時表示) -->
                 <div class="magi-chat-box magi-chat-cyan magi-final-judge-chat" id="final-judge-chat">
-                    <div class="magi-chat-header">FINAL JUDGE <span class="magi-final-judge-status" id="final-judge-status">{% if final_judgment.found and final_judgment.found.rationale %}完了{% else %}待機中{% endif %}</span></div>
+                    <div class="magi-chat-header">FINAL JUDGE <span class="magi-final-judge-status" id="final-judge-status">{% if final_judgment.found and (final_judgment.found.rationale or final_judgment.found.finalJudgeRationale) %}完了{% else %}待機中{% endif %}</span></div>
                     <div class="magi-chat-content" id="final-judge-content">
-                        {% if final_judgment.found and final_judgment.found.rationale %}
-                        <div class="magi-chat-message">{{ final_judgment.found.rationale }}</div>
+                        {% if final_judgment.found and (final_judgment.found.rationale or final_judgment.found.finalJudgeRationale) %}
+                        <div class="magi-chat-message">{{ final_judgment.found.rationale or final_judgment.found.finalJudgeRationale }}</div>
                         {% else %}
                         <div class="magi-chat-placeholder" id="final-judge-placeholder">Phase 3を待機中...</div>
                         {% endif %}

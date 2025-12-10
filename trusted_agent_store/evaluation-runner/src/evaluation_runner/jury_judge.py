@@ -228,67 +228,67 @@ def _run_collaborative_jury_evaluation(
                     "rationale": scenario_result.rationale,
                 })
 
-        # 集約判断を詳細レポートに追加
-        detailed_reports.append({
-            "scenarioId": "collective_judgment",
+        # 集約判断を詳細レポートに追加（陪審員3名 + 裁判官1名 = 4行）
+        # 共通フィールド
+        common_fields = {
             "use_case": "overall_assessment",
-            "finalVerdict": result.final_verdict,
-            "finalScore": result.final_score,
-            "confidence": result.phase3_judgment.confidence if result.phase3_judgment else 0.0,
             "consensusStatus": result.phase1_consensus.consensus_status.value if result.phase1_consensus else None,
             "totalRounds": result.total_rounds,
             "earlyTermination": result.early_termination,
-            "phase1Evaluations": [
-                {
-                    "jurorId": ev.juror_id,
-                    "roleName": ev.role_name,
-                    "roleFocus": ev.role_focus,
-                    "verdict": ev.verdict,
-                    "overallScore": ev.overall_score,
-                    "rationale": ev.rationale,
-                    # AISI 4軸スコアを追加
-                    "taskCompletion": int(ev.security_score),   # 0-40
-                    "toolUsage": int(ev.compliance_score),      # 0-30
-                    "autonomy": int(ev.autonomy_score),         # 0-20
-                    "safety": int(ev.safety_score),             # 0-10
-                }
-                for ev in result.phase1_evaluations
-            ],
-            "discussionRounds": [
-                {
-                    "roundNumber": round.round_number,
-                    "speakerOrder": round.speaker_order,
-                    "statements": [
-                        {
-                            "jurorId": stmt.juror_id,
-                            "statement": stmt.reasoning,
-                            "positionChanged": stmt.updated_evaluation is not None,
-                        }
-                        for stmt in round.statements
-                    ],
-                    "consensusCheck": {
-                        "consensusStatus": round.consensus_check.consensus_status.value if round.consensus_check else None,
-                        "consensusReached": round.consensus_check.consensus_reached if round.consensus_check else False,
-                        "consensusVerdict": round.consensus_check.consensus_verdict if round.consensus_check else None,
-                    } if round.consensus_check else None,
-                }
-                for round in (result.phase2_rounds or [])
-            ],
-            "finalJudgment": {
-                "method": result.phase3_judgment.method if result.phase3_judgment else "unknown",
-                "finalVerdict": result.final_verdict,
-                "finalScore": result.final_score,
-                "confidence": result.phase3_judgment.confidence if result.phase3_judgment else 0.0,
-                "rationale": result.phase3_judgment.final_judge_rationale if result.phase3_judgment else "",
-                "voteDistribution": result.phase3_judgment.vote_distribution if result.phase3_judgment else {},
-                "finalJudgeModel": result.phase3_judgment.final_judge_model if result.phase3_judgment else None,
-                # 最終ジャッジの4軸スコア
-                "taskCompletion": result.phase3_judgment.task_completion if result.phase3_judgment else None,
-                "toolUsage": result.phase3_judgment.tool_usage if result.phase3_judgment else None,
-                "autonomy": result.phase3_judgment.autonomy if result.phase3_judgment else None,
-                "safety": result.phase3_judgment.safety if result.phase3_judgment else None,
-                "finalJudgeRationale": result.phase3_judgment.final_judge_rationale if result.phase3_judgment else "",
-            }
+        }
+
+        # 陪審員ごとの評価を個別行として追加（3行）
+        for ev in result.phase1_evaluations:
+            detailed_reports.append({
+                **common_fields,
+                "scenarioId": "juror_evaluation",
+                "type": "juror_evaluation",
+                "jurorId": ev.juror_id,
+                "roleName": ev.role_name,
+                "roleFocus": ev.role_focus,
+                "verdict": ev.verdict,
+                "overallScore": ev.overall_score,
+                "rationale": ev.rationale,
+                # AISI 4軸スコア
+                "taskCompletion": int(ev.security_score),   # 0-40
+                "toolUsage": int(ev.compliance_score),      # 0-30
+                "autonomy": int(ev.autonomy_score),         # 0-20
+                "safety": int(ev.safety_score),             # 0-10
+                # 議論での発言（この陪審員のもののみ）
+                "discussionStatements": [
+                    {
+                        "roundNumber": round.round_number,
+                        "statement": next(
+                            (stmt.reasoning for stmt in round.statements if stmt.juror_id == ev.juror_id),
+                            None
+                        ),
+                        "positionChanged": next(
+                            (stmt.updated_evaluation is not None for stmt in round.statements if stmt.juror_id == ev.juror_id),
+                            False
+                        ),
+                    }
+                    for round in (result.phase2_rounds or [])
+                ],
+            })
+
+        # 裁判官の最終判定を個別行として追加（1行）
+        detailed_reports.append({
+            **common_fields,
+            "scenarioId": "final_judgment",
+            "type": "final_judgment",
+            "method": result.phase3_judgment.method if result.phase3_judgment else "unknown",
+            "finalVerdict": result.final_verdict,
+            "finalScore": result.final_score,
+            "confidence": result.phase3_judgment.confidence if result.phase3_judgment else 0.0,
+            "rationale": result.phase3_judgment.final_judge_rationale if result.phase3_judgment else "",
+            "voteDistribution": result.phase3_judgment.vote_distribution if result.phase3_judgment else {},
+            "finalJudgeModel": result.phase3_judgment.final_judge_model if result.phase3_judgment else None,
+            # 最終ジャッジの4軸スコア
+            "taskCompletion": result.phase3_judgment.task_completion if result.phase3_judgment else None,
+            "toolUsage": result.phase3_judgment.tool_usage if result.phase3_judgment else None,
+            "autonomy": result.phase3_judgment.autonomy if result.phase3_judgment else None,
+            "safety": result.phase3_judgment.safety if result.phase3_judgment else None,
+            "finalJudgeRationale": result.phase3_judgment.final_judge_rationale if result.phase3_judgment else "",
         })
 
     except Exception as exc:
@@ -296,7 +296,8 @@ def _run_collaborative_jury_evaluation(
         import traceback
         traceback.print_exc()
         detailed_reports.append({
-            "scenarioId": "collective_judgment",
+            "scenarioId": "final_judgment",
+            "type": "final_judgment",
             "finalVerdict": "manual",
             "finalScore": 0.0,
             "error": str(exc),
@@ -323,15 +324,14 @@ def _run_collaborative_jury_evaluation(
         overall_verdict = "approve"
 
     # 最終ジャッジの4軸スコアを優先使用、なければ陪審員平均
-    # detailed_reportsから最終ジャッジの4軸を取得（collective_judgmentレポートを検索）
+    # detailed_reportsから最終ジャッジの4軸を取得（final_judgmentレポートを検索）
     final_judgment_4axis = None
     if detailed_reports:
-        # collective_judgmentレポートを検索（最終ジャッジの4軸スコアを含む）
+        # final_judgmentレポートを検索（最終ジャッジの4軸スコアを含む）
         for report in detailed_reports:
-            if report.get("scenarioId") == "collective_judgment":
-                fj = report.get("finalJudgment", {})
-                if fj.get("taskCompletion") is not None:
-                    final_judgment_4axis = fj
+            if report.get("scenarioId") == "final_judgment":
+                if report.get("taskCompletion") is not None:
+                    final_judgment_4axis = report
                 break
 
     if final_judgment_4axis:
