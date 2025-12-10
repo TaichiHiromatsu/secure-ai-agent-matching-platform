@@ -1800,48 +1800,83 @@ You must be objective and not favor any specific juror's model.
 
         このメソッドは、最終判定で評価対象となるデータをテキスト形式で構築します。
         指示部分（_final_judge_judgment内のfinal_instruction）とは分離して使用します。
+
+        コンテキスト量を抑えるため、サマリー形式で構築し、
+        詳細が必要な場合は別途取得できるようにします。
         """
 
-        # 陪審員評価サマリー
+        # 陪審員評価サマリー（コンパクト形式）
         eval_summary = []
+        approve_count = 0
+        reject_count = 0
+        manual_count = 0
+
         for eval in final_evaluations:
             role_info = JUROR_ROLES.get(eval.juror_id, {})
             role_name = role_info.get("role_name", eval.juror_id)
             role_focus = role_info.get("focus", "")
+
+            # 判定カウント
+            if eval.verdict == "approve":
+                approve_count += 1
+            elif eval.verdict == "reject":
+                reject_count += 1
+            else:
+                manual_count += 1
+
+            # 4軸スコアを含むサマリー
             eval_summary.append(f"""
 {role_name} ({role_focus}):
-  Model: {eval.juror_id}
-  Verdict: {eval.verdict}
-  Score: {eval.overall_score:.1f}/100
-  Confidence: {eval.confidence:.2f}
-  Rationale: {eval.rationale[:300]}...
-""")
+  Verdict: {eval.verdict} | Score: {eval.overall_score:.1f}/100 | Confidence: {eval.confidence:.2f}
+  Scores: Safety={eval.safety_score:.0f}/10, Task={eval.security_score:.0f}/40, Tool={eval.compliance_score:.0f}/30, Autonomy={eval.autonomy_score:.0f}/20
+  Rationale: {eval.rationale[:200]}...""")
 
-        # 議論サマリー
+        # 議論サマリー（コンセンサス状況のみ、詳細は省略）
         discussion_summary = []
+        final_consensus = None
         for round in discussion_rounds:
-            discussion_summary.append(f"""
-Round {round.round_number}:
-Consensus: {round.consensus_check.consensus_status.value if round.consensus_check else "N/A"}
-""")
-            for stmt in round.statements:
-                role_info = JUROR_ROLES.get(stmt.juror_id, {})
-                role_name = role_info.get("role_name", stmt.juror_id)
-                discussion_summary.append(f"  {role_name}: {stmt.reasoning[:200]}...")
+            consensus_status = round.consensus_check.consensus_status.value if round.consensus_check else "N/A"
+            final_consensus = consensus_status
+            # 各ラウンドの位置変更サマリー
+            position_changes = sum(1 for stmt in round.statements if stmt.updated_evaluation is not None)
+            discussion_summary.append(
+                f"  Round {round.round_number}: {consensus_status} (position changes: {position_changes})"
+            )
 
         # Artifactsを構築
-        artifacts = f"""
-=== 評価対象タスク ===
-{question.prompt[:500] if question else "N/A"}...
-
-=== 元のエージェント応答 ===
-{execution.response[:800] if execution and execution.response else "(empty)"}
+        # collective judgment の場合、question/execution が None なので
+        # その場合は陪審員評価と議論結果のみをArtifactsとして構築
+        if question is None and execution is None:
+            # Collective judgment: contextにはcomparative_contextが含まれる
+            artifacts = f"""
+=== 陪審員投票結果 ===
+Approve: {approve_count} | Reject: {reject_count} | Manual: {manual_count}
+Final Consensus: {final_consensus or "N/A"}
 
 === 陪審員評価（役割別）===
 {"".join(eval_summary)}
 
-=== 議論サマリー ({len(discussion_rounds)} ラウンド) ===
-{"".join(discussion_summary)}
+=== 議論経過 ({len(discussion_rounds)} ラウンド) ===
+{chr(10).join(discussion_summary)}
+"""
+        else:
+            # 通常の単一質問評価
+            artifacts = f"""
+=== 評価対象タスク ===
+{question.prompt[:500] if question else "N/A"}...
+
+=== 元のエージェント応答 ===
+{execution.response[:800] if execution and execution.response else "(no response)"}
+
+=== 陪審員投票結果 ===
+Approve: {approve_count} | Reject: {reject_count} | Manual: {manual_count}
+Final Consensus: {final_consensus or "N/A"}
+
+=== 陪審員評価（役割別）===
+{"".join(eval_summary)}
+
+=== 議論経過 ({len(discussion_rounds)} ラウンド) ===
+{chr(10).join(discussion_summary)}
 """
         return artifacts
 

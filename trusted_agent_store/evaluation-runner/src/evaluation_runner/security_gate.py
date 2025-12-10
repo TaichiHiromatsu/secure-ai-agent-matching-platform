@@ -1302,6 +1302,8 @@ def run_security_gate(
                 "rationale": res.reason,
                 "is_batch_update": True,
                 "promptId": res.prompt_id,
+                "prompt": (res.prompt_text or "")[:500],
+                "response": (res.response_text or "")[:500],
               })
           logger.info(f"Batch {batch_num} evaluation completed ({len(batch)} items)")
 

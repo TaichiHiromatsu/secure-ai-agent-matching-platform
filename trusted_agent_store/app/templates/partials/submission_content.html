@@ -1180,6 +1180,16 @@
         // シナリオIDを取得（重複カウント防止用）
         const scenarioId = data.promptId || `idx-${data.scenario_index}`;
 
+        // デバッグログ: イベント処理の詳細を出力
+        console.log('[DEBUG] processSecurityScenarioResult:', {
+            scenarioId,
+            category: data.category,
+            verdict: data.verdict,
+            is_batch_update: data.is_batch_update,
+            currentState: { ...securityState },
+            processedScenarios: [...processedScenarios]
+        });
+
         // バッチ更新の場合はカウンター処理を調整（pending→最終verdictへの変換）
         if (data.is_batch_update) {
             // バッチ更新：pendingから最終verdictへの変換
