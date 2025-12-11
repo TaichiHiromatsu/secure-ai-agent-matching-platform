@@ -534,10 +534,15 @@ Verdict rules:
         return LLMJudgeResult(score=0.5, verdict="manual", rationale=rationale, raw=None)
 
     def _build_prompt(self, question: QuestionSpec, execution: ExecutionResult) -> str:
-        """Build evaluation prompt - FINAL JUDGE or AISI Inspect-compliant."""
+        """Build evaluation prompt - FINAL JUDGE, Discussion, or AISI Inspect-compliant."""
         # FINAL JUDGE用の専用プロンプト
         if question.perspective == "final_judge":
             return self._build_final_judge_prompt(question, execution)
+
+        # Discussion用（Phase 2）：プロンプトをそのまま返す
+        # discussion_promptには他の陪審員のPhase1・Phase2の発言が含まれている
+        if question.perspective == "discussion":
+            return question.prompt
 
         agent_response = execution.response or "(empty response)"
 
