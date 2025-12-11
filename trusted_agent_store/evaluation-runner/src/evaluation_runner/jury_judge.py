@@ -34,7 +34,7 @@ try:
     from jury_judge_worker.multi_model_judge import MultiModelJudge
     from jury_judge_worker.question_generator import QuestionSpec
     from jury_judge_worker.execution_agent import ExecutionResult
-    from jury_judge_worker.jury_judge_collaborative import CollaborativeJuryJudge
+    from jury_judge_worker.jury_judge_collaborative import ADKCollaborativeJuryJudge
     HAS_JURY_JUDGE_WORKER = True
 except ImportError:
     HAS_JURY_JUDGE_WORKER = False
@@ -99,9 +99,71 @@ def run_judge_panel(
     # Security GateとAgent Card Accuracyの結果を使用して評価
     # （Agent Cardから質問を生成してエンドポイントに実行する処理は不要 - 各ステージの結果を直接使用）
     if HAS_JURY_JUDGE_WORKER and not dry_run:
+        # Agent Card Accuracyの失敗シナリオを抽出
+        # 陪審員が具体的な失敗ケースを確認できるようにする
+        fail_scenarios = []
+        if agent_card_accuracy:
+            # 圧縮ペイロード対応: "scenarios"キーがない場合は"failures"配列から復元
+            scenarios = agent_card_accuracy.get("scenarios", [])
+            if scenarios:
+                # 非圧縮ペイロード: 従来のロジック
+                for scenario in scenarios:
+                    evaluation = scenario.get("evaluation", {})
+                    if evaluation.get("verdict") == "fail":
+                        fail_scenarios.append(scenario)
+            else:
+                # 圧縮ペイロード: "failures"配列を使用
+                failures = agent_card_accuracy.get("failures", [])
+                for i, failure in enumerate(failures):
+                    # 圧縮フォーマットから復元（使用箇所のフィールド名に合わせる）
+                    fail_scenarios.append({
+                        "scenarioId": f"aca_fail_{i}",
+                        "prompt": failure.get("prompt", ""),
+                        "expected": failure.get("expected", ""),
+                        "response": failure.get("actual", ""),
+                        "use_case": failure.get("skill", ""),
+                        "source": "agent_card_accuracy",
+                        "status": "success",  # エージェントは応答したがテスト失敗
+                    })
+
+        # Security Gateのneeds_review/errorケースも追加
+        if security_gate_results:
+            # 圧縮ペイロード対応: "scenarios"キーがない場合は"samples"から復元
+            scenarios = security_gate_results.get("scenarios", [])
+            if scenarios:
+                # 非圧縮ペイロード: 従来のロジック
+                for scenario in scenarios:
+                    verdict = scenario.get("verdict", "")
+                    if verdict in ("needs_review", "error"):
+                        fail_scenarios.append(scenario)
+            else:
+                # 圧縮ペイロード: "samples"から復元
+                samples = security_gate_results.get("samples", {})
+                needs_review_samples = samples.get("needs_review", [])
+                for i, sample in enumerate(needs_review_samples):
+                    fail_scenarios.append({
+                        "scenarioId": f"sg_review_{i}",
+                        "prompt": sample.get("prompt_snippet", ""),
+                        "response": sample.get("response_snippet", ""),
+                        "use_case": "security_review",
+                        "source": "security_gate",
+                        "status": "success",
+                    })
+                error_samples = samples.get("errors", [])
+                for i, sample in enumerate(error_samples):
+                    fail_scenarios.append({
+                        "scenarioId": f"sg_error_{i}",
+                        "prompt": sample.get("prompt_snippet", ""),
+                        "response": "",  # エラーケースは応答なし
+                        "use_case": "security_error",
+                        "source": "security_gate",
+                        "status": "error",
+                        "error": sample.get("reason", ""),
+                    })
+
         def _eval_once():
             return _run_stage_multi_model_judge_panel(
-                [],  # scenarios は使用しない（Security Gate/Agent Card Accuracyの結果を使用）
+                fail_scenarios,  # 失敗シナリオを渡す
                 output_dir,
                 agent_id,
                 revision,
@@ -115,7 +177,7 @@ def run_judge_panel(
 
         params = MCTSParams()
         return orchestrate_mcts(
-            scenarios=[],  # scenarios は使用しない
+            scenarios=fail_scenarios,  # 失敗シナリオを渡す
             eval_fn=_eval_once,
             output_dir=output_dir,
             params=params,
@@ -156,15 +218,11 @@ def _run_collaborative_jury_evaluation(
     consensus_threshold = float(os.environ.get("JURY_CONSENSUS_THRESHOLD", "2.0"))
     final_judge_model = os.environ.get("JURY_FINAL_JUDGE_MODEL", "gemini-2.5-flash")
 
-    # Collaborative Jury Judgeを初期化
-    jury_judge = CollaborativeJuryJudge(
-        max_discussion_turns=max_discussion_turns,
-        consensus_threshold=consensus_threshold,
-        stagnation_threshold=2,
+    # ADK Collaborative Jury Judgeを初期化
+    jury_judge = ADKCollaborativeJuryJudge(
+        max_discussion_rounds=max_discussion_turns // 3 or 3,  # turnsからroundsに変換（3陪審員/round）
+        consensus_threshold=consensus_threshold if consensus_threshold <= 1.0 else 0.67,
         final_judge_model=final_judge_model,
-        enable_openai=enable_openai,
-        enable_anthropic=enable_anthropic,
-        enable_google=enable_google,
     )
 
     detailed_reports: List[Dict[str, Any]] = []

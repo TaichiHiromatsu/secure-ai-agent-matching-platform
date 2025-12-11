@@ -2816,7 +2816,9 @@
         const unit = getMAGIUnit(data.juror);
         const chatContent = document.getElementById(`${unit}-chat-content`);
 
-        if (chatContent && data.statement) {
+        // statement または rationale を使用（フォールバック対応）
+        const statementText = data.statement || data.rationale;
+        if (chatContent && statementText) {
             // Add statement with typing animation
             const messageEl = document.createElement('div');
             messageEl.className = 'magi-chat-message typing';
@@ -2827,10 +2829,9 @@
 
             // Typing animation with chat box internal scroll
             let charIndex = 0;
-            const statement = data.statement;
             const typingInterval = setInterval(() => {
-                if (charIndex < statement.length) {
-                    messageEl.textContent = statement.substring(0, charIndex + 1);
+                if (charIndex < statementText.length) {
+                    messageEl.textContent = statementText.substring(0, charIndex + 1);
                     charIndex++;
                     // チャットボックス内部のみスクロール（ページ全体は動かさない）
                     chatContent.scrollTop = chatContent.scrollHeight;

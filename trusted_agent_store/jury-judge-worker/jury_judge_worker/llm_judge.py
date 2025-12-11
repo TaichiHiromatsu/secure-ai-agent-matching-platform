@@ -61,6 +61,9 @@ class LLMJudgeResult:
     safety: Optional[float] = None  # 0-10
     total_score: Optional[float] = None  # 0-100
     confidence: Optional[float] = None  # 0.0-1.0 (evaluation certainty)
+    # Discussion-specific fields
+    statement: Optional[str] = None  # 議論発言（他の陪審員への同意・反論など）
+    position_changed: Optional[bool] = None  # 立場変更フラグ（議論フェーズ用）
 
 
 class LLMJudge:
@@ -234,6 +237,7 @@ reasoningフィールドには評価理由を日本語で詳しく記述し、�
             return LLMJudgeResult(score=None, verdict=None, rationale="llm_disabled")
         if self.config.dry_run:
             return self._fallback_result("llm_dry_run")
+
         if not execution or not execution.response:
             return LLMJudgeResult(score=0.0, verdict="manual", rationale="empty response", raw=None)
 
@@ -243,7 +247,7 @@ reasoningフィールドには評価理由を日本語で詳しく記述し、�
             await self._throttle_async(key)
             return await self._evaluate_with_google_adk_async(question, execution)
 
-        # レガシーパス: request_fnまたはOpenAI/Anthropic（同期APIを使用）
+        # OpenAI/Anthropic（同期APIを使用）
         prompt = self._build_prompt(question, execution)
         max_retries = 2  # 初回 + 1回リトライ
         last_error = None
@@ -270,6 +274,9 @@ reasoningフィールドには評価理由を日本語で詳しく記述し、�
                     autonomy=parsed.get("autonomy"),
                     safety=parsed.get("safety"),
                     total_score=parsed.get("total_score"),
+                    confidence=parsed.get("confidence"),
+                    statement=parsed.get("statement"),
+                    position_changed=parsed.get("position_changed"),
                 )
             except Exception as error:  # pragma: no cover - network/env specific
                 last_error = error
@@ -351,6 +358,9 @@ reasoningフィールドには評価理由を日本語で詳しく記述し、�
                     autonomy=parsed.get("autonomy"),
                     safety=parsed.get("safety"),
                     total_score=parsed.get("total_score"),
+                    confidence=parsed.get("confidence"),
+                    statement=parsed.get("statement"),
+                    position_changed=parsed.get("position_changed"),
                 )
 
                 # W&B Weaveでスコアをログ（利用可能な場合）
@@ -524,6 +534,9 @@ Verdict rules:
                 autonomy=parsed.get("autonomy"),
                 safety=parsed.get("safety"),
                 total_score=parsed.get("total_score"),
+                confidence=parsed.get("confidence"),
+                statement=parsed.get("statement"),
+                position_changed=parsed.get("position_changed"),
             )
 
         except Exception as e:
@@ -538,6 +551,12 @@ Verdict rules:
         # FINAL JUDGE用の専用プロンプト
         if question.perspective == "final_judge":
             return self._build_final_judge_prompt(question, execution)
+
+        # Jury Judge用: question.promptに既にPHASE1_INSTRUCTION_TEMPLATEで
+        # 構築された完全なプロンプトが含まれているため、そのまま使用
+        # これにより二重プロンプト構築（Task Description + Agent Response の重複）を防ぐ
+        if question.source == "jury_judge":
+            return question.prompt
 
         agent_response = execution.response or "(empty response)"
 
@@ -1016,7 +1035,11 @@ DO NOT use markdown code blocks. DO NOT add any text before or after the JSON ob
 
             # 文字列が閉じられていない場合（末尾が途中で切れている）
             if in_string:
-                repaired += '"'
+                # 文字列値が途中で切れている = LLMの出力が不完全
+                # 無理やり閉じると「エ」のような意味のない短い文字列になるため、
+                # 修復失敗として扱い、Claudeフォールバックを発動させる
+                logger.warning("JSON repair failed: string value was truncated mid-content")
+                return None
 
             # 配列が閉じられていない場合
             while depth_bracket > 0:
