@@ -152,12 +152,19 @@
                     {% set verdict_text = "評価中" %}
                 {% endif %}
 
-                <!-- Phase表示 (左側) / Phase3完了時は非表示 -->
-                {% if not has_final %}
+                <!-- Phase表示 (左側) / Phase3完了時はTrust Scoreを表示 -->
                 <div class="magi-phase-inline">
+                    {% if has_final %}
+                    {# Trust Scoreの色をverdict結果に連動 #}
+                    {% set trust_color_class = "trust-pass" if final_judgment.found.finalVerdict == 'safe_pass' else ("trust-fail" if final_judgment.found.finalVerdict == 'unsafe_fail' else "trust-review") %}
+                    <div id="magi-phase-chip" class="magi-trust-score-chip {{ trust_color_class }}">
+                        <div class="trust-label">信頼スコア</div>
+                        <div class="trust-value">{{ submission.trust_score or 0 }}点</div>
+                    </div>
+                    {% else %}
                     <div id="magi-phase-chip" class="magi-phase-chip">{{ phase_text }}</div>
+                    {% endif %}
                 </div>
-                {% endif %}
 
                 <!-- Verdict表示 (右側) -->
                 <div class="magi-verdict-result-inline">
@@ -637,8 +644,8 @@
     /* ===== Phase表示 (左側) ===== */
     .magi-phase-inline {
         position: absolute;
-        top: 56px;
-        left: 33px;
+        top: 48px;
+        left: 42px;
         z-index: 10;
         display: flex;
         align-items: center;
@@ -657,11 +664,43 @@
         gap: 10px;
     }
     .magi-phase-chip {
-        font-size: 16px;
+        top: 53px;
+        left: 32px;
+        font-size: 18px;
         color: #ff8c00;
         text-shadow: 0 0 12px #ff8c00;
         background: transparent;
         font-weight: bold;
+    }
+    .magi-trust-score-chip {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        color: #00ff88;
+        text-shadow: 0 0 12px #00ff88, 0 0 20px #00ff88;
+        background: transparent;
+        font-weight: bold;
+    }
+    .magi-trust-score-chip .trust-label {
+        font-size: 12px;
+        letter-spacing: 1px;
+    }
+    .magi-trust-score-chip .trust-value {
+        font-size: 24px;
+        line-height: 1.1;
+    }
+    /* Trust Score色バリエーション（verdict連動） */
+    .magi-trust-score-chip.trust-pass {
+        color: #00ff88;
+        text-shadow: 0 0 12px #00ff88, 0 0 20px #00ff88;
+    }
+    .magi-trust-score-chip.trust-fail {
+        color: #ff6b6b;
+        text-shadow: 0 0 12px #ff6b6b, 0 0 20px #ff6b6b;
+    }
+    .magi-trust-score-chip.trust-review {
+        color: #ffa500;
+        text-shadow: 0 0 12px #ffa500, 0 0 20px #ffa500;
     }
 
     /* AISI 4軸スコア (枠なしテキストのみ) */

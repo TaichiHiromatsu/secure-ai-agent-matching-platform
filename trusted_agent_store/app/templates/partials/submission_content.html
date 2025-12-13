@@ -2915,10 +2915,17 @@
         // ページ全体のスクロール位置を保存
         const pageScrollTop = window.scrollY || document.documentElement.scrollTop;
 
-        // Phase 3完了時はPhase表示を非表示にする
-        const phaseInlineEl = document.querySelector('.magi-phase-inline');
-        if (phaseInlineEl) {
-            phaseInlineEl.style.display = 'none';
+        // Phase 3完了時はPhase表示をTrust Scoreに変更（2行表示、verdict連動色）
+        const phaseChipEl = document.getElementById('magi-phase-chip');
+        if (phaseChipEl) {
+            const finalVerdict = data.finalVerdict || data.verdict;
+            const trustColorClass = finalVerdict === 'safe_pass' ? 'trust-pass'
+                : (finalVerdict === 'unsafe_fail' ? 'trust-fail' : 'trust-review');
+            phaseChipEl.className = `magi-trust-score-chip ${trustColorClass}`;
+            phaseChipEl.innerHTML = `
+                <div class="trust-label">信頼スコア</div>
+                <div class="trust-value">${Math.floor(trustScore)}点</div>
+            `;
         }
 
         // Update phase display in system info
