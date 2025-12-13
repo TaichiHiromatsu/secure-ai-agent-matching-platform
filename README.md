@@ -185,27 +185,18 @@ AIエージェントの信頼性を事前に審査・可視化するプラット
 
 ```mermaid
 sequenceDiagram
-    box rgb(230, 243, 255) ユーザー側
-        participant U as ユーザー<br/>エージェント
-    end
-
-    box rgb(200, 230, 201) セキュア仲介エージェント
-        participant M as Matcher
-        participant P as Planner
-        participant O as Orchestrator
-    end
-
-    box rgb(255, 205, 210) 検知・検証
-        participant A as Anomaly<br/>Detector
-        participant F as Final<br/>Anomaly Detector
-    end
-
-    box rgb(255, 243, 224) 外部
-        participant E as 外部<br/>エージェント
-    end
+    participant U as ユーザー<br/>エージェント
+    participant M as Matcher
+    participant P as Planner
+    participant O as Orchestrator
+    participant A as Anomaly<br/>Detector
+    participant F as Final<br/>Anomaly Detector
+    participant E as 外部<br/>エージェント
+    participant S as エージェント<br/>ストア
 
     U->>M: 要望: 沖縄旅行
-    M->>M: エージェント検索<br/>(信頼性スコア評価)
+    M->>S: エージェント検索
+    S->>M: 信頼性スコア付き候補リスト
     M->>P: 候補エージェントリスト
     P->>P: 実行プラン作成
     P->>P: プラン保存<br/>(artifacts/plans/*.md)
@@ -217,6 +208,7 @@ sequenceDiagram
         O->>A: 監視依頼
         A->>A: プラン逸脱チェック<br/>プロンプトインジェクション検出
         alt 異常検知
+            A->>S: ⚠️ 信頼スコア低下
             A->>O: ⚠️ 実行停止
         end
     end
@@ -227,6 +219,7 @@ sequenceDiagram
     alt 検証OK
         F->>U: ✅ 安全な結果
     else 検証NG
+        F->>S: ⚠️ 信頼スコア低下
         F->>U: ❌ 拒否 + 理由
     end
 ```
