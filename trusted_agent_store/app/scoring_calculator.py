@@ -1,5 +1,5 @@
 """
-Trust Score Calculator (v3.0 - AISEV準拠)
+Trust Score Calculator (AISEV準拠)
 
 評価フレームワーク:
 - Japan AISI（AIセーフティ・インスティテュート）のAISEV 10観点評価を参考

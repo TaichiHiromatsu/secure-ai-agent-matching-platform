@@ -117,10 +117,10 @@
                         {% set tu = balthasar_eval.found.toolUsage or 0 if balthasar_eval.found else 0 %}
                         {% set au = balthasar_eval.found.autonomy or 0 if balthasar_eval.found else 0 %}
                         {% set sf = balthasar_eval.found.safety or 0 if balthasar_eval.found else 0 %}
-                        <div class="magi-score-bar" data-axis="task"><span>T</span><div class="bar"><div class="fill" style="width:{{ (tc / 40 * 100) | int }}%"></div></div><span class="val">{{ tc | int }}</span></div>
-                        <div class="magi-score-bar" data-axis="tool"><span>U</span><div class="bar"><div class="fill" style="width:{{ (tu / 30 * 100) | int }}%"></div></div><span class="val">{{ tu | int }}</span></div>
-                        <div class="magi-score-bar" data-axis="auto"><span>A</span><div class="bar"><div class="fill" style="width:{{ (au / 20 * 100) | int }}%"></div></div><span class="val">{{ au | int }}</span></div>
-                        <div class="magi-score-bar" data-axis="safe"><span>S</span><div class="bar"><div class="fill" style="width:{{ (sf / 10 * 100) | int }}%"></div></div><span class="val">{{ sf | int }}</span></div>
+                        <div class="magi-score-bar" data-axis="task"><span>T</span><div class="bar"><div class="fill" style="width:{{ (tc / 20 * 100) | int }}%"></div></div><span class="val">{{ tc | int }}</span></div>
+                        <div class="magi-score-bar" data-axis="tool"><span>U</span><div class="bar"><div class="fill" style="width:{{ (tu / 15 * 100) | int }}%"></div></div><span class="val">{{ tu | int }}</span></div>
+                        <div class="magi-score-bar" data-axis="auto"><span>A</span><div class="bar"><div class="fill" style="width:{{ (au / 15 * 100) | int }}%"></div></div><span class="val">{{ au | int }}</span></div>
+                        <div class="magi-score-bar" data-axis="safe"><span>S</span><div class="bar"><div class="fill" style="width:{{ (sf / 50 * 100) | int }}%"></div></div><span class="val">{{ sf | int }}</span></div>
                     </div>
                 </div>
 
@@ -185,10 +185,10 @@
                             {% set tu = casper_eval.found.toolUsage or 0 if casper_eval.found else 0 %}
                             {% set au = casper_eval.found.autonomy or 0 if casper_eval.found else 0 %}
                             {% set sf = casper_eval.found.safety or 0 if casper_eval.found else 0 %}
-                            <div class="magi-score-bar" data-axis="task"><span>T</span><div class="bar"><div class="fill" style="width:{{ (tc / 40 * 100) | int }}%"></div></div><span class="val">{{ tc | int }}</span></div>
-                            <div class="magi-score-bar" data-axis="tool"><span>U</span><div class="bar"><div class="fill" style="width:{{ (tu / 30 * 100) | int }}%"></div></div><span class="val">{{ tu | int }}</span></div>
-                            <div class="magi-score-bar" data-axis="auto"><span>A</span><div class="bar"><div class="fill" style="width:{{ (au / 20 * 100) | int }}%"></div></div><span class="val">{{ au | int }}</span></div>
-                            <div class="magi-score-bar" data-axis="safe"><span>S</span><div class="bar"><div class="fill" style="width:{{ (sf / 10 * 100) | int }}%"></div></div><span class="val">{{ sf | int }}</span></div>
+                            <div class="magi-score-bar" data-axis="task"><span>T</span><div class="bar"><div class="fill" style="width:{{ (tc / 20 * 100) | int }}%"></div></div><span class="val">{{ tc | int }}</span></div>
+                            <div class="magi-score-bar" data-axis="tool"><span>U</span><div class="bar"><div class="fill" style="width:{{ (tu / 15 * 100) | int }}%"></div></div><span class="val">{{ tu | int }}</span></div>
+                            <div class="magi-score-bar" data-axis="auto"><span>A</span><div class="bar"><div class="fill" style="width:{{ (au / 15 * 100) | int }}%"></div></div><span class="val">{{ au | int }}</span></div>
+                            <div class="magi-score-bar" data-axis="safe"><span>S</span><div class="bar"><div class="fill" style="width:{{ (sf / 50 * 100) | int }}%"></div></div><span class="val">{{ sf | int }}</span></div>
                         </div>
                     </div>
 
@@ -204,10 +204,10 @@
                             {% set tu = melchior_eval.found.toolUsage or 0 if melchior_eval.found else 0 %}
                             {% set au = melchior_eval.found.autonomy or 0 if melchior_eval.found else 0 %}
                             {% set sf = melchior_eval.found.safety or 0 if melchior_eval.found else 0 %}
-                            <div class="magi-score-bar" data-axis="task"><span>T</span><div class="bar"><div class="fill" style="width:{{ (tc / 40 * 100) | int }}%"></div></div><span class="val">{{ tc | int }}</span></div>
-                            <div class="magi-score-bar" data-axis="tool"><span>U</span><div class="bar"><div class="fill" style="width:{{ (tu / 30 * 100) | int }}%"></div></div><span class="val">{{ tu | int }}</span></div>
-                            <div class="magi-score-bar" data-axis="auto"><span>A</span><div class="bar"><div class="fill" style="width:{{ (au / 20 * 100) | int }}%"></div></div><span class="val">{{ au | int }}</span></div>
-                            <div class="magi-score-bar" data-axis="safe"><span>S</span><div class="bar"><div class="fill" style="width:{{ (sf / 10 * 100) | int }}%"></div></div><span class="val">{{ sf | int }}</span></div>
+                            <div class="magi-score-bar" data-axis="task"><span>T</span><div class="bar"><div class="fill" style="width:{{ (tc / 20 * 100) | int }}%"></div></div><span class="val">{{ tc | int }}</span></div>
+                            <div class="magi-score-bar" data-axis="tool"><span>U</span><div class="bar"><div class="fill" style="width:{{ (tu / 15 * 100) | int }}%"></div></div><span class="val">{{ tu | int }}</span></div>
+                            <div class="magi-score-bar" data-axis="auto"><span>A</span><div class="bar"><div class="fill" style="width:{{ (au / 15 * 100) | int }}%"></div></div><span class="val">{{ au | int }}</span></div>
+                            <div class="magi-score-bar" data-axis="safe"><span>S</span><div class="bar"><div class="fill" style="width:{{ (sf / 50 * 100) | int }}%"></div></div><span class="val">{{ sf | int }}</span></div>
                         </div>
                     </div>
                 </div>
