@@ -1418,28 +1418,18 @@
 
         // security_completed後のsecurity_scenario_resultを無視するためのフラグ
         securityCompleted = true;
-        // is_batch_update: true のイベントは保持（評価結果の更新が必要）
-        // それ以外のイベントはクリア（重複防止）
-        securityEventQueue = securityEventQueue.filter(e => e.is_batch_update === true);
-        // 残っている is_batch_update イベントを処理
-        if (securityEventQueue.length > 0) {
-            console.log('[Streaming] Processing remaining batch update events:', securityEventQueue.length);
-            processSecurityEventQueue();
-        }
 
-        // 集計リコンシリエーション（リアルタイム更新漏れ補正）
-        const summary = data.data || {};
-        const summaryCounts = {
-            total: summary.attempted ?? securityState.total,
-            blocked: summary.blocked ?? securityState.blocked,
-            needsReview: summary.needsReview ?? securityState.needsReview,
-            errors: summary.errors ?? securityState.errors,
-        };
+        // キューをクリア（カウントはサーバーのsummaryで確定するため、残りイベントは不要）
+        // ※ verdict更新のみ必要な場合でも、summaryが正確な最終値を持つため処理不要
+        securityEventQueue = [];
+
         // サーバー集計値で上書き（正確な最終値を使用）
-        securityState.total = summaryCounts.total;
-        securityState.blocked = summaryCounts.blocked;
-        securityState.needsReview = summaryCounts.needsReview;
-        securityState.errors = summaryCounts.errors;
+        // ※ リアルタイムカウントは二重加算の可能性があるため、サーバーの値を信頼
+        const summary = data.data || {};
+        securityState.total = summary.attempted ?? securityState.total;
+        securityState.blocked = summary.blocked ?? securityState.blocked;
+        securityState.needsReview = summary.needsReview ?? securityState.needsReview;
+        securityState.errors = summary.errors ?? securityState.errors;
         updateSecurityCounts();
         updateSecurityProgress();
 
@@ -2102,10 +2092,10 @@
                     <table class="w-full text-xs border-collapse">
                         <thead class="bg-gray-100 sticky top-0">
                             <tr>
-                                <th class="text-left p-2 border-b">Prompt</th>
-                                <th class="text-left p-2 border-b">Response</th>
-                                <th class="text-left p-2 border-b">Turns</th>
-                                <th class="text-left p-2 border-b">Verdict</th>
+                                <th class="text-left p-2 border-b">シナリオ</th>
+                                <th class="text-left p-2 border-b">プロンプト</th>
+                                <th class="text-left p-2 border-b">応答</th>
+                                <th class="text-left p-2 border-b">判定</th>
                             </tr>
                         </thead>
                         <tbody id="functional-table-body"></tbody>
@@ -2190,10 +2180,10 @@
                     <table class="w-full text-xs border-collapse">
                         <thead class="bg-gray-100 sticky top-0">
                             <tr>
-                                <th class="text-left p-2 border-b">Prompt</th>
-                                <th class="text-left p-2 border-b">Response</th>
-                                <th class="text-left p-2 border-b">Turns</th>
-                                <th class="text-left p-2 border-b">Verdict</th>
+                                <th class="text-left p-2 border-b">シナリオ</th>
+                                <th class="text-left p-2 border-b">プロンプト</th>
+                                <th class="text-left p-2 border-b">応答</th>
+                                <th class="text-left p-2 border-b">判定</th>
                             </tr>
                         </thead>
                         <tbody id="functional-table-body"></tbody>
@@ -2268,13 +2258,14 @@
                              data.verdict === 'needs_review' ? 'bg-yellow-100 text-yellow-800' :
                              'bg-gray-100 text-gray-800';
 
+        // シナリオIDを取得
+        const scenarioId = data.scenarioId || data.scenario_name || `scenario-${data.scenario_index || 0}`;
+
         // プロンプトを取得（100文字に切り詰め）
         const promptText = (data.prompt || '').substring(0, 100);
 
         // レスポンスを取得（100文字に切り詰め）- トップレベルから直接取得
         const responseText = (data.response || '').substring(0, 100);
-
-        const turnsText = data.totalTurns || 1;
 
         const rowId = `functional-row-${data.scenario_index || 0}`;
 
@@ -2286,11 +2277,11 @@
             tbody.appendChild(row);
         }
 
-        // 内容をセット
+        // 内容をセット（シナリオ、プロンプト、応答、判定の4列）
         row.innerHTML = `
-            <td class="p-2 max-w-xs truncate" title="${promptText}">${promptText || '-'}</td>
-            <td class="p-2 max-w-xs truncate" title="${responseText}">${responseText || '-'}</td>
-            <td class="p-2 text-center">${turnsText}</td>
+            <td class="p-2 max-w-xs truncate" title="${scenarioId}">${scenarioId}</td>
+            <td class="p-2 max-w-xs"><pre class="whitespace-pre-wrap text-xs">${promptText || '-'}</pre></td>
+            <td class="p-2 max-w-xs"><pre class="whitespace-pre-wrap text-xs">${responseText || '-'}</pre></td>
             <td class="p-2"><span class="px-2 py-1 rounded text-xs ${verdictClass}">${data.verdict}</span></td>
         `;
     }
@@ -2679,22 +2670,22 @@
 
                     const taskBar = scoresEl.querySelector('[data-axis="task"] .fill');
                     const taskVal = scoresEl.querySelector('[data-axis="task"] .val');
-                    if (taskBar) taskBar.style.width = `${(tc / 40) * 100}%`;
+                    if (taskBar) taskBar.style.width = `${(tc / 20) * 100}%`;
                     if (taskVal) taskVal.textContent = Math.floor(tc);
 
                     const toolBar = scoresEl.querySelector('[data-axis="tool"] .fill');
                     const toolVal = scoresEl.querySelector('[data-axis="tool"] .val');
-                    if (toolBar) toolBar.style.width = `${(tu / 30) * 100}%`;
+                    if (toolBar) toolBar.style.width = `${(tu / 15) * 100}%`;
                     if (toolVal) toolVal.textContent = Math.floor(tu);
 
                     const autoBar = scoresEl.querySelector('[data-axis="auto"] .fill');
                     const autoVal = scoresEl.querySelector('[data-axis="auto"] .val');
-                    if (autoBar) autoBar.style.width = `${(au / 20) * 100}%`;
+                    if (autoBar) autoBar.style.width = `${(au / 15) * 100}%`;
                     if (autoVal) autoVal.textContent = Math.floor(au);
 
                     const safeBar = scoresEl.querySelector('[data-axis="safe"] .fill');
                     const safeVal = scoresEl.querySelector('[data-axis="safe"] .val');
-                    if (safeBar) safeBar.style.width = `${(sf / 10) * 100}%`;
+                    if (safeBar) safeBar.style.width = `${(sf / 50) * 100}%`;
                     if (safeVal) safeVal.textContent = Math.floor(sf);
                 }
             });

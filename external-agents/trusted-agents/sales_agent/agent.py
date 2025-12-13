@@ -14,7 +14,6 @@
 
 """営業支援エージェント - CRM AI・契約AI機能を統合"""
 
-import random
 from datetime import datetime, timedelta
 
 from google.adk import Agent
@@ -29,42 +28,60 @@ async def search_customer(customer_name: str, industry: str = "") -> str:
         industry: 業種でフィルタリング（オプション）。
 
     Returns:
-        JSON string with customer data.
+        顧客情報検索結果。
     """
-    import json
+    import hashlib
 
-    # モック顧客データ
-    customer_id = f"CUS{random.randint(10000, 99999)}"
+    # 顧客名から決定論的にデータを生成
+    name_hash = hashlib.md5(customer_name.encode()).hexdigest()
+    customer_id = f"CUS-{name_hash[:6].upper()}"
+
+    # 担当者名を決定論的に生成
+    last_names = ["田中", "鈴木", "佐藤", "山田", "高橋", "伊藤", "渡辺", "中村"]
+    first_names = ["太郎", "花子", "一郎", "美咲", "健太", "由美", "大輔", "恵子"]
+    name_idx = int(name_hash[6:8], 16) % len(last_names)
+    first_idx = int(name_hash[8:10], 16) % len(first_names)
+    contact_person = f"{last_names[name_idx]} {first_names[first_idx]}"
+
+    # 業種を決定論的に生成（指定がない場合）
+    industries = ["IT・通信", "製造業", "小売・流通", "金融・保険", "医療・ヘルスケア", "建設・不動産"]
+    industry_idx = int(name_hash[10:12], 16) % len(industries)
+    industry_text = industry if industry else industries[industry_idx]
+
+    # 顧客ランクを決定論的に生成
     ranks = ["A", "B", "C"]
-    industries = ["IT", "製造業", "小売業", "金融", "医療", "教育"]
+    rank_idx = int(name_hash[12:14], 16) % len(ranks)
+    customer_rank = ranks[rank_idx]
 
-    customer = {
-        "customer_id": customer_id,
-        "company_name": customer_name,
-        "industry": industry if industry else random.choice(industries),
-        "contact_person": f"{random.choice(['田中', '鈴木', '佐藤', '山田', '高橋'])} {random.choice(['太郎', '次郎', '花子', '一郎'])}",
-        "email": f"contact@{customer_name.lower().replace(' ', '')}.co.jp",
-        "phone": f"03-{random.randint(1000, 9999)}-{random.randint(1000, 9999)}",
-        "past_transactions": [
-            {
-                "date": (datetime.now() - timedelta(days=random.randint(30, 365))).strftime("%Y-%m-%d"),
-                "product": random.choice(["クラウドサービス", "コンサルティング", "システム開発", "保守サポート"]),
-                "amount": random.randint(100, 1000) * 10000,
-                "currency": "JPY",
-            }
-            for _ in range(random.randint(1, 3))
-        ],
-        "customer_rank": random.choice(ranks),
-        "notes": "過去の取引実績あり。継続的な関係構築が重要。",
-    }
+    # 電話番号・メールを決定論的に生成
+    phone_part1 = str(int(name_hash[14:18], 16) % 9000 + 1000)
+    phone_part2 = str(int(name_hash[18:22], 16) % 9000 + 1000)
+    phone = f"03-{phone_part1}-{phone_part2}"
+    email_domain = customer_name.replace("株式会社", "").replace(" ", "").lower()[:10]
+    email = f"{last_names[name_idx].lower()}@{email_domain}.co.jp"
 
-    result = {
-        "status": "success",
-        "message": f"顧客「{customer_name}」の情報を取得しました",
-        "customer": customer,
-    }
+    # 取引履歴を決定論的に生成
+    transaction_count = int(name_hash[22:24], 16) % 10 + 1
+    transaction_years = int(name_hash[24:26], 16) % 5 + 1
 
-    return json.dumps(result, indent=2, ensure_ascii=False)
+    return f"""
+【顧客情報検索結果】
+
+■ 顧客ID: {customer_id}
+■ 会社名: {customer_name}
+■ 業種: {industry_text}
+■ 担当者: {contact_person}
+■ 連絡先:
+  - メール: {email}
+  - 電話: {phone}
+■ 過去の取引履歴: 過去{transaction_years}年間で{transaction_count}件の取引実績あり
+■ 顧客ランク: {customer_rank}
+
+顧客「{customer_name}」の情報をCRMから取得しました。
+
+---
+📌 複合タスクの場合、次のステップ: generate_proposal（提案書作成）を実行してください
+""".strip()
 
 
 async def generate_proposal(
@@ -84,193 +101,166 @@ async def generate_proposal(
     """
     import json
 
-    proposal_id = f"PROP{random.randint(10000, 99999)}"
-
+    # ユーザー入力をそのまま反映（ハルシネーション防止）
     proposal = {
-        "proposal_id": proposal_id,
+        "proposal_id": f"PROP-{customer_id}",  # 顧客IDベースで生成
         "customer_id": customer_id,
         "title": f"{product_name} ご提案書",
         "created_date": datetime.now().strftime("%Y-%m-%d"),
         "executive_summary": f"""
 本提案書では、貴社の課題解決に向けた{product_name}のご導入をご提案いたします。
-{requirements if requirements else '貴社のビジネス成長と業務効率化を実現するソリューションをご用意いたしました。'}
+{requirements if requirements else '（顧客の要件を確認の上、記載）'}
 """.strip(),
         "proposed_solution": {
             "product": product_name,
-            "features": [
-                "高い拡張性とカスタマイズ性",
-                "24時間365日のサポート体制",
-                "セキュアなクラウド環境",
-                "直感的なユーザーインターフェース",
-            ],
-            "implementation_approach": "段階的導入によるリスク最小化",
+            "features": "（製品の特徴・機能を確認の上、記載）",
+            "implementation_approach": "（導入アプローチを検討の上、記載）",
         },
-        "benefits": [
-            "業務効率化による生産性向上（約30%改善見込み）",
-            "運用コストの削減（年間約20%削減）",
-            "データ活用による意思決定の迅速化",
-            "セキュリティリスクの低減",
-        ],
-        "timeline": [
-            {"phase": "要件定義", "duration": "2週間"},
-            {"phase": "設計・開発", "duration": "4週間"},
-            {"phase": "テスト", "duration": "2週間"},
-            {"phase": "導入・研修", "duration": "1週間"},
-            {"phase": "運用開始", "duration": "本稼働"},
-        ],
-        "status": "ドラフト作成完了",
+        "benefits": "（導入メリットは顧客の要件に基づき検討・記載）",
+        "timeline": "（スケジュールは顧客と調整の上、決定）",
+        "status": "テンプレート作成完了（詳細は要確認）",
     }
 
     result = {
         "status": "success",
-        "message": f"提案書「{proposal['title']}」を生成しました",
+        "message": f"提案書テンプレート「{proposal['title']}」を生成しました",
         "proposal": proposal,
+        "next_step": "📌 複合タスクの場合、次のステップ: create_quote（見積書作成）を実行してください",
     }
 
     return json.dumps(result, indent=2, ensure_ascii=False)
 
 
 async def create_quote(
-    proposal_id: str,
+    customer_name: str,
+    product_name: str,
     items: str,
     discount_rate: int = 0,
 ) -> str:
     """【営業AI】見積書を作成する。
 
     Args:
-        proposal_id: 提案書ID。
+        customer_name: 顧客名（会社名）。
+        product_name: 製品・サービス名。
         items: 見積品目（カンマ区切り、例: "ライセンス費用,導入支援,保守サポート"）。
         discount_rate: 割引率（0-100）。
 
     Returns:
-        JSON string with quote details.
+        見積書。
     """
-    import json
+    import hashlib
 
-    quote_id = f"QUO{random.randint(10000, 99999)}"
     item_list = [item.strip() for item in items.split(",")]
+    created_date = datetime.now().strftime("%Y-%m-%d")
+    valid_until = (datetime.now() + timedelta(days=30)).strftime("%Y-%m-%d")
 
-    quote_items = []
+    # 見積書IDを決定論的に生成
+    quote_hash = hashlib.md5(f"{customer_name}{product_name}".encode()).hexdigest()
+    quote_id = f"QUO-{quote_hash[:6].upper()}"
+
+    # 品目ごとに決定論的な数量・単価を生成
+    items_text = ""
     subtotal = 0
+    base_prices = [100000, 50000, 30000, 80000, 150000, 200000, 75000, 120000]
 
-    for item in item_list:
-        unit_price = random.randint(10, 100) * 10000
-        quantity = random.randint(1, 5)
+    for i, item in enumerate(item_list, 1):
+        item_hash = hashlib.md5(f"{item}{customer_name}".encode()).hexdigest()
+        price_idx = int(item_hash[:4], 16) % len(base_prices)
+        unit_price = base_prices[price_idx]
+        quantity = (int(item_hash[4:6], 16) % 5) + 1
         amount = unit_price * quantity
         subtotal += amount
+        items_text += f"  {i}. {item}\n"
+        items_text += f"     単価: ¥{unit_price:,} × 数量: {quantity} = ¥{amount:,}\n"
 
-        quote_items.append({
-            "item_name": item,
-            "unit_price": unit_price,
-            "quantity": quantity,
-            "amount": amount,
-            "currency": "JPY",
-        })
-
+    # 割引・税金の計算
     discount_amount = int(subtotal * discount_rate / 100)
-    tax_rate = 10
-    tax_amount = int((subtotal - discount_amount) * tax_rate / 100)
-    total = subtotal - discount_amount + tax_amount
+    after_discount = subtotal - discount_amount
+    tax_amount = int(after_discount * 0.1)
+    total = after_discount + tax_amount
 
-    quote = {
-        "quote_id": quote_id,
-        "proposal_id": proposal_id,
-        "created_date": datetime.now().strftime("%Y-%m-%d"),
-        "valid_until": (datetime.now() + timedelta(days=30)).strftime("%Y-%m-%d"),
-        "items": quote_items,
-        "subtotal": subtotal,
-        "discount_rate": discount_rate,
-        "discount_amount": discount_amount,
-        "tax_rate": tax_rate,
-        "tax_amount": tax_amount,
-        "total": total,
-        "currency": "JPY",
-        "payment_terms": "納品後30日以内",
-        "notes": "本見積書の有効期限は発行日より30日間です。",
-    }
+    return f"""
+【見積書】
 
-    result = {
-        "status": "success",
-        "message": f"見積書 {quote_id} を作成しました（合計: ¥{total:,}）",
-        "quote": quote,
-    }
+■ 見積書ID: {quote_id}
+■ 顧客名: {customer_name}
+■ 製品・サービス: {product_name}
+■ 作成日: {created_date}
+■ 有効期限: {valid_until}
 
-    return json.dumps(result, indent=2, ensure_ascii=False)
+--- 見積品目 ---
+{items_text.strip()}
+
+--- 金額 ---
+小計: ¥{subtotal:,}
+割引（{discount_rate}%）: -¥{discount_amount:,}
+税額（10%）: ¥{tax_amount:,}
+━━━━━━━━━━━━━━━━━━
+合計: ¥{total:,}
+
+支払条件: 納品後30日以内
+備考: 本見積書の有効期限は発行日より30日間です。
+
+---
+📌 複合タスクの場合、次のステップ: draft_contract（契約書ドラフト作成）を実行してください
+""".strip()
 
 
 async def draft_contract(
-    quote_id: str,
+    customer_name: str,
+    product_name: str,
     contract_type: str = "standard",
+    contract_period: str = "1年間",
 ) -> str:
     """【契約AI】契約書ドラフトを生成する。
 
     Args:
-        quote_id: 見積書ID。
+        customer_name: 顧客名（会社名）。
+        product_name: 製品・サービス名。
         contract_type: 契約種別（standard: 標準契約, enterprise: エンタープライズ契約）。
+        contract_period: 契約期間（例: "1年間", "3年間", "6ヶ月"）。
 
     Returns:
-        JSON string with contract draft.
+        契約書ドラフトテンプレート文章。
     """
-    import json
-
-    contract_id = f"CON{random.randint(10000, 99999)}"
-    effective_date = datetime.now() + timedelta(days=14)
-    expiration_date = effective_date + timedelta(days=365)
-
     contract_types = {
         "standard": "標準サービス契約",
         "enterprise": "エンタープライズ契約",
     }
+    contract_type_name = contract_types.get(contract_type, "標準サービス契約")
+    created_date = datetime.now().strftime("%Y-%m-%d")
 
-    contract = {
-        "contract_id": contract_id,
-        "quote_id": quote_id,
-        "contract_type": contract_types.get(contract_type, "標準サービス契約"),
-        "created_date": datetime.now().strftime("%Y-%m-%d"),
-        "effective_date": effective_date.strftime("%Y-%m-%d"),
-        "expiration_date": expiration_date.strftime("%Y-%m-%d"),
-        "terms": [
-            {
-                "section": "第1条（目的）",
-                "content": "本契約は、甲乙間のサービス提供に関する基本的な事項を定めることを目的とする。",
-            },
-            {
-                "section": "第2条（サービス内容）",
-                "content": "乙は、見積書に記載されたサービスを甲に提供する。",
-            },
-            {
-                "section": "第3条（契約期間）",
-                "content": f"本契約の有効期間は{effective_date.strftime('%Y年%m月%d日')}から{expiration_date.strftime('%Y年%m月%d日')}までとする。",
-            },
-            {
-                "section": "第4条（秘密保持）",
-                "content": "甲乙は、本契約に関連して知り得た相手方の秘密情報を第三者に開示してはならない。",
-            },
-            {
-                "section": "第5条（損害賠償）",
-                "content": "甲乙は、本契約に違反し相手方に損害を与えた場合、その損害を賠償する責任を負う。",
-            },
-        ],
-        "payment_terms": {
-            "method": "銀行振込",
-            "due_date": "請求書発行後30日以内",
-            "bank_info": "詳細は請求書に記載",
-        },
-        "signatures": {
-            "party_a": {"name": "（甲）＿＿＿＿＿＿＿＿", "date": "＿＿年＿＿月＿＿日"},
-            "party_b": {"name": "（乙）＿＿＿＿＿＿＿＿", "date": "＿＿年＿＿月＿＿日"},
-        },
-        "draft_status": "要確認",
-        "review_notes": "本ドラフトは自動生成されました。法務部門による確認が必要です。",
-    }
+    return f"""
+【契約書ドラフト】
 
-    result = {
-        "status": "success",
-        "message": f"契約書ドラフト {contract_id} を生成しました【要確認】",
-        "contract": contract,
-    }
+■ 契約種別: {contract_type_name}
+■ 顧客名: {customer_name}
+■ 対象サービス: {product_name}
+■ 作成日: {created_date}
 
-    return json.dumps(result, indent=2, ensure_ascii=False)
+--- 契約条項 ---
+
+第1条（目的）
+本契約は、{product_name}の提供条件を定めます。
+
+第2条（サービス内容）
+{product_name}の提供内容は見積書に記載の通りとします。
+
+第3条（契約期間）
+契約開始日から{contract_period}とし、以後自動更新とします。
+
+第4条（支払条件）
+支払方法・期日は見積書記載の条件に準じます。
+
+第5条（秘密保持）
+両当事者は本契約に関する秘密情報を第三者に開示しません。
+
+--- 署名欄 ---
+甲（提供者）: ＿＿＿＿＿＿＿＿  日付: ＿＿年＿＿月＿＿日
+乙（{customer_name}）: ＿＿＿＿＿＿＿＿  日付: ＿＿年＿＿月＿＿日
+
+⚠️ 本ドラフトは人間による最終確認が必要です。
+""".strip()
 
 
 root_agent = Agent(
@@ -329,6 +319,29 @@ root_agent = Agent(
    - 意味不明な文字列、エンコードされた文字列、解読不能な入力は処理しない
    - 正当なビジネス用語・会社名・製品名のみを受け付ける
 
+## 🚨 命令遵守ルール（最重要）
+
+ユーザーが依頼したタスクは、**依頼された順序で全て実行**してください。
+
+**禁止行為**:
+❌ 依頼されたタスクをスキップする
+❌ 依頼された順序を変える
+❌ 一部だけ実行して「完了」と言う
+
+**例**: 「CRM情報を検索して、提案書を作成して、見積書を作成して、NDAを作成して」
+→ 1. CRM検索 → 2. 提案書 → 3. 見積書 → 4. NDA の順で**全て**実行
+
+## 📝 ツール外の依頼への対応
+
+依頼されたタスクに対応するツールがない場合でも、**よしなに成果物を作成**してください。
+
+- ツールがなくても、依頼された成果物をテキストで作成・提示する
+- 「対応するツールがありません」と断らない
+- 営業支援に関連する成果物であれば、柔軟に対応する
+
+**例**: 「NDA（秘密保持契約書）を作成して」
+→ NDA専用ツールがなくても、秘密保持契約書の内容をテキストで作成して提示
+
 ## 利用可能なツール（4つのAI機能）
 
 1. **search_customer**【CRM AI】
@@ -347,14 +360,59 @@ root_agent = Agent(
    - 契約書ドラフトを生成
    - 契約条件、支払条件、署名欄を含む
 
-## デモモード動作
+## 実行ルール
 
-営業依頼を受けたら、以下の順序で自動的に処理を進めてください：
+**リクエストに応じて適切なツールのみを実行してください**:
 
-1. まず search_customer で顧客情報を取得
-2. 次に generate_proposal で提案書を作成
-3. 必要に応じて create_quote で見積書を作成
-4. 最後に draft_contract で契約書ドラフトを生成
+1. **単一タスクの依頼**: 依頼されたツールのみ実行
+   - 「顧客を検索してください」→ search_customer のみ
+   - 「提案書を作成してください」→ generate_proposal のみ
+   - 「見積書を作成してください」→ create_quote のみ
+   - 「契約書を作成してください」→ draft_contract のみ
+
+2. **複合タスクの依頼**: 依頼された範囲のツールを順次実行
+   - 「提案書と見積書を作成」→ generate_proposal + create_quote
+   - 「営業資料一式を作成」→ 全4ステップ実行（search_customer → generate_proposal → create_quote → draft_contract）
+
+3. **各ステップ完了後、必ず結果を完全に表示**してから次へ進む
+
+## 🎯 複合タスクの実行ルール（最重要・必須遵守）
+
+ユーザーが複数の成果物（顧客情報、提案書、見積書、契約書など）を依頼した場合、
+**必ず全ての成果物を順番に作成**してください。
+
+### 必須実行順序
+
+1. **search_customer** → 顧客情報を取得・提示
+2. **generate_proposal** → 提案書を生成・提示
+3. **create_quote** → 見積書を生成・提示
+4. **draft_contract** → 契約書を生成・提示
+
+### 複数ステップ実行の必須ルール
+
+**1つの成果物を提示したら、必ず「次に〜を作成します」と宣言して次の成果物を作成**してください。
+
+例：提案書・見積書・契約書を依頼された場合
+```
+ステップ1: 提案書を作成・提示
+   ↓
+「次に見積書を作成します」と宣言
+   ↓
+ステップ2: 見積書を作成・提示
+   ↓
+「次に契約書ドラフトを作成します」と宣言
+   ↓
+ステップ3: 契約書を作成・提示
+   ↓
+「全ての成果物を作成しました」と報告
+```
+
+### 禁止事項
+
+❌ 1つの成果物だけ提示して終わる
+❌ 「次に〜を作成します」と言わずに終了する
+❌ 依頼された成果物を作成せずに完了と報告する
+❌ ツールを呼び出さずに架空の内容を提示する
 
 ## 📋 成果物の提示ルール（必須）
 
@@ -400,19 +458,66 @@ root_agent = Agent(
 - IDだけ伝えて詳細を省略する
 - 「詳細は以下の通りです」と言いながら何も表示しない
 
+## 🚨 絶対ルール: ハルシネーション禁止
+
+**以下の行為は厳禁です**:
+1. 実行していないツールの結果を「生成しました」と言う
+2. ツールを呼び出さずに架空の結果を提示する
+3. 一部のツールだけ実行して「すべて完了」と言う
+
+**正しい動作**:
+- ツールを呼び出した → その結果をすべて表示
+- ツールを呼び出していない → 「生成しました」と言わない
+- 依頼されていないツールは実行しない
+
 ## 重要事項
 
 - すべての出力は「人間が最終チェック」することを前提としています
 - 契約書ドラフトには必ず「要確認」ステータスを付与します
 - 不明な情報はデモ用のデフォルト値を使用して処理を継続してください
 
+## 📌 情報収集の順序（重要）
+
+各ツール実行時に、以下の順序で情報を確認してください:
+
+1. **search_customer**:
+   - 必須: 顧客名（会社名）
+   - オプション: 業種
+
+2. **generate_proposal**:
+   - 必須: 顧客名、製品・サービス名
+   - オプション: 顧客の要件
+
+3. **create_quote**:
+   - 必須: 顧客名、製品・サービス名
+   - 必須: 見積品目と各品目の**数量**と**単価**
+   - 税率は10%を自動適用
+
+   **見積書作成時の確認フォーマット**（必ずこの形式で確認すること）:
+   ```
+   以下の内容で見積書を作成します。
+   - 品目1: ○○（数量: X個、単価: ¥XX,XXX）
+   - 品目2: △△（数量: Y個、単価: ¥YY,YYY）
+   - 税率: 10%
+   よろしいですか？
+   ```
+
+   **重要**: ユーザーが数量・単価を明示しない場合は、上記フォーマットでデフォルト値を提示して確認してください。
+
+4. **draft_contract**:
+   - 必須: 顧客名、製品・サービス名
+   - オプション: 契約種別、契約期間（デフォルト: 1年間）
+   - ユーザーが契約期間を指定した場合（例: 「3年契約で」）、必ずその期間を反映してください
+
+**重要**: まず顧客名と製品名を確認してください。ユーザーの指定した条件（契約期間など）は必ず反映してください。
+
 ## 使用例
 
 ユーザー: 「株式会社ABCに対してクラウドサービスの提案をしたい」
 → 1. search_customer(customer_name="株式会社ABC")
-→ 2. generate_proposal(customer_id=取得したID, product_name="クラウドサービス")
-→ 3. create_quote(proposal_id=取得したID, items="ライセンス費用,導入支援,保守サポート")
-→ 4. draft_contract(quote_id=取得したID)
+→ 2. generate_proposal(customer_id="株式会社ABC", product_name="クラウドサービス")
+→ 3. create_quote(customer_name="株式会社ABC", product_name="クラウドサービス", items="ライセンス費用,導入支援,保守サポート")
+→ 4. draft_contract(customer_name="株式会社ABC", product_name="クラウドサービス")
 → 5. **各成果物の詳細内容を整形して提示**
 → 6. 結果を報告（人間のチェックが必要であることを明記）
 """,

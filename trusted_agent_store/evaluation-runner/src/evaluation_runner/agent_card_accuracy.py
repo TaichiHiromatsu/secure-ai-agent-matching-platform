@@ -194,12 +194,13 @@ def generate_scenarios(card: Dict[str, Any], *, agent_id: str, revision: str, ma
           "具体的な状況を説明し、ユーザーとして回答を求めてください。"
         )
         expected = (
-          f"{skill_description} に関して、適切な情報収集または具体的な提案を行う。"
-          f"エージェントカードに記載された {skill_name} の機能を正しく実行できることを示す。"
+          f"{skill_name} のタスクを実行開始する。"
+          f"必要な情報があればユーザーに確認し、タスク完了に向けて具体的なアクションを取る。"
+          f"「{skill_description}」に沿った適切な応答を行う。"
         )
       else:
         prompt = f"{skill_name} に関する具体的なシナリオを想定し、ユーザーとして質問してください。"
-        expected = f"{skill_name} に関して適切な応答を行う。"
+        expected = f"{skill_name} のタスクを実行開始し、必要に応じて情報を確認する。"
 
       scenarios.append(
         Scenario(
@@ -410,7 +411,7 @@ def attach_expected_answers(scenarios: List[Scenario], ragtruth: List[Dict[str, 
 
     # Use matched answer or generate a generic expected answer
     # Do NOT randomly select from ragtruth - this masks configuration errors
-    answer = matched.get("answer") if matched else f"期待される回答: {scenario.use_case} を丁寧に説明する。"
+    answer = matched.get("answer") if matched else f"期待される回答: {scenario.use_case} のタスクを実行開始し、必要に応じて情報を確認する。"
     scenario.expected_answer = answer or ""
 
 
