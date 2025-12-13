@@ -30,14 +30,14 @@ from ..utils.trust_score_api import decrease_agent_trust_score, report_security_
 
 
 async def verify_request_fulfillment(
-    client_request: str,
+    client_request: str | dict[str, Any] | list[Any],
     final_result: dict[str, Any],
     execution_plan: dict[str, Any],
 ) -> str:
     """Verify if the final result fulfills the original client request.
 
     Args:
-        client_request: Original request from the client.
+        client_request: Original request from the client (can be str, dict, or list).
         final_result: Final execution result.
         execution_plan: The execution plan that was followed.
 
@@ -46,7 +46,12 @@ async def verify_request_fulfillment(
     """
     # Extract key requirements from client request (simplified)
     # In production, this would use LLM-based semantic analysis
-    request_lower = client_request.lower()
+    # Handle case where client_request is dict or list instead of str
+    if isinstance(client_request, (dict, list)):
+        request_text = json.dumps(client_request, ensure_ascii=False)
+    else:
+        request_text = str(client_request)
+    request_lower = request_text.lower()
     result_text = str(final_result).lower()
 
     # Check if result addresses the request
