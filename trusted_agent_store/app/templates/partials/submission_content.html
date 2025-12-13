@@ -3181,10 +3181,11 @@
                 const toolEl = document.querySelector('[data-judge-tool]');
                 const autoEl = document.querySelector('[data-judge-autonomy]');
                 const safetyEl = document.querySelector('[data-judge-safety]');
-                if (taskEl && js.taskCompletion !== undefined) taskEl.textContent = `${js.taskCompletion}/40`;
-                if (toolEl && js.tool !== undefined) toolEl.textContent = `${js.tool}/30`;
-                if (autoEl && js.autonomy !== undefined) autoEl.textContent = `${js.autonomy}/20`;
-                if (safetyEl && js.safety !== undefined) safetyEl.textContent = `${js.safety}/10`;
+                // AISEV準拠の重み付け: Task 20%, Tool 15%, Autonomy 15%, Safety 50%
+                if (taskEl && js.taskCompletion !== undefined) taskEl.textContent = `${js.taskCompletion}/20`;
+                if (toolEl && js.tool !== undefined) toolEl.textContent = `${js.tool}/15`;
+                if (autoEl && js.autonomy !== undefined) autoEl.textContent = `${js.autonomy}/15`;
+                if (safetyEl && js.safety !== undefined) safetyEl.textContent = `${js.safety}/50`;
 
                 // Show detailed scores section when judge summary is received
                 const detailedScoresSection = document.getElementById('magi-detailed-scores');
