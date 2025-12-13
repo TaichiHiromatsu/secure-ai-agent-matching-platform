@@ -4,6 +4,10 @@
 
 外部企業が公開するAIエージェントとのA2A（Agent-to-Agent）通信における**セキュリティリスクを解決**する、エージェント仲介プラットフォームです。
 
+ユーザーの要望を実現するために、AIエージェントが複数の外部AIエージェントを呼び出す時代が来ています。例えば「沖縄旅行に行きたい」とユーザーのAIエージェントに伝えると、航空会社AI・ホテルAI・レンタカーAIなど複数の外部AIエージェントと連携してタスクを実行します。本プラットフォームは、このようなAIエージェント同士のマッチングと連携を安全に仲介します。
+
+**エージェントストア**で信頼できるAIエージェントを審査・登録し、**セキュア仲介エージェント**がユーザーに代わって計画立案から実行・監視まで一貫して行うことで、プロンプトインジェクションや偽エージェントからユーザーを守る「多層防御」を実現します。
+
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![A2A Protocol](https://img.shields.io/badge/A2A-v0.3-green.svg)](https://developers.googleblog.com/en/a2a-a-new-era-of-agent-interoperability/)
 [![Python](https://img.shields.io/badge/Python-3.12+-blue.svg)](https://www.python.org/)
