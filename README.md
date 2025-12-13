@@ -11,6 +11,7 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![A2A Protocol](https://img.shields.io/badge/A2A-v0.3-green.svg)](https://developers.googleblog.com/en/a2a-a-new-era-of-agent-interoperability/)
 [![Python](https://img.shields.io/badge/Python-3.12+-blue.svg)](https://www.python.org/)
+[![Tech Blog](https://img.shields.io/badge/Tech%20Blog-解説記事-orange.svg)](https://techblog.insightedge.jp/entry/geniac-prize-secure-a2a-platform)
 
 ## 📋 目次
 
@@ -406,6 +407,7 @@ GENIAC-PRIZE 2025 提出チーム
 
 ## 🔗 関連リンク
 
+- [本プラットフォームの技術解説ブログ](https://techblog.insightedge.jp/entry/geniac-prize-secure-a2a-platform)
 - [Google ADK Documentation](https://google.github.io/adk-docs/)
 - [A2A Protocol Specification](https://developers.googleblog.com/en/a2a-a-new-era-of-agent-interoperability/)
 - [GENIAC-PRIZE 公式サイト](https://geniac.io/)
