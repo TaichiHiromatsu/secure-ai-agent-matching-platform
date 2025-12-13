@@ -40,7 +40,15 @@ class ADKAgentExecutor(AgentExecutor):
 
     async def execute(self, context, event_queue):
         """Execute the ADK agent with the given context."""
-        from google.adk.agents import InMemoryRunner
+        # Try to import InMemoryRunner from various locations
+        try:
+            from google.adk.agents import InMemoryRunner
+        except ImportError:
+            try:
+                from google.adk.runners import InMemoryRunner
+            except ImportError:
+                from google.adk import Runner as InMemoryRunner
+
 
         # Get the user message from the context
         user_message = ""
@@ -177,12 +185,98 @@ def create_app(host: str, port: int, agents_dir: Path) -> Starlette:
     return app
 
 
+async def run_test_dialogue(agent_path: Path, agent_name: str):
+    """Run a test dialogue with the specified agent."""
+    import sys
+    
+    print(f"Loading agent from {agent_path}")
+    
+    # Import the ADK agent
+    sys.path.insert(0, str(agent_path))
+    try:
+        agent_module = __import__("agent")
+        adk_agent = agent_module.root_agent
+    except Exception as e:
+        logger.error(f"Failed to load agent: {e}")
+        return
+    finally:
+        sys.path.pop(0)
+
+    # Try to import InMemoryRunner from various locations
+    try:
+        from google.adk.agents import InMemoryRunner
+    except ImportError:
+        try:
+            from google.adk.runners import InMemoryRunner
+        except ImportError:
+            from google.adk import Runner as InMemoryRunner
+
+
+    print(f"Initializing runner for {agent_name}...")
+    runner = InMemoryRunner(
+        agent=adk_agent,
+        app_name=agent_name,
+    )
+
+    session_id = f"test_session_{agent_name}"
+    user_id = "test_user"
+    
+    # Authenticate/Create session
+    print(f"Creating session {session_id} for user {user_id}...")
+    try:
+        # Check if session service exists and try to create session
+        if hasattr(runner, "session_service"):
+            session_service = runner.session_service
+            # Check for create_session method
+            if hasattr(session_service, "create_session"):
+                start_session = session_service.create_session
+                import inspect
+                if inspect.iscoroutinefunction(start_session):
+                    await start_session(user_id=user_id, session_id=session_id, app_name=agent_name)
+                else:
+                    start_session(user_id=user_id, session_id=session_id, app_name=agent_name)
+                print("Session created successfully.")
+    except Exception as e:
+        print(f"Warning: Failed to explicitely create session: {e}")
+        # Proceed anyway as some runners might auto-create
+    
+    dialogue = [
+        "沖縄旅行を計画しています。3月10日から2泊3日で那覇のツアーを探して予約したいです。",
+        "はい、お願いします。必要な情報はありますか？",
+        "名前は山田太郎、メールは taro@example.com です。"
+    ]
+    
+    print(f"\n=== START TEST DIALOGUE: {agent_name} ===\n")
+    
+    for msg in dialogue:
+        print(f"User: {msg}")
+        print("-" * 50)
+        
+        try:
+            async for event in runner.run_async(
+                user_id=user_id,
+                session_id=session_id,
+                new_message=msg,
+            ):
+                if hasattr(event, "content") and event.content:
+                    print(f"Agent: {event.content}")
+        except Exception as e:
+            print(f"Error during execution: {e}")
+            import traceback
+            traceback.print_exc()
+            
+        print("=" * 50)
+        
+    print(f"\n=== END TEST DIALOGUE: {agent_name} ===\n")
+
+
 def main():
     import argparse
 
     parser = argparse.ArgumentParser(description="A2A Server for external agents")
     parser.add_argument("--host", default="127.0.0.1", help="Host to bind to")
     parser.add_argument("--port", type=int, default=8002, help="Port to bind to")
+    parser.add_argument("--test-agent", help="Name of agent to test (runs dialogue and exits)")
     parser.add_argument("agents_dir", type=Path, help="Directory containing agents")
 
     args = parser.parse_args()
@@ -190,6 +284,15 @@ def main():
     if not args.agents_dir.exists():
         logger.error(f"Agents directory not found: {args.agents_dir}")
         sys.exit(1)
+
+    if args.test_agent:
+        agent_path = args.agents_dir / args.test_agent
+        if not agent_path.exists():
+            logger.error(f"Agent directory not found: {agent_path}")
+            sys.exit(1)
+            
+        asyncio.run(run_test_dialogue(agent_path, args.test_agent))
+        return
 
     app = create_app(args.host, args.port, args.agents_dir)
 
