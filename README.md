@@ -251,48 +251,7 @@ Cloud Run上にデモ環境を用意しています。ブラウザからアク�
 3. **デモの詳細**
    - 詳細な操作手順は [docs/demo/DEMO.md](docs/demo/DEMO.md) を参照してください
 
----
-
-### 📋 ローカル環境での実行（開発者向け）
-
-#### 環境要件
-- **OS**: macOS 12.0 以降
-- **Python**: 3.12 以上
-- **Homebrew**: インストール済み
-- **Google Cloud アカウント**: Gemini API キー取得済み
-
-#### セットアップ手順
-
-```bash
-# 1. リポジトリをクローン
-git clone <repository-url>
-cd secure-ai-agent-matching-platform
-
-# 2. uvをインストール
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# 3. 依存関係をインストール
-uv sync
-
-# 4. 環境変数を設定
-echo "GOOGLE_API_KEY=your-gemini-api-key" > .env
-
-# 5. ローカル実行スクリプトで全サービスを起動
-./deploy/run-local.sh
-
-# ✅ ブラウザで http://localhost:8080 を開きます
-```
-
-**デモプロンプト例:**
-```
-沖縄旅行の予約をお願いします。
-- 人数：2人
-- フライト: 羽田→那覇 (12/20-12/23)
-- ホテル: 那覇市内 3泊
-- レンタカー: コンパクトカー
-
-セキュリティチェックを行いながら実行プランを作成してください。
-```
+> 💻 **開発者向け**: ローカル環境での実行は [docs/LOCAL_DEVELOPMENT.md](docs/LOCAL_DEVELOPMENT.md) を参照してください
 
 ---
 
@@ -348,6 +307,7 @@ echo "GOOGLE_API_KEY=your-gemini-api-key" > .env
 | [SPECIFICATION.md](docs/secure_mediation_agent_design/SPECIFICATION.md) | 技術仕様書（実装詳細） |
 | [SECURITY_IMPLEMENTATION.md](docs/secure_mediation_agent_design/SECURITY_IMPLEMENTATION.md) | セキュリティ実装詳細 |
 | [DEMO.md](docs/demo/DEMO.md) | デモ概要 |
+| [LOCAL_DEVELOPMENT.md](docs/LOCAL_DEVELOPMENT.md) | ローカル環境での実行手順 |
 | [trusted_agent_store_design/](docs/trusted_agent_store_design/) | エージェントストア設計ドキュメント |
 
 ---
