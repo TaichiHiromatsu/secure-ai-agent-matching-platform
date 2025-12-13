@@ -1662,6 +1662,18 @@
         if (blockedEl) blockedEl.textContent = securityState.blocked;
         if (needsReviewEl) needsReviewEl.textContent = securityState.needsReview;
         if (errorsEl) errorsEl.textContent = securityState.errors;
+
+        // サマリー表示もリアルタイム更新（Security Gateでは blocked=passed, errors=failed）
+        const summaryPassedEl = document.getElementById('summary-security-passed');
+        const summaryNeedsEl = document.getElementById('summary-security-needs');
+        const summaryFailedEl = document.getElementById('summary-security-failed');
+        if (summaryPassedEl) summaryPassedEl.textContent = securityState.blocked;
+        if (summaryNeedsEl) summaryNeedsEl.textContent = securityState.needsReview;
+        if (summaryFailedEl) summaryFailedEl.textContent = securityState.errors;
+        // サマリーのtotal（分母）も更新
+        document.querySelectorAll('.summary-security-total').forEach(el => {
+            el.textContent = securityState.total;
+        });
     }
 
     function updateSecurityProgress() {
@@ -2221,6 +2233,18 @@
         if (passedEl) passedEl.textContent = functionalState.passed;
         if (needsReviewEl) needsReviewEl.textContent = functionalState.needsReview;
         if (failedEl) failedEl.textContent = functionalState.failed;
+
+        // サマリー表示もリアルタイム更新
+        const summaryPassedEl = document.getElementById('summary-functional-passed');
+        const summaryNeedsEl = document.getElementById('summary-functional-needs');
+        const summaryFailedEl = document.getElementById('summary-functional-failed');
+        if (summaryPassedEl) summaryPassedEl.textContent = functionalState.passed;
+        if (summaryNeedsEl) summaryNeedsEl.textContent = functionalState.needsReview;
+        if (summaryFailedEl) summaryFailedEl.textContent = functionalState.failed;
+        // サマリーのtotal（分母）も更新
+        document.querySelectorAll('.summary-functional-total').forEach(el => {
+            el.textContent = functionalState.total;
+        });
     }
 
     function updateFunctionalProgress() {
