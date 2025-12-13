@@ -83,12 +83,12 @@ def _convert_agent_entry_to_matcher_format(agent: dict[str, Any]) -> dict[str, A
             "tags": tags,
         })
 
-    # Convert trust_score from 0-100 integer to 0.0-1.0 float
+    # Use trust_score directly from agent store (0-100 scale)
     trust_score_raw = agent.get("trust_score")
     if trust_score_raw is not None:
-        trust_score = float(trust_score_raw) / 100.0
+        trust_score = float(trust_score_raw)
     else:
-        trust_score = 0.5  # Default trust score
+        trust_score = 50.0  # Default trust score (middle of 0-100 scale)
 
     return {
         "name": agent.get("name", "unknown"),
@@ -194,13 +194,13 @@ async def search_agent_store(
 
 async def rank_agents_by_trust(
     agents: list[dict[str, Any]],
-    min_trust_score: float = 0.3,
+    min_trust_score: float = 30.0,
 ) -> str:
     """Rank agents by trust score and filter by minimum threshold.
 
     Args:
         agents: List of agent information dictionaries.
-        min_trust_score: Minimum trust score threshold (0.0 to 1.0).
+        min_trust_score: Minimum trust score threshold (0 to 100).
 
     Returns:
         JSON string with ranked agents.
@@ -208,13 +208,13 @@ async def rank_agents_by_trust(
     # Filter agents by minimum trust score
     filtered_agents = [
         agent for agent in agents
-        if agent.get("trust_score", 0.5) >= min_trust_score
+        if agent.get("trust_score", 50.0) >= min_trust_score
     ]
 
     # Sort by trust score (descending)
     ranked_agents = sorted(
         filtered_agents,
-        key=lambda a: a.get("trust_score", 0.5),
+        key=lambda a: a.get("trust_score", 50.0),
         reverse=True,
     )
 
@@ -231,19 +231,24 @@ async def rank_agents_by_trust(
 async def calculate_matching_score(
     agent: dict[str, Any],
     requirements: dict[str, Any],
-) -> float:
+) -> dict[str, Any]:
     """Calculate matching score between agent capabilities and requirements.
+
+    Returns both a specialization score (how well agent fits its capable tasks)
+    and coverage information (how many tasks out of total).
 
     Args:
         agent: Agent information dictionary.
         requirements: Required capabilities and skills.
 
     Returns:
-        Matching score (0.0 to 1.0).
+        Dictionary with:
+        - matching_score: Specialization score (0.0 to 1.0) for tasks agent can handle
+        - matched_tasks: Number of tasks this agent can handle
+        - total_tasks: Total number of required tasks
+        - coverage_display: Human-readable coverage string (e.g., "3タスク中1タスク")
+        - matching_label: Human-readable matching quality label
     """
-    score = 0.0
-    max_score = 0.0
-
     # Check skill matches
     required_skills = requirements.get("skills", [])
     agent_skills = [skill.get("id", "") for skill in agent.get("skills", [])]
@@ -251,53 +256,77 @@ async def calculate_matching_score(
     for skill in agent.get("skills", []):
         agent_skill_tags.update(skill.get("tags", []))
 
-    if required_skills:
-        max_score += 0.5
-        skill_matches = sum(
-            1 for req_skill in required_skills
-            if req_skill in agent_skills or req_skill in agent_skill_tags
-        )
-        score += (skill_matches / len(required_skills)) * 0.5
+    # Count matched skills
+    matched_skill_list = [
+        req_skill for req_skill in required_skills
+        if req_skill in agent_skills or req_skill in agent_skill_tags
+    ]
+    matched_tasks = len(matched_skill_list)
+    total_tasks = len(required_skills) if required_skills else 1
 
-    # Check capability matches
-    required_caps = requirements.get("capabilities", {})
-    agent_caps = agent.get("capabilities", {})
-
-    # Handle both dict and list formats for capabilities
-    if required_caps:
-        max_score += 0.3
-        if isinstance(required_caps, dict):
+    # Calculate specialization score for the tasks this agent CAN handle
+    # If agent matches any skills, evaluate how well it fits those specific tasks
+    specialization_score = 0.0
+    
+    if matched_tasks > 0:
+        # Base score: Agent can handle the matched tasks (high score for specialization)
+        specialization_score = 0.7  # Base score for having matching skills
+        
+        # Check capability matches for bonus
+        required_caps = requirements.get("capabilities", {})
+        agent_caps = agent.get("capabilities", {})
+        
+        if required_caps and isinstance(required_caps, dict):
             cap_matches = sum(
                 1 for cap_key, cap_value in required_caps.items()
                 if agent_caps.get(cap_key) == cap_value
             )
-            score += (cap_matches / len(required_caps)) * 0.3
-        elif isinstance(required_caps, list):
-            # If capabilities is a list, just check if agent has any capabilities
-            cap_matches = len(agent_caps) if agent_caps else 0
-            score += (min(cap_matches, len(required_caps)) / len(required_caps)) * 0.3
-
-    # Input/output mode compatibility
-    required_input = requirements.get("input_modes", [])
-    required_output = requirements.get("output_modes", [])
-    agent_input = agent.get("defaultInputModes", [])
-    agent_output = agent.get("defaultOutputModes", [])
-
-    if required_input or required_output:
-        max_score += 0.2
+            if cap_matches > 0:
+                specialization_score += 0.15 * (cap_matches / len(required_caps))
+        
+        # Input/output mode compatibility bonus
+        required_input = requirements.get("input_modes", [])
+        required_output = requirements.get("output_modes", [])
+        agent_input = agent.get("defaultInputModes", [])
+        agent_output = agent.get("defaultOutputModes", [])
+        
         input_match = any(mode in agent_input for mode in required_input) if required_input else True
         output_match = any(mode in agent_output for mode in required_output) if required_output else True
-
+        
         if input_match and output_match:
-            score += 0.2
+            specialization_score += 0.15
         elif input_match or output_match:
-            score += 0.1
+            specialization_score += 0.075
+        
+        # Cap at 1.0
+        specialization_score = min(specialization_score, 1.0)
+    else:
+        # No matching skills
+        specialization_score = 0.0
 
-    # Normalize score
-    if max_score == 0:
-        return 0.5  # Default score if no requirements specified
+    # Generate human-readable labels
+    coverage_display = f"{total_tasks}タスク中{matched_tasks}タスク"
+    
+    # Matching quality label based on specialization score
+    if specialization_score >= 0.9:
+        matching_label = "非常に高い適合度"
+    elif specialization_score >= 0.7:
+        matching_label = "高い適合度"
+    elif specialization_score >= 0.5:
+        matching_label = "適合"
+    elif specialization_score > 0:
+        matching_label = "部分的に適合"
+    else:
+        matching_label = "適合なし"
 
-    return score / max_score
+    return {
+        "matching_score": specialization_score,
+        "matched_tasks": matched_tasks,
+        "total_tasks": total_tasks,
+        "coverage_display": coverage_display,
+        "matching_label": matching_label,
+        "matched_skills": matched_skill_list,
+    }
 
 
 matcher = Agent(
