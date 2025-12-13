@@ -191,54 +191,68 @@ graph TB
 ### システム全体像
 
 ```mermaid
-graph TB
+flowchart TB
     subgraph Client["クライアント側"]
-        UA[ユーザーエージェント]
+        UserAgent["ユーザーエージェント"]
     end
 
-    subgraph Mediator["🔒 セキュア仲介エージェント<br/>(このプロジェクトの中核)"]
-        direction TB
-        Main[メイン仲介エージェント]
+    UserAgent -->|A2A| MainAgent
+
+    subgraph SecureMediation["セキュア仲介エージェント"]
+        MainAgent["メイン仲介エージェント"]
 
         subgraph SubAgents["サブエージェント"]
-            M[Matcher]
-            P[Planner]
-            O[Orchestrator]
-            A[Anomaly Detector]
-            F[Final Anomaly Detector]
+            Orchestrator["Orchestrator"]
+            Planner["Planner"]
+            Matcher["Matcher"]
         end
 
-        Main --> M
-        Main --> P
-        Main --> O
-        Main --> A
-        Main --> F
+        subgraph Detection["検知・検証"]
+            AnomalyDetector["Anomaly Detector"]
+            FinalAnomalyDetector["Final Anomaly Detector"]
+        end
+
+        MainAgent --> Orchestrator
+        MainAgent --> Planner
+        MainAgent --> Matcher
+        MainAgent --> AnomalyDetector
+        MainAgent --> FinalAnomalyDetector
     end
 
-    subgraph Store["Trusted Agent Store<br/>(エージェントストア)"]
-        Registry[(エージェント<br/>レジストリ)]
-        Trust[信頼性スコア<br/>管理]
+    subgraph ExternalAgents["外部エージェント"]
+        Airline["航空会社"]
+        Hotel["ホテル"]
+        CarRental["レンタカー"]
     end
 
-    subgraph External["外部エージェント"]
-        Airline[✈️ 航空会社]
-        Hotel[🏨 ホテル]
-        Car[🚗 レンタカー]
+    Orchestrator -->|A2A| Airline
+    Orchestrator -->|A2A| Hotel
+    Orchestrator -->|A2A| CarRental
+
+    subgraph AgentStore["エージェントストア"]
+        Registration["エージェント登録"]
+        BusinessAuth["事業者認証"]
+        TrustEval["信頼性評価"]
+        TrustScore["信頼性スコア<br/>継続的評価"]
+
+        Registration --> BusinessAuth
+        BusinessAuth --> TrustEval
+        TrustEval --> TrustScore
     end
 
-    UA -->|A2A| Main
-    M -.->|検索| Registry
-    O -->|A2A| Airline
-    O -->|A2A| Hotel
-    O -->|A2A| Car
-    Trust -.->|スコア参照| M
+    Airline -.->|登録申請| Registration
+    Matcher -.->|検索| TrustScore
+    AnomalyDetector -.->|異常検知時<br/>スコア低下| TrustScore
+    FinalAnomalyDetector -.->|異常検知時<br/>スコア低下| TrustScore
 
-    style Main fill:#4ecdc4,stroke:#333,stroke-width:3px
-    style M fill:#95e1d3
-    style P fill:#95e1d3
-    style O fill:#95e1d3
-    style A fill:#ff6b6b
-    style F fill:#ff6b6b
+    style MainAgent fill:#4ecdc4,stroke:#333
+    style Orchestrator fill:#4ecdc4,stroke:#333
+    style Planner fill:#4ecdc4,stroke:#333
+    style Matcher fill:#4ecdc4,stroke:#333
+    style AnomalyDetector fill:#e57373,stroke:#333
+    style FinalAnomalyDetector fill:#e57373,stroke:#333
+    style SecureMediation fill:#c8e6c9,stroke:#333
+    style AgentStore fill:#ffe0b2,stroke:#333
 ```
 
 ### 処理フロー
