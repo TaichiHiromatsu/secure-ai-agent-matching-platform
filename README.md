@@ -185,13 +185,24 @@ AIエージェントの信頼性を事前に審査・可視化するプラット
 
 ```mermaid
 sequenceDiagram
-    participant U as ユーザー<br/>エージェント
-    participant M as Matcher
-    participant P as Planner
-    participant O as Orchestrator
-    participant A as Anomaly<br/>Detector
-    participant F as Final<br/>Anomaly Detector
-    participant E as 外部<br/>エージェント
+    box rgb(230, 243, 255) ユーザー側
+        participant U as ユーザー<br/>エージェント
+    end
+
+    box rgb(200, 230, 201) セキュア仲介エージェント
+        participant M as Matcher
+        participant P as Planner
+        participant O as Orchestrator
+    end
+
+    box rgb(255, 205, 210) 検知・検証
+        participant A as Anomaly<br/>Detector
+        participant F as Final<br/>Anomaly Detector
+    end
+
+    box rgb(255, 243, 224) 外部
+        participant E as 外部<br/>エージェント
+    end
 
     U->>M: 要望: 沖縄旅行
     M->>M: エージェント検索<br/>(信頼性スコア評価)
