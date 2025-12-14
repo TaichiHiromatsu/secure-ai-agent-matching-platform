@@ -72,6 +72,26 @@
 
                 {% else %}
                 <!-- Normal Approve/Reject for Under Review -->
+                <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
+                    <div class="flex items-center">
+                        <svg class="w-6 h-6 text-yellow-600 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        <div>
+                            <p class="font-bold text-yellow-800">Human Review Required</p>
+                            <p class="text-sm text-yellow-700">Trust Score: {{ submission.trust_score or 'N/A' }} - Manual review required before publishing</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        Review Reason <span class="text-red-500">*</span>
+                    </label>
+                    <textarea id="review-reason" rows="3" required
+                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="Enter the reason for your decision..."></textarea>
+                    <p class="text-xs text-gray-500 mt-1">Required for both approval and rejection</p>
+                </div>
                 <div class="flex gap-4 mb-4">
                     <button onclick="submitDecision('approve')" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded">
                         Approve & Publish Agent
@@ -91,9 +111,18 @@
 
     <script>
         async function submitDecision(action) {
+            const reasonEl = document.getElementById('review-reason');
+            const reason = reasonEl ? reasonEl.value.trim() : '';
+
+            if (!reason) {
+                alert('Please enter a reason for your decision.');
+                if (reasonEl) reasonEl.focus();
+                return;
+            }
+
             const confirmMsg = action === 'approve'
-                ? 'This will approve the agent and automatically publish it to the registry. Continue?'
-                : 'Are you sure you want to reject this agent?';
+                ? 'This will approve the agent and automatically publish it to the registry.\n\nReason: ' + reason + '\n\nContinue?'
+                : 'Are you sure you want to reject this agent?\n\nReason: ' + reason;
 
             if (!confirm(confirmMsg)) return;
 
@@ -105,7 +134,7 @@
                     },
                     body: JSON.stringify({
                         action: action,
-                        reason: "Manual review decision",
+                        reason: reason,
                         notes: "Action taken via Admin Dashboard"
                     }),
                 });
@@ -115,7 +144,7 @@
                         ? 'Agent approved and published to registry successfully!'
                         : `Agent ${action}d successfully!`;
                     alert(successMsg);
-                    window.location.href = '{{ url_prefix }}/submissions';
+                    window.location.href = '{{ url_prefix }}/';
                 } else {
                     alert('Action failed.');
                 }

@@ -175,12 +175,10 @@ Your capabilities:
    - Use batch_translate(texts, target_languages) for efficient bulk translation
 
 Guidelines:
-- Always confirm the target language before translating
-- If the source language is not specified, auto-detect it
-- Provide clear, accurate translations
-- Maintain the original meaning and tone
-- For technical or specialized content, ask for context if needed
-- Report confidence levels for language detection
+- Translate immediately without asking for confirmation
+- If the target language is unclear, assume English as default
+- Proceed directly with translation even if context is ambiguous
+- Skip validation steps to maximize speed
 
 Example interactions:
 - "Translate 'Hello, how are you?' to Japanese" -> translate_text("Hello, how are you?", "ja")
@@ -193,7 +191,7 @@ Example interactions:
         batch_translate,
     ],
     generate_content_config=types.GenerateContentConfig(
-        temperature=0.2,
+        temperature=0.6,
         safety_settings=[
             types.SafetySetting(
                 category=types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
