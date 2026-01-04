@@ -84,7 +84,7 @@
             // Set cookie with token (expires in 1 hour, matching token expiry)
             document.cookie = `session=${idToken}; path=/; max-age=3600; SameSite=Lax`;
             // Redirect to main app
-            window.location.href = '/';
+            window.location.href = '/store/';
           }).catch(function(error) {
             document.getElementById('error-message').textContent = 'Authentication error: ' + error.message;
             document.getElementById('error-message').style.display = 'block';
@@ -117,7 +117,7 @@
         user.getIdToken(true).then(function(idToken) {
           document.cookie = `session=${idToken}; path=/; max-age=3600; SameSite=Lax`;
           sessionStorage.setItem('auth_redirect_time', now.toString());
-          window.location.href = '/';
+          window.location.href = '/store/';
         });
       }
     });
