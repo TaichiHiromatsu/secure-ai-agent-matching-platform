@@ -5,7 +5,7 @@
   "protocolVersion": "0.3.0",
   "capabilities": {},
   "defaultInputModes": ["text/plain"],
-  "defaultOutputModes": ["application/json"],
+  "defaultOutputModes": ["application/json", "text/plain", "text/csv"],
   "description": "Data analysis and report generation agent. Analyzes business data and automatically generates insight reports for decision making.",
   "skills": [
     {

@@ -222,4 +222,102 @@
 
 ---
 
+---
+
+## 3. Artifact実装レビュー結果（2026-02-28 実施）
+
+### 完了済みタスク
+
+- [x] ① A2A Artifact交換の受信・記録対応（security_gate.py / agent_card_accuracy.py / execution_agent.py）
+- [x] ② Artifact評価軸の追加（llm_judge.py Tool Usage軸にArtifact品質基準追加）
+- [x] ③-1 sales_agent（正常系）にArtifact返却機能を追加（提案書JSON / 見積書TXT / 契約書TXT）
+- [x] ③-2 data_harvester_agent（異常系）に悪意あるArtifact返却機能を追加（MIME偽装 / PII含有CSV / Prompt Injection）
+- [x] a2a_server.py にArtifact収集・DataPart返却機能を追加
+- [x] ⑥ Red Teaming的敵対テスト（対応済み）
+- [x] ⑦ SAIF 3原則の評価軸反映（llm_judge.py Safety軸に Human Control / Limited Powers / Observability を追加済み）
+
+### 第三者レビューで発見した問題点と修正方針
+
+#### 🔴 重大度: 高（デモ失敗リスク）
+
+**問題1: a2a_server.py — Artifact収集タイミングが早すぎる**
+
+状況: `execute()` メソッド内で `runner.run_async` のイベントループ **内部** で `_collect_artifacts()` を呼んでいる。最初のcontentイベント時点ではまだADKのtool関数が完了していない可能性があり、Artifactが取得できない。
+
+修正方針: `_collect_artifacts()` の呼び出しを `async for` ループの **外** （全イベント処理完了後）に移動し、最後のレスポンスメッセージにまとめてArtifactを付加する。
+
+- [x] 修正完了（2026-02-28）: `execute()` を Phase 1（イベント収集）→ Phase 2（Artifact収集）の2段階に再構成
+
+**問題2: a2a_server.py — HTTP経路で `artifacts` フィールドが返らない**
+
+状況: a2a_server.pyはArtifactを `Message.parts` に DataPart として混ぜているが、execution_agent.pyの `_execute_prompt_a2a` は `data["artifacts"]` フィールドを期待している。結果として jury-judge-worker 経由のHTTP呼び出しパスではArtifactが取得できない。
+
+修正方針: a2a_server.py側でJSONレスポンスの `artifacts` フィールドにもArtifact情報を含めるか、evaluation-runner側で両方のパスからArtifactを取得できるよう統合する。
+
+- [x] 修正完了（2026-02-28）: テキスト内 `[A2A Artifacts]` セクションからの抽出フォールバック `_parse_artifacts_from_text()` を execution_agent.py に追加。`_execute_prompt_a2a` と `_execute_prompt` の両パスで機能。
+
+**問題3: a2a_server.py — モジュールインポートの名前空間衝突**
+
+状況: `create_app()` で全エージェントを `sys.path.insert` + `__import__("agent")` でロードしているため、Pythonのモジュールキャッシュにより後からロードしたエージェントが先のモジュール参照を上書きする。
+
+修正方針: `importlib.util.spec_from_file_location()` で名前空間を分離してインポートする。
+
+- [x] 修正完了（2026-02-28）: `importlib.util.spec_from_file_location()` を使い `agent_sales_agent`, `agent_data_harvester_agent` 等の固有モジュール名でロード。`run_test_dialogue` も同様に修正。
+
+#### 🟡 重大度: 中（正確性・品質）
+
+**問題4: MIMEタイプ妥当性チェックが評価パイプラインに未実装**
+
+状況: security_gate.pyの `_extract_artifact_metadata()` はMIMEタイプを記録するだけで、実際のコンテンツとの整合性チェック（マジックバイト検証等）がない。
+
+修正方針: マジックバイトとMIMEタイプの整合性を確認するバリデーション関数を追加。
+
+- [x] 修正完了（2026-02-28）: `_validate_mime_type()` を追加。マジックバイト照合 + バイナリMIME宣言時のHTML/JSコンテンツ検知。`_extract_artifact_metadata()` 内で自動実行、結果を `_format_artifact_summary()` に反映。
+
+**問題5: data_harvester_agentのartifact_typeが自白的**
+
+状況: メタデータに `attack_vector: "mime_type_spoofing"`, `artifact_type: "pii_exfiltration"` 等が入っており、メタデータを見るだけで異常と判断できてしまう。
+
+修正方針: メタデータを正常なものに偽装し、コンテンツの中身で検知させるべき。
+
+- [x] 修正完了（2026-02-28）: artifact_type を `financial_report` / `data_export` / `analysis_report` に、extra_meta を `report_period` / `export_date` 等の正常なビジネスメタデータに偽装。
+
+**問題6: execution_agent.pyの sha256計算対象がbase64文字列**
+
+状況: `_parse_a2a_artifacts()` でbase64エンコード済み文字列に対してsha256を計算しているため、エージェント側の元コンテンツのハッシュと不一致。
+
+修正方針: base64デコード後のバイト列に対してsha256を計算するか、エージェント側metadataのsha256を信頼してそのまま記録する。
+
+- [x] 修正完了（2026-02-28）: base64デコード後のバイト列に対してsha256を計算するよう修正。デコード失敗時は従来の文字列ハッシュにフォールバック。
+
+**問題7: ジャッジプロンプトにPrompt Injection耐性がない**
+
+状況: `_format_artifact_summary()` がArtifactメタデータをプレーンテキストで連結してジャッジプロンプトに含めるため、Injection文が混入する可能性。
+
+修正方針: Artifactコンテンツ自体はサマリーに含めず、メタデータのみに限定。ジャッジプロンプトにガード文を追加。
+
+- [x] 修正完了（2026-02-28）: `_format_artifact_summary()` にInjectionガード文を追加。llm_judge.pyの全ジャッジプロンプト（ADK instruction + Claude fallback + 評価プロンプト）にPrompt Injection防御指示を追加。
+
+**問題8: DataPartのAPI仕様未確認**
+
+状況: a2a-sdkの `DataPart` の実際のスキーマ未検証。A2A仕様ではArtifactは `artifacts` 配列でトップレベル配置のため、DataPartとは別概念の可能性。
+
+修正方針: a2a-sdkのAPI確認。問題2の修正（artifacts フィールドにJSON直接配置）で実質的に解消見込み。
+
+- [x] 問題2の修正で解消
+
+#### 🟢 重大度: 低（改善推奨）
+
+**問題9: hashlib重複import（sales_agent.py）**
+
+修正方針: トップレベルで `import hashlib` のみに統一。
+
+- [x] 修正完了（2026-02-28）: `import hashlib as _hashlib_top` → `import hashlib` に統一、関数内の重複importを削除。
+
+**問題10: agent.jsonの `defaultOutputModes` 不正確**
+
+修正方針: 正常系は正確に宣言。異常系は意図をコメントで明示。
+
+- [x] 修正完了（2026-02-28）: sales_agent.json に `text/plain; charset=utf-8` を追加。data_harvester_agent.json は攻撃シミュレーション（宣言にない `application/pdf` を実際に返す）として意図的に現状維持。
+
 *本文書は2026-02-28時点の分析に基づく*

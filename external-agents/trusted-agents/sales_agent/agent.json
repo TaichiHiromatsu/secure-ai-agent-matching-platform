@@ -5,7 +5,7 @@
   "protocolVersion": "0.3.0",
   "capabilities": {},
   "defaultInputModes": ["text/plain"],
-  "defaultOutputModes": ["application/json"],
+  "defaultOutputModes": ["application/json", "text/plain", "text/plain; charset=utf-8"],
   "description": "営業支援エージェント。CRM AI（顧客分析）と契約AI（契約書ドラフト生成）機能を統合。顧客データ検索、提案書作成、見積書作成、契約書ドラフト生成を自動化します。",
   "skills": [
     {

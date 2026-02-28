@@ -12,12 +12,54 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""営業支援エージェント - CRM AI・契約AI機能を統合"""
+"""営業支援エージェント - CRM AI・契約AI機能を統合
 
+A2A Artifact交換対応:
+提案書・見積書・契約書ドラフトの生成時に、成果物をA2A Artifactとして
+添付返却する。ストア審査パイプラインの正常系テストでArtifact処理を
+実証する。
+"""
+
+import base64
+import hashlib
+import threading
 from datetime import datetime, timedelta
 
 from google.adk import Agent
 from google.genai import types
+
+
+# ── A2A Artifact生成サポート ──────────────────────────────
+
+def _build_artifact(name: str, content: str, mime_type: str, artifact_type: str, extra_meta: dict | None = None) -> dict:
+    """A2A Protocol v0.3 準拠のArtifact構造体を生成する。"""
+    content_bytes = content.encode("utf-8")
+    content_b64 = base64.b64encode(content_bytes).decode("ascii")
+    return {
+        "name": name,
+        "parts": [{"mimeType": mime_type, "data": content_b64}],
+        "metadata": {
+            "type": artifact_type,
+            "size_bytes": len(content_bytes),
+            "sha256": hashlib.sha256(content_bytes).hexdigest()[:16],
+            "generated_at": datetime.now().isoformat(),
+            **(extra_meta or {}),
+        },
+    }
+
+
+# グローバル: 直近のArtifactを保持（A2Aサーバーが取得する）
+# Lock で並行リクエスト間の競合を防止
+_pending_artifacts: list = []
+_pending_artifacts_lock = threading.Lock()
+
+
+def get_pending_artifacts() -> list:
+    """保留中のArtifactを取得しクリアする（スレッドセーフ）。"""
+    with _pending_artifacts_lock:
+        arts = list(_pending_artifacts)
+        _pending_artifacts.clear()
+        return arts
 
 
 async def search_customer(customer_name: str, industry: str = "") -> str:
@@ -30,8 +72,6 @@ async def search_customer(customer_name: str, industry: str = "") -> str:
     Returns:
         顧客情報検索結果。
     """
-    import hashlib
-
     # 顧客名から決定論的にデータを生成
     name_hash = hashlib.md5(customer_name.encode()).hexdigest()
     customer_id = f"CUS-{name_hash[:6].upper()}"
@@ -128,6 +168,16 @@ async def generate_proposal(
         "next_step": "📌 複合タスクの場合、次のステップ: create_quote（見積書作成）を実行してください",
     }
 
+    # A2A Artifact交換: 提案書をJSON Artifactとして添付
+    with _pending_artifacts_lock:
+        _pending_artifacts.append(_build_artifact(
+            name=f"proposal-{proposal['proposal_id']}.json",
+            content=json.dumps(proposal, indent=2, ensure_ascii=False),
+            mime_type="application/json",
+            artifact_type="proposal_document",
+            extra_meta={"proposal_id": proposal["proposal_id"], "customer_id": customer_id},
+        ))
+
     return json.dumps(result, indent=2, ensure_ascii=False)
 
 
@@ -148,8 +198,6 @@ async def create_quote(
     Returns:
         見積書。
     """
-    import hashlib
-
     item_list = [item.strip() for item in items.split(",")]
     created_date = datetime.now().strftime("%Y-%m-%d")
     valid_until = (datetime.now() + timedelta(days=30)).strftime("%Y-%m-%d")
@@ -179,7 +227,7 @@ async def create_quote(
     tax_amount = int(after_discount * 0.1)
     total = after_discount + tax_amount
 
-    return f"""
+    quote_text = f"""
 【見積書】
 
 ■ 見積書ID: {quote_id}
@@ -204,6 +252,18 @@ async def create_quote(
 ---
 📌 複合タスクの場合、次のステップ: draft_contract（契約書ドラフト作成）を実行してください
 """.strip()
+
+    # A2A Artifact交換: 見積書をテキストArtifactとして添付
+    with _pending_artifacts_lock:
+        _pending_artifacts.append(_build_artifact(
+            name=f"quote-{quote_id}.txt",
+            content=quote_text,
+            mime_type="text/plain; charset=utf-8",
+            artifact_type="quote_document",
+            extra_meta={"quote_id": quote_id, "customer_name": customer_name, "total_amount": total},
+        ))
+
+    return quote_text
 
 
 async def draft_contract(
@@ -230,7 +290,7 @@ async def draft_contract(
     contract_type_name = contract_types.get(contract_type, "標準サービス契約")
     created_date = datetime.now().strftime("%Y-%m-%d")
 
-    return f"""
+    contract_text = f"""
 【契約書ドラフト】
 
 ■ 契約種別: {contract_type_name}
@@ -261,6 +321,19 @@ async def draft_contract(
 
 ⚠️ 本ドラフトは人間による最終確認が必要です。
 """.strip()
+
+    # A2A Artifact交換: 契約書ドラフトをテキストArtifactとして添付
+    contract_hash = hashlib.md5(f"{customer_name}{product_name}{created_date}".encode()).hexdigest()[:6].upper()
+    with _pending_artifacts_lock:
+        _pending_artifacts.append(_build_artifact(
+            name=f"contract-draft-CON{contract_hash}.txt",
+            content=contract_text,
+            mime_type="text/plain; charset=utf-8",
+            artifact_type="contract_draft",
+            extra_meta={"customer_name": customer_name, "contract_type": contract_type},
+        ))
+
+    return contract_text
 
 
 root_agent = Agent(

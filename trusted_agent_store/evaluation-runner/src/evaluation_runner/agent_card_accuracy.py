@@ -859,6 +859,7 @@ async def invoke_multiturn_dialogue(
       )
 
       agent_response = ""
+      turn_artifacts = []  # A2A Artifact交換の記録用
 
       # Run agent with the SAME session_id - this maintains conversation context
       try:
@@ -871,19 +872,32 @@ async def invoke_multiturn_dialogue(
             for part in event.content.parts:
               if hasattr(part, 'text') and part.text:
                 agent_response += part.text
+              else:
+                # A2A Artifact対応: 非テキストPartのメタデータを記録
+                from .security_gate import _extract_artifact_metadata
+                artifact_meta = _extract_artifact_metadata(part)
+                if artifact_meta:
+                  turn_artifacts.append(artifact_meta)
+                  logger.info(f"Turn {turn}: Artifact detected: {artifact_meta}")
       except Exception as e:
         logger.error(f"Turn {turn} failed: {e}")
         agent_response = f"[Error: {str(e)}]"
         error_message = str(e)
         break
 
-      logger.info(f"Turn {turn}/{max_turns}: Agent says: {agent_response[:100]}...")
+      # A2A Artifact情報をエージェント応答に付加
+      if turn_artifacts:
+        from .security_gate import _format_artifact_summary
+        agent_response += "\n\n" + _format_artifact_summary(turn_artifacts)
+
+      logger.info(f"Turn {turn}/{max_turns}: Agent says: {agent_response[:100]}... ({len(turn_artifacts)} artifacts)")
 
       # Record this turn in dialogue history
       dialogue_history.append({
         "turn": turn,
         "user": current_prompt,
-        "agent": agent_response
+        "agent": agent_response,
+        "artifacts": turn_artifacts if turn_artifacts else None,
       })
 
       # SSE: ターン進捗を送信

@@ -20,6 +20,19 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# W&B Weave integration
+try:
+    import weave
+    HAS_WEAVE = True
+except ImportError:
+    HAS_WEAVE = False
+    class weave:  # type: ignore[no-redef]
+        @staticmethod
+        def op(*args, **kwargs):
+            def decorator(func):
+                return func
+            return decorator
+
 # Trust Score計算用の重み（scoring_calculator.py v3.0 AISEV準拠）
 # ※ 変更時は scoring_calculator.py の DEFAULT_TRUST_WEIGHTS も更新すること
 #
@@ -479,6 +492,7 @@ class CollaborativeJuryJudge:
             return "google-adk"
         return "google-adk"
 
+    @weave.op()
     async def evaluate_collaborative(
         self,
         question,  # QuestionSpec
@@ -860,6 +874,70 @@ class CollaborativeJuryJudge:
         equivalent_turn = round_number * self.num_jurors
         return self._check_consensus(current_evaluations, equivalent_turn)
 
+    @weave.op()
+    async def _conduct_discussion_round(
+        self,
+        round_num: int,
+        current_evaluations: List[JurorEvaluation],
+        question,
+        execution,
+        previous_rounds: list,
+        sse_callback: Optional[Callable],
+    ):
+        """1ラウンドの討論を実行 - W&B Weaveでラウンドごとにトレース
+
+        Returns:
+            (round_statements, updated_evaluations, consensus)のタプル
+        """
+        # 全陪審員の発言を並列生成
+        round_statements = await self._generate_parallel_statements(
+            round_num=round_num,
+            current_evaluations=current_evaluations,
+            question=question,
+            execution=execution,
+            previous_rounds=previous_rounds,
+            sse_callback=sse_callback,
+        )
+
+        # 評価を更新（各陪審員の最新評価）
+        updated_evaluations = list(current_evaluations)
+        for statement in round_statements:
+            if statement.updated_evaluation:
+                updated_evaluations = [
+                    e if e.juror_id != statement.juror_id else statement.updated_evaluation
+                    for e in updated_evaluations
+                ]
+
+        # 合意チェック
+        consensus = self._check_consensus_after_rounds(
+            round_number=round_num,
+            current_evaluations=updated_evaluations,
+        )
+
+        # W&B Weaveにラウンドメトリクスをログ
+        if HAS_WEAVE and hasattr(weave, "get_current_call"):
+            try:
+                current_call = weave.get_current_call()
+                if current_call is not None:
+                    # 投票分布を集計（verdict値: safe_pass/needs_review/unsafe_fail）
+                    vote_distribution = {
+                        "approve": sum(1 for e in updated_evaluations if e.verdict == "safe_pass"),
+                        "manual_review": sum(1 for e in updated_evaluations if e.verdict == "needs_review"),
+                        "reject": sum(1 for e in updated_evaluations if e.verdict == "unsafe_fail"),
+                    }
+                    summary = current_call.summary or {}
+                    summary.update({
+                        "discussion_round": round_num,
+                        "vote_distribution": vote_distribution,
+                        "consensus_status": consensus.consensus_status.value,
+                        "consensus_reached": consensus.consensus_reached,
+                    })
+                    current_call.summary = summary
+            except Exception as log_err:  # pragma: no cover
+                logger.debug(f"Weave round summary log skipped: {log_err}")
+
+        return round_statements, updated_evaluations, consensus
+
     async def _phase2_collaborative_discussion(
         self,
         question,
@@ -897,8 +975,8 @@ class CollaborativeJuryJudge:
                 "timestamp": datetime.utcnow().isoformat(),
             })
 
-            # 全陪審員の発言を並列生成
-            round_statements = await self._generate_parallel_statements(
+            # ラウンド処理を @weave.op() 付きメソッドに委譲
+            round_statements, current_evaluations, consensus = await self._conduct_discussion_round(
                 round_num=current_round,
                 current_evaluations=current_evaluations,
                 question=question,
@@ -909,20 +987,6 @@ class CollaborativeJuryJudge:
 
             # メッセージを記録
             all_statements.extend(round_statements)
-
-            # 評価を更新（各陪審員の最新評価）
-            for statement in round_statements:
-                if statement.updated_evaluation:
-                    current_evaluations = [
-                        e if e.juror_id != statement.juror_id else statement.updated_evaluation
-                        for e in current_evaluations
-                    ]
-
-            # 合意チェック
-            consensus = self._check_consensus_after_rounds(
-                round_number=current_round,
-                current_evaluations=current_evaluations,
-            )
 
             logger.info(
                 f"[Phase 2] Consensus check after round {current_round}: "

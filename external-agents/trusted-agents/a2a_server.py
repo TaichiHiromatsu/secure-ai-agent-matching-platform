@@ -2,9 +2,14 @@
 
 This server wraps Google ADK agents and serves them with the correct
 A2A Protocol v0.3.16 endpoint paths (/.well-known/agent-card.json).
+
+A2A Artifact交換対応:
+各エージェントが get_pending_artifacts() を公開している場合、
+レスポンスにArtifact（ファイル・バイナリデータ）を含めて返す。
 """
 
 import asyncio
+import importlib.util
 import json
 import logging
 import os
@@ -31,15 +36,25 @@ logger = logging.getLogger(__name__)
 
 
 class ADKAgentExecutor(AgentExecutor):
-    """Agent executor that wraps Google ADK agents."""
+    """Agent executor that wraps Google ADK agents.
 
-    def __init__(self, adk_agent, agent_name: str):
+    A2A Artifact交換に対応: エージェントモジュールが get_pending_artifacts() を
+    公開している場合、実行後にArtifactを収集してレスポンスに含める。
+    """
+
+    def __init__(self, adk_agent, agent_name: str, agent_module=None):
         self.adk_agent = adk_agent
         self.agent_name = agent_name
+        self.agent_module = agent_module  # Artifact取得用にモジュール参照を保持
         self._request_queue = None
+        self._last_artifacts: list = []  # 直近の実行で収集されたArtifact（HTTPレスポンス用）
 
     async def execute(self, context, event_queue):
-        """Execute the ADK agent with the given context."""
+        """Execute the ADK agent with the given context.
+
+        Artifact収集は全イベント処理完了後に行う（修正: ループ内で収集すると
+        ADKのtool関数完了前にドレインされてしまう問題を解消）。
+        """
         # Try to import InMemoryRunner from various locations
         try:
             from google.adk.agents import InMemoryRunner
@@ -49,6 +64,7 @@ class ADKAgentExecutor(AgentExecutor):
             except ImportError:
                 from google.adk import Runner as InMemoryRunner
 
+        from a2a.types import Message, TextPart
 
         # Get the user message from the context
         user_message = ""
@@ -69,10 +85,13 @@ class ADKAgentExecutor(AgentExecutor):
             app_name=self.agent_name,
         )
 
-        # Run the agent
+        # Run the agent — まず全イベントを収集し、最後にArtifactをまとめて付加
         try:
             session_id = f"session_{self.agent_name}"
             user_id = "a2a_user"
+
+            # Phase 1: 全イベントを収集（Artifact収集はまだ行わない）
+            collected_content_parts: list[str] = []
 
             async for event in runner.run_async(
                 user_id=user_id,
@@ -80,21 +99,52 @@ class ADKAgentExecutor(AgentExecutor):
                 new_message=user_message,
             ):
                 if hasattr(event, 'content') and event.content:
-                    # Yield the response
-                    from a2a.types import Message, TextPart
-                    response_message = Message(
-                        role="agent",
-                        parts=[TextPart(text=str(event.content))]
+                    collected_content_parts.append(str(event.content))
+
+            # Phase 2: 全イベント処理完了後にArtifactを収集
+            artifacts = self._collect_artifacts()
+
+            # テキストPartを構築
+            final_text = "\n".join(collected_content_parts) if collected_content_parts else "(no response)"
+            parts = [TextPart(text=final_text)]
+
+            if artifacts:
+                # Artifact情報をテキストに付加（DataPartは仕様不安定のため、
+                # テキスト付加 + artifacts フィールドの二重送信で確実性を担保）
+                art_info = "\n\n[A2A Artifacts]\n"
+                for artifact in artifacts:
+                    art_info += (
+                        f"- {artifact.get('name', 'artifact')}: "
+                        f"mime_type={artifact.get('parts', [{}])[0].get('mimeType', 'unknown')}, "
+                        f"size={artifact.get('metadata', {}).get('size_bytes', '?')} bytes\n"
                     )
-                    await event_queue.enqueue_event(response_message)
+                parts[0] = TextPart(text=final_text + art_info)
+                logger.info(f"Artifacts collected after execution: {len(artifacts)} items")
+
+                # artifacts情報をコンテキストに保存（HTTPレスポンスで返すため）
+                self._last_artifacts = artifacts
+
+            response_message = Message(
+                role="agent",
+                parts=parts,
+            )
+            await event_queue.enqueue_event(response_message)
         except Exception as e:
             logger.error(f"Error executing agent: {e}")
-            from a2a.types import Message, TextPart
             error_message = Message(
                 role="agent",
                 parts=[TextPart(text=f"Error: {str(e)}")]
             )
             await event_queue.enqueue_event(error_message)
+
+    def _collect_artifacts(self) -> list:
+        """エージェントモジュールからpending artifactsを収集する。"""
+        if self.agent_module and hasattr(self.agent_module, "get_pending_artifacts"):
+            try:
+                return self.agent_module.get_pending_artifacts()
+            except Exception as e:
+                logger.warning(f"Failed to collect artifacts from {self.agent_name}: {e}")
+        return []
 
     async def cancel(self, context, event_queue):
         """Cancel the execution."""
@@ -136,14 +186,22 @@ def create_app(host: str, port: int, agents_dir: Path) -> Starlette:
             # Load the agent card
             agent_card = load_agent_card(agent_path, base_url)
 
-            # Import the ADK agent
+            # Import the ADK agent（名前空間を分離して各エージェント固有のモジュールとしてロード）
+            agent_py = agent_path / "agent.py"
+            module_name = f"agent_{agent_name}"  # 例: agent_sales_agent, agent_data_harvester_agent
+            spec = importlib.util.spec_from_file_location(module_name, str(agent_py))
+            agent_module = importlib.util.module_from_spec(spec)
+            sys.modules[module_name] = agent_module  # sysに登録して依存解決を可能に
+            # agent.py内の相対import（google.adk等）のためPATHに一時追加
             sys.path.insert(0, str(agent_path))
-            agent_module = __import__("agent")
+            try:
+                spec.loader.exec_module(agent_module)
+            finally:
+                sys.path.pop(0)
             adk_agent = agent_module.root_agent
-            sys.path.pop(0)
 
-            # Create executor and handler
-            executor = ADKAgentExecutor(adk_agent, agent_name)
+            # Create executor and handler (agent_moduleを渡してArtifact取得に使用)
+            executor = ADKAgentExecutor(adk_agent, agent_name, agent_module=agent_module)
             handler = DefaultRequestHandler(
                 agent_executor=executor,
                 task_store=None,
@@ -191,10 +249,15 @@ async def run_test_dialogue(agent_path: Path, agent_name: str):
     
     print(f"Loading agent from {agent_path}")
     
-    # Import the ADK agent
+    # Import the ADK agent（名前空間を分離してロード）
+    agent_py = agent_path / "agent.py"
+    module_name = f"agent_{agent_name}"
+    spec = importlib.util.spec_from_file_location(module_name, str(agent_py))
+    agent_module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = agent_module
     sys.path.insert(0, str(agent_path))
     try:
-        agent_module = __import__("agent")
+        spec.loader.exec_module(agent_module)
         adk_agent = agent_module.root_agent
     except Exception as e:
         logger.error(f"Failed to load agent: {e}")
