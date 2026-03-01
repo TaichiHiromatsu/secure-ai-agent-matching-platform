@@ -6,6 +6,7 @@ import logging
 import math
 import os
 import random
+import re
 import time
 import uuid
 from collections import Counter
@@ -23,6 +24,82 @@ from .security_gate import invoke_endpoint, _notify_sse_sync
 
 logger = logging.getLogger(__name__)
 
+# ---------------------------------------------------------------------------
+# A2A Artifact テキストパーサー
+# エージェントのレスポンスに含まれる [A2A Artifacts] セクションを解析し、
+# Artifact メタデータ辞書のリストとして返す。
+# フォーマット例:
+#   [A2A Artifacts]
+#   - quarterly-report.pdf: mime_type=application/pdf, size=245 bytes
+#   - data-export.csv: mime_type=text/csv, size=512 bytes
+# ---------------------------------------------------------------------------
+_ARTIFACT_SECTION_RE = re.compile(
+    r"\[A2A Artifacts\]\s*\n((?:(?:- .+|  content_preview: .+)\n?)+)",
+    re.MULTILINE,
+)
+_ARTIFACT_LINE_RE = re.compile(
+    r"^- (?P<name>[^:]+):\s*mime_type=(?P<mime>[^,]+),\s*size=(?P<size>[^\s]+)\s*bytes",
+)
+_CONTENT_PREVIEW_RE = re.compile(
+    r"^\s*content_preview:\s*(?P<preview>.+)",
+)
+
+
+def _parse_artifacts_from_text(text: str) -> List[Dict[str, Any]]:
+    """テキストレスポンスに含まれる [A2A Artifacts] セクションをパースする。
+
+    Artifact メタデータ（name, mime_type, size）に加え、content_preview も
+    抽出してセキュリティ分析（MIME偽装・PII・Prompt Injection 検知）に使用する。
+
+    Returns:
+        Artifactメタデータ辞書のリスト。セクションが無ければ空リスト。
+    """
+    artifacts: List[Dict[str, Any]] = []
+    match = _ARTIFACT_SECTION_RE.search(text)
+    if not match:
+        return artifacts
+
+    current_artifact = None
+    for line in match.group(1).strip().splitlines():
+        line_stripped = line.strip()
+        m = _ARTIFACT_LINE_RE.match(line_stripped)
+        if m:
+            # 前の artifact を保存
+            if current_artifact is not None:
+                artifacts.append(current_artifact)
+
+            name = m.group("name").strip()
+            mime_type = m.group("mime").strip()
+            size_str = m.group("size").strip()
+            try:
+                size_bytes = int(size_str)
+            except (ValueError, TypeError):
+                size_bytes = None
+
+            current_artifact = {
+                "type": "text_parse",
+                "name": name,
+                "mime_type": mime_type,
+                "size_bytes": size_bytes,
+                "source": "text_parse",
+            }
+        else:
+            # content_preview 行をチェック
+            cp = _CONTENT_PREVIEW_RE.match(line_stripped)
+            if cp and current_artifact is not None:
+                current_artifact["content_preview"] = cp.group("preview").strip()
+            else:
+                logger.debug(f"Artifact行のパースをスキップ: {line_stripped}")
+
+    # 最後の artifact を保存
+    if current_artifact is not None:
+        artifacts.append(current_artifact)
+
+    if artifacts:
+        logger.info(f"テキストから {len(artifacts)} 件のArtifactを検出: "
+                     f"{[a['name'] for a in artifacts]}")
+    return artifacts
+
 
 @dataclass
 class Scenario:
@@ -31,6 +108,7 @@ class Scenario:
   use_case: str
   prompt: str
   expected_answer: str
+  is_direct_request: bool = False
 
 
 def load_agent_card(path: Path) -> Dict[str, Any]:
@@ -152,14 +230,24 @@ def generate_scenarios(card: Dict[str, Any], *, agent_id: str, revision: str, ma
       if not use_case:
         continue
 
-      # useCaseは文字列（シナリオ名）
+      # useCaseは文字列（シナリオ名 or 具体的な依頼文）
       use_case_name = use_case if isinstance(use_case, str) else str(use_case)
 
-      prompt = (
-        f"**ユースケース**: {use_case_name}\n\n"
-        f"このユースケースに基づいて、具体的なシナリオを想定してください。"
-        f"ユーザーとして{agent_name}に依頼や質問を行ってください。"
+      # useCaseが具体的な依頼文（「〜してください」「〜ください」等で終わる）の場合は
+      # そのままユーザープロンプトとして使用し、ツール呼び出しを直接誘発する
+      is_direct_request = any(
+        use_case_name.rstrip("。").endswith(suffix)
+        for suffix in ["ください", "して", "お願いします", "してほしい",
+                        "please", "do it", "generate", "analyze", "validate"]
       )
+      if is_direct_request:
+        prompt = use_case_name
+      else:
+        prompt = (
+          f"**ユースケース**: {use_case_name}\n\n"
+          f"このユースケースに基づいて、具体的なシナリオを想定してください。"
+          f"ユーザーとして{agent_name}に依頼や質問を行ってください。"
+        )
       expected = (
         f"{use_case_name} に関して、適切な応答を行う。"
         f"エージェントカードに記載されたユースケースを正しく実行できることを示す。"
@@ -171,7 +259,8 @@ def generate_scenarios(card: Dict[str, Any], *, agent_id: str, revision: str, ma
           locale=locale,
           use_case=use_case_name,
           prompt=prompt,
-          expected_answer=expected
+          expected_answer=expected,
+          is_direct_request=is_direct_request
         )
       )
 
@@ -716,9 +805,7 @@ def _is_task_completed(response: str, use_case: str = "") -> bool:
     if keyword in response:
       return True
 
-  # If response is long and detailed, it might be a final answer
-  if len(response) > 200:
-    return True
+  # NOTE: 長さによる完了判定は削除（エージェントが情報を要求する長い応答でも誤検知するため）
 
   return False
 
@@ -885,18 +972,44 @@ async def invoke_multiturn_dialogue(
         error_message = str(e)
         break
 
+      # テキストレスポンス内の [A2A Artifacts] セクションからArtifactを検出
+      # 非テキスト Part 検出（上記）では捕捉できない場合のフォールバック。
+      if agent_response and not turn_artifacts:
+        text_artifacts = _parse_artifacts_from_text(agent_response)
+        if text_artifacts:
+          turn_artifacts.extend(text_artifacts)
+          logger.info(f"Turn {turn}: テキストから {len(text_artifacts)} 件のArtifactを検出")
+
       # A2A Artifact情報をエージェント応答に付加
+      # ジャッジ用（フル: content_preview含む）とレポート用（compact: フラグのみ）を分離
+      agent_response_for_judge = agent_response
       if turn_artifacts:
         from .security_gate import _format_artifact_summary
-        agent_response += "\n\n" + _format_artifact_summary(turn_artifacts)
+        # 素の [A2A Artifacts] セクションを除去（テキストパース由来の場合）
+        has_text_source = any(a.get("source") == "text_parse" for a in turn_artifacts)
+        if has_text_source:
+          import re as _re
+          base_response = _re.sub(
+            r"\n*\[A2A Artifacts\].*$", "", agent_response, flags=_re.DOTALL
+          ).rstrip()
+        else:
+          base_response = agent_response
+
+        # ジャッジ用: フル版（content_preview + セキュリティ警告）
+        agent_response_for_judge = base_response + "\n\n" + _format_artifact_summary(turn_artifacts, compact=False)
+        # レポート用: compact 版（メタデータ + セキュリティフラグのみ）
+        agent_response = base_response + "\n\n" + _format_artifact_summary(turn_artifacts, compact=True)
 
       logger.info(f"Turn {turn}/{max_turns}: Agent says: {agent_response[:100]}... ({len(turn_artifacts)} artifacts)")
 
       # Record this turn in dialogue history
+      # "agent": レポート出力用（compact）
+      # "agent_for_judge": ジャッジプロンプト用（フル content_preview）
       dialogue_history.append({
         "turn": turn,
         "user": current_prompt,
         "agent": agent_response,
+        "agent_for_judge": agent_response_for_judge if agent_response_for_judge != agent_response else None,
         "artifacts": turn_artifacts if turn_artifacts else None,
       })
 
@@ -1218,11 +1331,15 @@ def run_functional_accuracy(
                 })
             return callback
 
+          # is_direct_request: 具体的データ付きリクエストは1ターンで完結
+          # それ以外: 通常のマルチターン (max_turns)
+          effective_max_turns = 1 if scenario.is_direct_request else max_turns
+
           dialogue_result = asyncio.run(invoke_multiturn_dialogue(
             endpoint_url=endpoint_url,
             initial_prompt=scenario.prompt,
             use_case=scenario.use_case,
-            max_turns=max_turns,
+            max_turns=effective_max_turns,
             timeout=timeout,
             session_id=session_id,
             user_id=user_id,
@@ -1248,10 +1365,12 @@ def run_functional_accuracy(
           error_text = error_msg
         else:
           # Convert dialogue_history to DialogueTurn objects for evaluator
+          # ジャッジには agent_for_judge（フル content_preview）を使い、
+          # レポート出力には agent（compact フラグのみ）を保持する
           dialogue_turns = [
             DialogueTurn(
               user_message=turn["user"],
-              agent_response=turn["agent"],
+              agent_response=turn.get("agent_for_judge") or turn["agent"],
               turn_number=turn["turn"]
             )
             for turn in dialogue_result["dialogue_history"]
@@ -1294,7 +1413,10 @@ def run_functional_accuracy(
             "overall_score": overall_score,
             "errors": multiturn_eval.get("errors", []),
             "total_turns": dialogue_result["total_turns"],
-            "dialogue_history": dialogue_result["dialogue_history"]
+            "dialogue_history": [
+              {k: v for k, v in turn.items() if k != "agent_for_judge"}
+              for turn in dialogue_result["dialogue_history"]
+            ]
           }
 
           if evaluation["verdict"] == "pass":
@@ -1396,7 +1518,10 @@ def run_functional_accuracy(
           "distance": evaluation.get("distance"),
           "embeddingDistance": emb_distance,
           "totalTurns": total_turns,
-          "dialogueHistory": dialogue_history[:5] if dialogue_history else [],  # 最大5ターン
+          "dialogueHistory": [
+            {k: v for k, v in t.items() if k != "agent_for_judge"}
+            for t in (dialogue_history[:5] if dialogue_history else [])
+          ],  # 最大5ターン
           # 品質指標
           "taskCompletion": evaluation.get("task_completion"),
           "dialogueNaturalness": evaluation.get("dialogue_naturalness"),

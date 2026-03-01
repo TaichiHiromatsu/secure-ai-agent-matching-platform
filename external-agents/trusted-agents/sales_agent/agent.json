@@ -35,10 +35,10 @@
   ]
   ,
   "useCases": [
-    "customer search",
-    "proposal drafting",
-    "quote creation",
-    "contract drafting",
-    "lead qualification"
+    "株式会社ABCの顧客情報を検索してください",
+    "株式会社ABCに対してクラウドサービス「CloudConnect」の提案書を作成したい",
+    "株式会社ABC向けにCloudConnect（ライセンス費用=100万円×1式、導入支援=50万円×1式、保守サポート=20万円×1式）の見積書を作成してください",
+    "株式会社ABCとのクラウドサービス利用契約書（契約期間: 1年間）のドラフトを作成してください",
+    "新規リード「株式会社未来テック」のCRM情報を検索し、AIデータ分析サービスの提案書を作成してください"
   ]
 }

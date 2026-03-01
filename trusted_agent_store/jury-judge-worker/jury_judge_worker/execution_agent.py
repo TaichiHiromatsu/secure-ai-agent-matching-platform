@@ -85,8 +85,7 @@ def _drain_artifact_cache() -> List[Dict[str, Any]]:
 def _parse_artifacts_from_text(response_text: str) -> List[Dict[str, Any]]:
     """テキストレスポンス内の [A2A Artifacts] セクションからArtifact情報を抽出する。
 
-    a2a_server.pyが Message.parts のテキストにArtifact情報を付加するため、
-    JSON artifacts フィールドが存在しない場合のフォールバックとして使用。
+    エージェントのテキストレスポンス内にArtifact情報が含まれる場合のフォールバック解析。
 
     期待するフォーマット:
     [A2A Artifacts]
