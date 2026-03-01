@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from typing import List, Optional
@@ -121,7 +122,7 @@ class MultiModelJudge:
                 model=model_name,
                 dry_run=dry_run,
                 temperature=0.1,
-                max_output_tokens=1024,  # Increased for Japanese rationale in Phase1
+                max_output_tokens=4096,  # Gemini 2.5 Flashのthinkingトークン消費を考慮（thinking使用時は2000トークン追加消費）
             )
             judge = LLMJudge(config)
             self.judges.append(judge)
@@ -157,7 +158,9 @@ class MultiModelJudge:
             PanelVerdict: 集約された判定結果
         """
         # 並列実行で各LLMの判定を取得（非同期）
+        start_time = time.monotonic()
         model_verdicts = await self._run_parallel_evaluation_async(question, execution)
+        elapsed = round(time.monotonic() - start_time, 3)
 
         # Minority-Veto戦略で集約
         aggregated_verdict, veto_triggered = self._aggregate_verdicts(model_verdicts)
@@ -169,6 +172,23 @@ class MultiModelJudge:
         # Rationaleを統合
         rationales = [f"[{v.model}] {v.rationale}" for v in model_verdicts]
         aggregated_rationale = " | ".join(rationales)
+
+        # W&B Weaveでパネル全体のメトリクスをログ
+        if HAS_WEAVE and hasattr(weave, "get_current_call"):
+            try:
+                current = weave.get_current_call()
+                if current is not None:
+                    summary = current.summary or {}
+                    summary.update({
+                        "total_latency_seconds": elapsed,
+                        "aggregated_verdict": aggregated_verdict,
+                        "aggregated_score": round(avg_score, 3),
+                        "minority_veto_triggered": veto_triggered,
+                        "n_judges": len(model_verdicts),
+                    })
+                    current.summary = summary
+            except Exception as log_err:  # pragma: no cover
+                logger.debug(f"Weave panel summary log skipped: {log_err}")
 
         return PanelVerdict(
             question_id=question.question_id,
@@ -255,13 +275,22 @@ class MultiModelJudge:
         """同期ラッパー（後方互換性のため残存）"""
         return asyncio.run(self._run_parallel_evaluation_async(question, execution))
 
+    @weave.op()
     async def _evaluate_single_judge_async(
         self,
         judge: LLMJudge,
         question: QuestionSpec,
         execution: ExecutionResult,
     ) -> LLMJudgeResult:
-        """単一のLLM Judgeで非同期評価を実行"""
+        """単一のLLM Judgeで非同期評価を実行 - W&B Weaveでモデル別トレース"""
+        # op表示名をモデル名ベースに設定（Weaveダッシュボードでのフィルタ用）
+        if HAS_WEAVE and hasattr(weave, "get_current_call"):
+            try:
+                current = weave.get_current_call()
+                if current is not None and hasattr(current, "set_display_name"):
+                    current.set_display_name(f"judge-evaluation-{judge.config.model}")
+            except Exception:  # pragma: no cover
+                pass
         return await judge.evaluate_async(question, execution)
 
     def _evaluate_single_judge(
