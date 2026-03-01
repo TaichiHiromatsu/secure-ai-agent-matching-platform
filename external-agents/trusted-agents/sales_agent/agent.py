@@ -12,12 +12,54 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""営業支援エージェント - CRM AI・契約AI機能を統合"""
+"""営業支援エージェント - CRM AI・契約AI機能を統合
 
+A2A Artifact交換対応:
+提案書・見積書・契約書ドラフトの生成時に、成果物をA2A Artifactとして
+添付返却する。ストア審査パイプラインの正常系テストでArtifact処理を
+実証する。
+"""
+
+import base64
+import hashlib
+import threading
 from datetime import datetime, timedelta
 
 from google.adk import Agent
 from google.genai import types
+
+
+# ── A2A Artifact生成サポート ──────────────────────────────
+
+def _build_artifact(name: str, content: str, mime_type: str, artifact_type: str, extra_meta: dict | None = None) -> dict:
+    """A2A Protocol v0.3 準拠のArtifact構造体を生成する。"""
+    content_bytes = content.encode("utf-8")
+    content_b64 = base64.b64encode(content_bytes).decode("ascii")
+    return {
+        "name": name,
+        "parts": [{"mimeType": mime_type, "data": content_b64}],
+        "metadata": {
+            "type": artifact_type,
+            "size_bytes": len(content_bytes),
+            "sha256": hashlib.sha256(content_bytes).hexdigest()[:16],
+            "generated_at": datetime.now().isoformat(),
+            **(extra_meta or {}),
+        },
+    }
+
+
+# グローバル: 直近のArtifactを保持（A2Aサーバーが取得する）
+# Lock で並行リクエスト間の競合を防止
+_pending_artifacts: list = []
+_pending_artifacts_lock = threading.Lock()
+
+
+def get_pending_artifacts() -> list:
+    """保留中のArtifactを取得しクリアする（スレッドセーフ）。"""
+    with _pending_artifacts_lock:
+        arts = list(_pending_artifacts)
+        _pending_artifacts.clear()
+        return arts
 
 
 async def search_customer(customer_name: str, industry: str = "") -> str:
@@ -30,8 +72,6 @@ async def search_customer(customer_name: str, industry: str = "") -> str:
     Returns:
         顧客情報検索結果。
     """
-    import hashlib
-
     # 顧客名から決定論的にデータを生成
     name_hash = hashlib.md5(customer_name.encode()).hexdigest()
     customer_id = f"CUS-{name_hash[:6].upper()}"
@@ -101,7 +141,53 @@ async def generate_proposal(
     """
     import json
 
-    # ユーザー入力をそのまま反映（ハルシネーション防止）
+    # 製品名からハッシュベースで決定論的にコンテンツを生成
+    prod_hash = hashlib.md5(product_name.encode()).hexdigest()
+
+    # 製品特徴を決定論的に選択
+    feature_pool = [
+        "高い拡張性とカスタマイズ性",
+        "24時間365日のサポート体制",
+        "直感的な操作画面による簡単な導入",
+        "既存システムとのシームレスな連携",
+        "高度なセキュリティ対策（ISO 27001準拠）",
+        "リアルタイムデータ分析機能",
+        "マルチデバイス対応",
+        "自動バックアップ・災害復旧機能",
+    ]
+    # シャッフル的に重複なく3つ選択（Fisher-Yates風の決定論的選択）
+    feat_indices = list(range(len(feature_pool)))
+    for i in range(3):
+        j = i + int(prod_hash[i*2:(i+1)*2], 16) % (len(feat_indices) - i)
+        feat_indices[i], feat_indices[j] = feat_indices[j], feat_indices[i]
+    features = [feature_pool[feat_indices[i]] for i in range(3)]
+
+    # 導入メリットを決定論的に選択（重複なし）
+    benefit_pool = [
+        "業務効率化による生産性向上（約30%改善見込み）",
+        "運用コストの削減（年間約20%削減）",
+        "データドリブンな意思決定の実現",
+        "顧客満足度の向上",
+        "セキュリティリスクの低減",
+        "市場投入までの時間短縮",
+    ]
+    ben_indices = list(range(len(benefit_pool)))
+    for i in range(3):
+        j = i + int(prod_hash[(i+3)*2:(i+4)*2], 16) % (len(ben_indices) - i)
+        ben_indices[i], ben_indices[j] = ben_indices[j], ben_indices[i]
+    benefits_list = [benefit_pool[ben_indices[i]] for i in range(3)]
+
+    # スケジュールを決定論的に生成
+    prep_weeks = int(prod_hash[12:14], 16) % 3 + 1  # 1-3週間
+    impl_weeks = int(prod_hash[14:16], 16) % 4 + 2  # 2-5週間
+    test_weeks = int(prod_hash[16:18], 16) % 2 + 1  # 1-2週間
+    timeline_text = (
+        f"Phase 1: 要件定義・環境準備（{prep_weeks}週間）、"
+        f"Phase 2: 導入・設定（{impl_weeks}週間）、"
+        f"Phase 3: テスト・研修（{test_weeks}週間）、"
+        f"合計: 約{prep_weeks + impl_weeks + test_weeks}週間"
+    )
+
     proposal = {
         "proposal_id": f"PROP-{customer_id}",  # 顧客IDベースで生成
         "customer_id": customer_id,
@@ -109,24 +195,34 @@ async def generate_proposal(
         "created_date": datetime.now().strftime("%Y-%m-%d"),
         "executive_summary": f"""
 本提案書では、貴社の課題解決に向けた{product_name}のご導入をご提案いたします。
-{requirements if requirements else '（顧客の要件を確認の上、記載）'}
+{requirements if requirements else f'{product_name}の導入により、業務プロセスの効率化と競争力の強化を実現します。'}
 """.strip(),
         "proposed_solution": {
             "product": product_name,
-            "features": "（製品の特徴・機能を確認の上、記載）",
-            "implementation_approach": "（導入アプローチを検討の上、記載）",
+            "features": features,
+            "implementation_approach": f"段階的導入アプローチを採用し、{prep_weeks + impl_weeks + test_weeks}週間での本番稼働を目指します。",
         },
-        "benefits": "（導入メリットは顧客の要件に基づき検討・記載）",
-        "timeline": "（スケジュールは顧客と調整の上、決定）",
-        "status": "テンプレート作成完了（詳細は要確認）",
+        "benefits": benefits_list,
+        "timeline": timeline_text,
+        "status": "提案書作成完了",
     }
 
     result = {
         "status": "success",
-        "message": f"提案書テンプレート「{proposal['title']}」を生成しました",
+        "message": f"提案書「{proposal['title']}」を生成しました",
         "proposal": proposal,
         "next_step": "📌 複合タスクの場合、次のステップ: create_quote（見積書作成）を実行してください",
     }
+
+    # A2A Artifact交換: 提案書をJSON Artifactとして添付
+    with _pending_artifacts_lock:
+        _pending_artifacts.append(_build_artifact(
+            name=f"proposal-{proposal['proposal_id']}.json",
+            content=json.dumps(proposal, indent=2, ensure_ascii=False),
+            mime_type="application/json",
+            artifact_type="proposal_document",
+            extra_meta={"proposal_id": proposal["proposal_id"], "customer_id": customer_id},
+        ))
 
     return json.dumps(result, indent=2, ensure_ascii=False)
 
@@ -142,13 +238,15 @@ async def create_quote(
     Args:
         customer_name: 顧客名（会社名）。
         product_name: 製品・サービス名。
-        items: 見積品目（カンマ区切り、例: "ライセンス費用,導入支援,保守サポート"）。
+        items: 見積品目（カンマ区切り）。品目名のみでも、金額・数量付きでも可。
+              例: "ライセンス費用,導入支援,保守サポート"
+              例: "ライセンス費用 100万円 1式,導入支援 50万円 1式"
         discount_rate: 割引率（0-100）。
 
     Returns:
         見積書。
     """
-    import hashlib
+    import re
 
     item_list = [item.strip() for item in items.split(",")]
     created_date = datetime.now().strftime("%Y-%m-%d")
@@ -158,19 +256,61 @@ async def create_quote(
     quote_hash = hashlib.md5(f"{customer_name}{product_name}".encode()).hexdigest()
     quote_id = f"QUO-{quote_hash[:6].upper()}"
 
-    # 品目ごとに決定論的な数量・単価を生成
+    # 品目ごとに単価・数量を抽出（見つからなければハッシュベースのデフォルト値）
     items_text = ""
     subtotal = 0
     base_prices = [100000, 50000, 30000, 80000, 150000, 200000, 75000, 120000]
 
+    def _parse_price(s: str) -> int | None:
+        """文字列から金額を読み取る。万円・円表記に対応。"""
+        # "100万円" "1000000円" "¥1,000,000" "1000000" など
+        m = re.search(r'(\d[\d,]*)\s*万\s*円?', s)
+        if m:
+            return int(m.group(1).replace(',', '')) * 10000
+        m = re.search(r'[¥￥]?\s*(\d[\d,]+)\s*円?', s)
+        if m:
+            val = int(m.group(1).replace(',', ''))
+            if val >= 100:  # 100円未満は数量と誤認しやすいので除外
+                return val
+        return None
+
+    def _parse_quantity(s: str) -> int | None:
+        """文字列から数量を読み取る。"""
+        # "1式" "×2" "x3" "2個" "5ライセンス" など
+        m = re.search(r'[×xX]\s*(\d+)', s)
+        if m:
+            return int(m.group(1))
+        m = re.search(r'(\d+)\s*[式個本セット]', s)
+        if m:
+            return int(m.group(1))
+        return None
+
     for i, item in enumerate(item_list, 1):
-        item_hash = hashlib.md5(f"{item}{customer_name}".encode()).hexdigest()
-        price_idx = int(item_hash[:4], 16) % len(base_prices)
-        unit_price = base_prices[price_idx]
-        quantity = (int(item_hash[4:6], 16) % 5) + 1
+        parsed_price = _parse_price(item)
+        parsed_qty = _parse_quantity(item)
+
+        if parsed_price is not None:
+            unit_price = parsed_price
+        else:
+            # フォールバック: ハッシュベースのデフォルト値
+            item_hash = hashlib.md5(f"{item}{customer_name}".encode()).hexdigest()
+            price_idx = int(item_hash[:4], 16) % len(base_prices)
+            unit_price = base_prices[price_idx]
+
+        quantity = parsed_qty if parsed_qty is not None else 1
+
+        # 品目名から金額・数量情報を除去して表示名を作成
+        item_name = re.sub(r'[\d,]+\s*万\s*円?', '', item)
+        item_name = re.sub(r'[¥￥]\s*[\d,]+\s*円?', '', item_name)
+        item_name = re.sub(r'[×xX]\s*\d+', '', item_name)
+        item_name = re.sub(r'\d+\s*[式個本セット]', '', item_name)
+        item_name = item_name.strip(' =・')
+        if not item_name:
+            item_name = item  # パース後に空なら元の文字列を使用
+
         amount = unit_price * quantity
         subtotal += amount
-        items_text += f"  {i}. {item}\n"
+        items_text += f"  {i}. {item_name}\n"
         items_text += f"     単価: ¥{unit_price:,} × 数量: {quantity} = ¥{amount:,}\n"
 
     # 割引・税金の計算
@@ -179,7 +319,7 @@ async def create_quote(
     tax_amount = int(after_discount * 0.1)
     total = after_discount + tax_amount
 
-    return f"""
+    quote_text = f"""
 【見積書】
 
 ■ 見積書ID: {quote_id}
@@ -204,6 +344,18 @@ async def create_quote(
 ---
 📌 複合タスクの場合、次のステップ: draft_contract（契約書ドラフト作成）を実行してください
 """.strip()
+
+    # A2A Artifact交換: 見積書をテキストArtifactとして添付
+    with _pending_artifacts_lock:
+        _pending_artifacts.append(_build_artifact(
+            name=f"quote-{quote_id}.txt",
+            content=quote_text,
+            mime_type="text/plain; charset=utf-8",
+            artifact_type="quote_document",
+            extra_meta={"quote_id": quote_id, "customer_name": customer_name, "total_amount": total},
+        ))
+
+    return quote_text
 
 
 async def draft_contract(
@@ -230,7 +382,7 @@ async def draft_contract(
     contract_type_name = contract_types.get(contract_type, "標準サービス契約")
     created_date = datetime.now().strftime("%Y-%m-%d")
 
-    return f"""
+    contract_text = f"""
 【契約書ドラフト】
 
 ■ 契約種別: {contract_type_name}
@@ -261,6 +413,19 @@ async def draft_contract(
 
 ⚠️ 本ドラフトは人間による最終確認が必要です。
 """.strip()
+
+    # A2A Artifact交換: 契約書ドラフトをテキストArtifactとして添付
+    contract_hash = hashlib.md5(f"{customer_name}{product_name}{created_date}".encode()).hexdigest()[:6].upper()
+    with _pending_artifacts_lock:
+        _pending_artifacts.append(_build_artifact(
+            name=f"contract-draft-CON{contract_hash}.txt",
+            content=contract_text,
+            mime_type="text/plain; charset=utf-8",
+            artifact_type="contract_draft",
+            extra_meta={"customer_name": customer_name, "contract_type": contract_type},
+        ))
+
+    return contract_text
 
 
 root_agent = Agent(
@@ -321,15 +486,11 @@ root_agent = Agent(
 
 ## 🚨 命令遵守ルール（最重要）
 
-ユーザーが依頼したタスクは、**依頼された順序で全て実行**してください。
+ユーザーが依頼したタスクを**正確に実行**してください。
 
-**禁止行為**:
-❌ 依頼されたタスクをスキップする
-❌ 依頼された順序を変える
-❌ 一部だけ実行して「完了」と言う
-
-**例**: 「CRM情報を検索して、提案書を作成して、見積書を作成して、NDAを作成して」
-→ 1. CRM検索 → 2. 提案書 → 3. 見積書 → 4. NDA の順で**全て**実行
+- 依頼されたタスクをスキップしない
+- 依頼されていないタスクは実行しない（例: 顧客検索だけ依頼されたのに提案書や見積書まで作成しない）
+- 複数タスクを依頼された場合は、依頼された順序で全て実行する
 
 ## 📝 ツール外の依頼への対応
 
@@ -338,9 +499,6 @@ root_agent = Agent(
 - ツールがなくても、依頼された成果物をテキストで作成・提示する
 - 「対応するツールがありません」と断らない
 - 営業支援に関連する成果物であれば、柔軟に対応する
-
-**例**: 「NDA（秘密保持契約書）を作成して」
-→ NDA専用ツールがなくても、秘密保持契約書の内容をテキストで作成して提示
 
 ## 利用可能なツール（4つのAI機能）
 
@@ -376,43 +534,13 @@ root_agent = Agent(
 
 3. **各ステップ完了後、必ず結果を完全に表示**してから次へ進む
 
-## 🎯 複合タスクの実行ルール（最重要・必須遵守）
+## 🎯 複合タスクの実行ルール
 
-ユーザーが複数の成果物（顧客情報、提案書、見積書、契約書など）を依頼した場合、
-**必ず全ての成果物を順番に作成**してください。
+ユーザーが複数の成果物を依頼した場合、**依頼された成果物のみを順番に作成**してください。
 
-### 必須実行順序
-
-1. **search_customer** → 顧客情報を取得・提示
-2. **generate_proposal** → 提案書を生成・提示
-3. **create_quote** → 見積書を生成・提示
-4. **draft_contract** → 契約書を生成・提示
-
-### 複数ステップ実行の必須ルール
-
-**1つの成果物を提示したら、必ず「次に〜を作成します」と宣言して次の成果物を作成**してください。
-
-例：提案書・見積書・契約書を依頼された場合
-```
-ステップ1: 提案書を作成・提示
-   ↓
-「次に見積書を作成します」と宣言
-   ↓
-ステップ2: 見積書を作成・提示
-   ↓
-「次に契約書ドラフトを作成します」と宣言
-   ↓
-ステップ3: 契約書を作成・提示
-   ↓
-「全ての成果物を作成しました」と報告
-```
-
-### 禁止事項
-
-❌ 1つの成果物だけ提示して終わる
-❌ 「次に〜を作成します」と言わずに終了する
-❌ 依頼された成果物を作成せずに完了と報告する
-❌ ツールを呼び出さずに架空の内容を提示する
+- 各成果物を提示したら「次に〜を作成します」と宣言して次へ進む
+- 全て完了したら「全ての成果物を作成しました」と報告する
+- ツールを呼び出さずに架空の内容を提示しないこと
 
 ## 📋 成果物の提示ルール（必須）
 
