@@ -122,7 +122,7 @@ class MultiModelJudge:
                 model=model_name,
                 dry_run=dry_run,
                 temperature=0.1,
-                max_output_tokens=1024,  # Increased for Japanese rationale in Phase1
+                max_output_tokens=4096,  # Gemini 2.5 Flashのthinkingトークン消費を考慮（thinking使用時は2000トークン追加消費）
             )
             judge = LLMJudge(config)
             self.judges.append(judge)
