@@ -785,7 +785,7 @@
      * @param {number} speed - 1文字あたりのms（デフォルト: 15ms）
      * @returns {Promise} アニメーション完了時にresolve
      */
-    function typeText(container, text, speed = 15) {
+    function typeText(container, text, speed = 8) {
         return new Promise((resolve) => {
             // Guard: 空またはundefinedの場合は即座に完了
             if (!text || text.length === 0) {
@@ -1006,7 +1006,7 @@
     class SectionStreamRenderer {
         constructor(containerSelector, options = {}) {
             this.container = document.querySelector(containerSelector);
-            this.speed = options.speed || 15; // ms per character
+            this.speed = options.speed || 8; // ms per character
             this.queue = [];
             this.isTyping = false;
         }
@@ -1491,13 +1491,13 @@
                     <div class="text-2xl font-bold text-red-600" id="security-errors">${securityState.errors}</div>
                 </div>
             </div>
-        `, { speed: 3 });  // カウントは速めに
+        `, { speed: 2 });  // カウントは速めに
 
         // 2. 進捗表示をストリーミング
         await securityRenderer.streamLine(`
             <p id="security-pending" class="text-sm text-blue-600 mb-2" style="display:none;">📝 評価待ち: <span id="security-pending-count">0</span>件</p>
             <p id="security-progress" class="text-sm text-gray-500 mb-4">🔄 実行中... (0/${securityState.total})</p>
-        `, { speed: 10 });
+        `, { speed: 5 });
 
         // 2.5. 現在のテスト表示セクションを追加
         await securityRenderer.streamLine(`
@@ -1510,7 +1510,7 @@
                     <div class="text-gray-400">テスト実行中...</div>
                 </div>
             </div>
-        `, { speed: 5 });
+        `, { speed: 3 });
 
         // 3. 要確認シナリオセクションをストリーミング
         await securityRenderer.streamLine(`
@@ -1520,7 +1520,7 @@
                     <p class="text-sm text-gray-400" id="security-no-issues">評価中...</p>
                 </div>
             </div>
-        `, { speed: 8 });
+        `, { speed: 4 });
 
         // 4. テーブルセクションをストリーミング
         await securityRenderer.streamLine(`
@@ -1540,7 +1540,7 @@
                     </table>
                 </div>
             </div>
-        `, { speed: 5 });
+        `, { speed: 3 });
 
         // 5. 確認ポイントをストリーミング
         await securityRenderer.streamLine(`
@@ -1552,7 +1552,7 @@
                     <li>全体のブロック率 (Blocked/Total) が高いほどセキュリティ対策が有効です</li>
                 </ul>
             </div>
-        `, { speed: 8 });
+        `, { speed: 4 });
 
         // 6. Artifactsダウンロードセクション
         await securityRenderer.streamLine(`
@@ -1564,7 +1564,7 @@
                     ↓ Security Gate
                 </a>
             </div>
-        `, { speed: 5 });
+        `, { speed: 3 });
     }
 
     function renderSecuritySectionFull() {
@@ -1759,7 +1759,7 @@
     }
 
     // テキストをタイピングアニメーションで要素に追加
-    async function typeTextInElement(element, text, speed = 10) {
+    async function typeTextInElement(element, text, speed = 5) {
         for (const char of text) {
             element.appendChild(document.createTextNode(char));
             await new Promise(r => setTimeout(r, speed));
@@ -2054,12 +2054,12 @@
                     <div class="text-2xl font-bold text-red-600" id="functional-failed">${functionalState.failed}</div>
                 </div>
             </div>
-        `, { speed: 3 });
+        `, { speed: 2 });
 
         // 2. 進捗表示をストリーミング
         await functionalRenderer.streamLine(`
             <p id="functional-progress" class="text-sm text-gray-500 mb-4">🔄 評価中... (0/${functionalState.total})</p>
-        `, { speed: 10 });
+        `, { speed: 5 });
 
         // 2.5. 現在の対話セクション（リアルタイム表示用）
         await functionalRenderer.streamLine(`
@@ -2072,7 +2072,7 @@
                     <div class="text-gray-400">応答待ち...</div>
                 </div>
             </div>
-        `, { speed: 5 });
+        `, { speed: 3 });
 
         // 3. 失敗シナリオセクションをストリーミング
         await functionalRenderer.streamLine(`
@@ -2082,7 +2082,7 @@
                     <p class="text-sm text-gray-400" id="functional-no-failures">評価中...</p>
                 </div>
             </div>
-        `, { speed: 8 });
+        `, { speed: 4 });
 
         // 4. 全シナリオ一覧テーブルをストリーミング
         await functionalRenderer.streamLine(`
@@ -2102,7 +2102,7 @@
                     </table>
                 </div>
             </div>
-        `, { speed: 5 });
+        `, { speed: 3 });
 
         // 5. 確認ポイントをストリーミング
         await functionalRenderer.streamLine(`
@@ -2114,7 +2114,7 @@
                     <li><strong>Failed</strong>: エージェントの応答が期待と異なるケース</li>
                 </ul>
             </div>
-        `, { speed: 8 });
+        `, { speed: 4 });
 
         // 6. Artifactsダウンロードセクション
         await functionalRenderer.streamLine(`
@@ -2126,7 +2126,7 @@
                     ↓ Agent Card Accuracy
                 </a>
             </div>
-        `, { speed: 5 });
+        `, { speed: 3 });
     }
 
     function renderFunctionalSectionFull() {
@@ -2772,7 +2772,7 @@
 
             const text = data.rationale;
             let charIndex = 0;
-            const typeSpeed = 10;
+            const typeSpeed = 5;
             function typeChar() {
                 if (charIndex < text.length) {
                     messageEl.textContent = text.substring(0, charIndex + 1);
@@ -2853,7 +2853,7 @@
                     messageEl.classList.remove('typing');
                     clearInterval(typingInterval);
                 }
-            }, 15);
+            }, 8);
 
             // Update verdict if position changed
             if (data.positionChanged && data.newVerdict) {
@@ -2994,7 +2994,7 @@
                         messageEl.classList.remove('typing');
                         clearInterval(typingInterval);
                     }
-                }, 10);  // 10msで高速表示
+                }, 5);  // 5msで高速表示
             } else {
                 // rationaleがない場合はサマリーを表示
                 const summaryText = `Trust Score: ${Math.floor(trustScore)}点 / 判定: ${verdict === 'safe_pass' ? '可決' : (verdict === 'unsafe_fail' ? '否決' : '要確認')}`;
