@@ -632,7 +632,7 @@ reasoningフィールドにスコアを記載する場合は、必ず各JSONフ�
 
         他のJurorで使用されていないモデルを選択:
         - gpt-4o: Juror A (使用中)
-        - claude-3-haiku-20240307: Juror B (使用中)
+        - claude-haiku-4-5-20251001: Juror B (使用中)
         - gemini-2.5-flash: Juror C (使用中)
         - claude-sonnet-4-5-20250929: 未使用 → フォールバック用
         """
@@ -696,7 +696,13 @@ Verdict rules:
                 model=FALLBACK_MODEL,
                 max_tokens=fallback_max_tokens,
                 temperature=self.config.temperature,
-                system=system_prompt,
+                system=[
+                    {
+                        "type": "text",
+                        "text": system_prompt,
+                        "cache_control": {"type": "ephemeral"},
+                    }
+                ],
                 messages=[{"role": "user", "content": prompt}],
             )
 
@@ -712,7 +718,12 @@ Verdict rules:
             else:
                 response_text = str(content_block)
 
-            logger.info(f"Claude fallback ({FALLBACK_MODEL}) responded successfully")
+            cache_write = getattr(message.usage, "cache_creation_input_tokens", 0) or 0
+            cache_read = getattr(message.usage, "cache_read_input_tokens", 0) or 0
+            logger.info(
+                f"Claude fallback ({FALLBACK_MODEL}) responded successfully "
+                f"[cache_write={cache_write}, cache_read={cache_read}]"
+            )
 
             # パース
             parsed = self._parse_response(response_text)
@@ -950,10 +961,16 @@ Verdict rules:
 DO NOT use markdown code blocks. DO NOT add any text before or after the JSON object. Return ONLY the raw JSON."""
 
             message = client.messages.create(
-                model=self.config.model or "claude-3-haiku-20240307",
+                model=self.config.model or "claude-haiku-4-5-20251001",
                 temperature=self.config.temperature,
                 max_tokens=self.config.max_output_tokens,
-                system=system_prompt,
+                system=[
+                    {
+                        "type": "text",
+                        "text": system_prompt,
+                        "cache_control": {"type": "ephemeral"},
+                    }
+                ],
                 messages=[
                     {"role": "user", "content": prompt},
                 ],
@@ -974,7 +991,12 @@ DO NOT use markdown code blocks. DO NOT add any text before or after the JSON ob
                 else:
                     response_text = str(content_block)
 
-                logger.debug(f"Claude response extracted successfully (length: {len(response_text)})")
+                cache_write = getattr(message.usage, "cache_creation_input_tokens", 0) or 0
+                cache_read = getattr(message.usage, "cache_read_input_tokens", 0) or 0
+                logger.debug(
+                    f"Claude response extracted successfully (length: {len(response_text)}, "
+                    f"cache_write={cache_write}, cache_read={cache_read})"
+                )
                 return response_text
             except (IndexError, AttributeError) as e:
                 logger.error(f"Failed to extract text from Claude response: {e}, content: {message.content}")

@@ -101,8 +101,8 @@ class MultiModelJudge:
             if enable_openai:
                 models.append("gpt-4o")
             if enable_anthropic:
-                # Claude 3.5 Sonnetは提供終了。安価で現行提供のHaikuへ切替。
-                models.append("claude-3-haiku-20240307")
+                # Claude 3.5 Haiku（プロンプトキャッシュ対応、claude-3-haiku-20240307より高性能）
+                models.append("claude-haiku-4-5-20251001")
             if enable_google:
                 models.append("gemini-2.5-flash")
         else:

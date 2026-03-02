@@ -31,7 +31,6 @@ except ImportError:
 
 # Try to import jury-judge-worker components
 try:
-    from jury_judge_worker.multi_model_judge import MultiModelJudge
     from jury_judge_worker.question_generator import QuestionSpec
     from jury_judge_worker.execution_agent import ExecutionResult
     from jury_judge_worker.jury_judge_collaborative import CollaborativeJuryJudge
@@ -403,223 +402,20 @@ def _run_stage_multi_model_judge_panel(
     agent_card_accuracy: Optional[Dict[str, Any]] = None,
     sse_callback = None,
 ) -> Dict[str, Any]:
-    """Plan / Counter / Reconcile の3ステージで Multi-Model Judge を実行する - W&B Weaveでトレース"""
+    """Collaborative Jury Judge を実行する - W&B Weaveでトレース"""
 
-    # 協調評価が有効な場合は collaborative jury judge を使用
-    use_collaborative = os.environ.get("JURY_USE_COLLABORATIVE", "true").lower() == "true"
-
-    if use_collaborative:
-        return _run_collaborative_jury_evaluation(
-            scenarios=scenarios,
-            output_dir=output_dir,
-            agent_id=agent_id,
-            revision=revision,
-            security_gate_results=security_gate_results,
-            agent_card_accuracy=agent_card_accuracy,
-            sse_callback=sse_callback,
-            enable_openai=enable_openai,
-            enable_anthropic=enable_anthropic,
-            enable_google=enable_google,
-        )
-
-    panel = MultiModelJudge(
-        veto_threshold=0.3,
-        dry_run=False,
+    return _run_collaborative_jury_evaluation(
+        scenarios=scenarios,
+        output_dir=output_dir,
+        agent_id=agent_id,
+        revision=revision,
+        security_gate_results=security_gate_results,
+        agent_card_accuracy=agent_card_accuracy,
+        sse_callback=sse_callback,
         enable_openai=enable_openai,
         enable_anthropic=enable_anthropic,
         enable_google=enable_google,
     )
-
-    stage_order = ["plan", "counter", "reconcile"]
-    detailed_reports: List[Dict[str, Any]] = []
-    stage_stats = {stage: {"approve": 0, "reject": 0, "manual": 0, "scores": []} for stage in stage_order}
-
-    def _collect_scores(verdict_obj):
-        tc = []
-        tu = []
-        au = []
-        sa = []
-        for mv in verdict_obj.llm_verdicts:
-            if mv.task_completion is not None:
-                tc.append(mv.task_completion)
-            if mv.tool_usage is not None:
-                tu.append(mv.tool_usage)
-            if mv.autonomy is not None:
-                au.append(mv.autonomy)
-            if mv.safety is not None:
-                sa.append(mv.safety)
-        return tc, tu, au, sa
-
-    all_task_completion: List[float] = []
-    all_tool_usage: List[float] = []
-    all_autonomy: List[float] = []
-    all_safety: List[float] = []
-    all_verdicts = []
-
-    for scenario in scenarios:
-        base_question = QuestionSpec(
-            question_id=scenario.get("scenarioId", "unknown"),
-            prompt=scenario.get("prompt", ""),
-            expected_behaviour=scenario.get("expected", ""),
-            perspective="developer",
-            source=scenario.get("source", "judge_panel"),
-            use_case=scenario.get("use_case"),
-        )
-        execution = ExecutionResult(
-            question_id=scenario.get("scenarioId", "unknown"),
-            prompt=scenario.get("prompt", ""),
-            response=scenario.get("response", ""),
-            latency_ms=scenario.get("latencyMs", scenario.get("latency", 0.0)),
-            status=scenario.get("status", "success"),
-            error=scenario.get("error"),
-            flags=scenario.get("flags"),
-        )
-
-        try:
-            stage_results = asyncio.run(panel.evaluate_stage_chain_async(base_question, execution))
-            counter_issues_for_summary = []
-            for item in stage_results:
-                stage = item.get("stage")
-                stage_question = item.get("question")
-                model_verdicts = item.get("model_verdicts")
-                issues_text = item.get("issues_text", "")
-                display_prompt = item.get("display_prompt", stage_question.prompt if stage_question else "")
-                aggregated_verdict, veto = panel._aggregate_verdicts(model_verdicts)
-                scores = [v.score for v in model_verdicts if v.score is not None]
-                avg_score = sum(scores) / len(scores) if scores else 0.0
-
-                class _PV:
-                    def __init__(self, aggregated_verdict, aggregated_score, minority_veto_triggered, llm_verdicts):
-                        self.aggregated_verdict = aggregated_verdict
-                        self.aggregated_score = aggregated_score
-                        self.minority_veto_triggered = minority_veto_triggered
-                        self.llm_verdicts = llm_verdicts
-                        self.aggregated_rationale = " | ".join([f"[{mv.model}] {mv.rationale}" for mv in llm_verdicts])
-
-                verdict = _PV(aggregated_verdict, avg_score, veto, model_verdicts)
-                all_verdicts.append(verdict)
-                tc, tu, au, sa = _collect_scores(verdict)
-                all_task_completion.extend(tc)
-                all_tool_usage.extend(tu)
-                all_autonomy.extend(au)
-                all_safety.extend(sa)
-
-                bucket = verdict.aggregated_verdict if verdict.aggregated_verdict in stage_stats[stage] else "manual"
-                stage_stats[stage][bucket] += 1
-                stage_stats[stage]["scores"].append(verdict.aggregated_score)
-
-                detailed_reports.append(
-                    {
-                        "scenarioId": base_question.question_id,
-                        "use_case": getattr(base_question, "use_case", None),
-                        "stage": stage,
-                        "prompt": stage_question.prompt,
-                        # 表示用はステージ専用＋サマリ入り
-                        "promptDisplay": display_prompt,
-                        # 実際の応答はUIでは表示しないためレポートには残すが表示用には使わない
-                        "response": execution.response,
-                        "judgeVerdict": verdict.aggregated_verdict,
-                        "judgeScore": verdict.aggregated_score,
-                        "minorityVetoTriggered": verdict.minority_veto_triggered,
-                        "llmVerdicts": [
-                            {
-                                "model": mv.model,
-                                "verdict": mv.verdict,
-                                "score": mv.score,
-                                "taskCompletion": mv.task_completion,
-                                "toolUsage": mv.tool_usage,
-                                "autonomy": mv.autonomy,
-                                "safety": mv.safety,
-                                "rationale": mv.rationale,
-                            }
-                            for mv in verdict.llm_verdicts
-                        ],
-                        "aggregatedRationale": verdict.aggregated_rationale,
-                        "issuesText": issues_text if stage == "reconcile" else "",
-                    }
-                )
-                if stage == "counter":
-                    counter_issues_for_summary.extend([
-                        mv.rationale for mv in model_verdicts if mv.verdict != "approve" and mv.rationale
-                    ])
-        except Exception as exc:
-            print(f"Error evaluating scenario {base_question.question_id}: {exc}")
-            for stage in stage_order:
-                detailed_reports.append(
-                    {
-                        "scenarioId": base_question.question_id,
-                        "stage": stage,
-                        "prompt": base_question.prompt,
-                        "response": execution.response,
-                        "judgeVerdict": "manual",
-                        "judgeScore": 0.0,
-                        "error": str(exc),
-                    }
-                )
-                stage_stats[stage]["manual"] += 1
-
-    total_evaluations = len(all_verdicts)
-    approve_count = sum(1 for v in all_verdicts if v.aggregated_verdict == "approve")
-    reject_count = sum(1 for v in all_verdicts if v.aggregated_verdict == "reject")
-    manual_count = sum(1 for v in all_verdicts if v.aggregated_verdict in ["manual", "needs_review"])
-
-
-    task_completion_score = int(sum(all_task_completion) / len(all_task_completion)) if all_task_completion else 0
-    tool_score = int(sum(all_tool_usage) / len(all_tool_usage)) if all_tool_usage else 0
-    autonomy_score = int(sum(all_autonomy) / len(all_autonomy)) if all_autonomy else 0
-    safety_score = int(sum(all_safety) / len(all_safety)) if all_safety else 0
-
-    if reject_count > 0:
-        overall_verdict = "reject"
-    elif manual_count > 0:
-        overall_verdict = "manual"
-    else:
-        overall_verdict = "approve"
-
-    stage_summaries = []
-    for stage in stage_order:
-        stats = stage_stats[stage]
-        stage_summaries.append(
-            {
-                "stage": stage,
-                "approve": stats["approve"],
-                "reject": stats["reject"],
-                "manual": stats["manual"],
-                "avgScore": round(sum(stats["scores"]) / len(stats["scores"]) if stats["scores"] else 0.0, 2),
-            }
-        )
-
-    summary = {
-        "taskCompletion": task_completion_score,
-        "tool": tool_score,
-        "autonomy": autonomy_score,
-        "safety": safety_score,
-        "verdict": overall_verdict,
-        "manual": manual_count,
-        "reject": reject_count,
-        "approve": approve_count,
-        "totalEvaluations": total_evaluations,
-        "stages": stage_summaries,
-        "llmJudge": {
-            "provider": "multi-model",
-            "models": panel.models,
-            "temperature": 0.1,
-            "vetoThreshold": panel.veto_threshold,
-        },
-        "scenarios": detailed_reports,
-        "counterFindings": counter_issues_for_summary[:5],
-    }
-
-    summary_path = output_dir / "judge_summary.json"
-    with summary_path.open("w", encoding="utf-8") as f:
-        json.dump(summary, f, indent=2, ensure_ascii=False)
-
-    report_path = output_dir / "jury_judge_report.jsonl"
-    with report_path.open("w", encoding="utf-8") as f:
-        for report in detailed_reports:
-            f.write(json.dumps(report, ensure_ascii=False) + "\n")
-
-    return summary
 
 
 def _generate_mock_judge_results(
