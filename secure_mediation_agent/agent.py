@@ -15,7 +15,6 @@
 """Main Secure Mediation Agent that coordinates all sub-agents."""
 
 from google.adk import Agent
-from google.adk.agents.callback_context import CallbackContext
 from google.genai import types
 from .config.safety import SAFETY_SETTINGS_RELAXED
 
@@ -25,47 +24,6 @@ from .subagents.matching_agent import matcher
 from .subagents.orchestration_agent import orchestrator
 from .subagents.anomaly_detection_agent import anomaly_detector
 from .subagents.final_anomaly_detection_agent import final_anomaly_detector
-
-
-async def approval_gate_callback(
-    callback_context: CallbackContext,
-) -> types.Content | None:
-    """計画承認をコードレベルで強制するbefore_agent_callback。
-
-    orchestratorへの委任前にplan_approvedフラグを確認し、
-    未承認なら委任をブロックする。
-    plannerへの2回目以降の委任前にplan_change_approvedフラグを確認し、
-    未承認なら委任をブロックする。
-    """
-    agent_name = callback_context.agent_name
-    state = callback_context.state
-
-    # orchestratorへの委任時: 計画がユーザー承認済みか確認
-    if agent_name == 'orchestrator':
-        if not state.get('plan_approved', False):
-            return types.Content(
-                role="model",
-                parts=[types.Part(text=(
-                    "⚠️ 計画がまだユーザーに承認されていません。"
-                    "orchestratorを起動する前に、生成された計画をユーザーに提示し、"
-                    "承認を得てください。ユーザーが承認したら、再度orchestratorに委任してください。"
-                ))]
-            )
-
-    # plannerへの2回目以降の委任時（計画変更）: 変更がユーザー承認済みか確認
-    if agent_name == 'planner':
-        plan_count = state.get('plan_generation_count', 0)
-        if plan_count > 0 and not state.get('plan_change_approved', False):
-            return types.Content(
-                role="model",
-                parts=[types.Part(text=(
-                    "⚠️ 計画の変更にはユーザーの承認が必要です。"
-                    "計画を変更する理由をユーザーに説明し、承認を得てから"
-                    "plannerに再委任してください。"
-                ))]
-            )
-
-    return None  # 承認済みまたは対象外のサブエージェントなら続行
 
 
 async def approve_plan(tool_context) -> str:
@@ -88,7 +46,6 @@ root_agent = Agent(
         'from the platform, protecting against prompt injection and hallucination '
         'attacks through multi-layer anomaly detection.'
     ),
-    before_agent_callback=approval_gate_callback,
     tools=[approve_plan, approve_plan_change],
     sub_agents=[
         matcher,
