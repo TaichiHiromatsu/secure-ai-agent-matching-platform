@@ -236,6 +236,11 @@ Example Plan Structure:
 ...
 
 After creating the plan, use the save_plan_as_artifact tool to save it.
+計画を保存した後は、計画の概要をユーザーに報告してください。
+orchestratorの実行を提案しないでください（承認フローはroot agentが管理します）。
+
+**重要: 計画の保存と報告が完了したら、必ず transfer_to_agent(agent_name='secure_mediator') を呼び出して、
+ルートエージェントに制御を返してください。** これにより、ユーザーの承認フローが正しく処理されます。
 """,
     before_agent_callback=planner_change_approval_gate,
     tools=[
