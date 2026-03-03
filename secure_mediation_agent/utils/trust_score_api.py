@@ -24,7 +24,7 @@ import httpx
 logger = logging.getLogger(__name__)
 
 # Agent Store API configuration
-AGENT_STORE_API_URL = os.getenv("AGENT_STORE_API_URL", "http://localhost:8080/api/agents")
+AGENT_STORE_API_URL = os.getenv("AGENT_STORE_API_URL", "http://127.0.0.1:8001/api/agents")
 
 
 async def decrease_agent_trust_score(
