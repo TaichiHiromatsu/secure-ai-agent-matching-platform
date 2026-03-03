@@ -29,6 +29,7 @@ async def save_plan_as_artifact(
     client_request: str,
     plan_content: str,
     output_dir: str = "secure_mediation_agent/artifacts/plans",
+    tool_context=None,  # ADKが自動的に注入
 ) -> str:
     """Save execution plan as a markdown artifact.
 
@@ -84,13 +85,22 @@ async def save_plan_as_artifact(
     with open(filepath, 'w', encoding='utf-8') as f:
         f.write(markdown_content)
 
+    # セッション状態を更新（承認フラグ管理）
+    if tool_context:
+        count = tool_context.state.get('plan_generation_count', 0)
+        tool_context.state['plan_generation_count'] = count + 1
+        tool_context.state['plan_approved'] = False  # 新しい計画は再承認が必要
+        tool_context.state['plan_change_approved'] = False
+
     # Return JSON with both file path and unique plan_id for downstream use
     import json
     return json.dumps({
         "file_path": str(filepath),
         "plan_id": unique_plan_id,
         "original_plan_id": plan_id,
-        "message": f"Plan saved successfully. Use plan_id '{unique_plan_id}' for all subsequent operations."
+        "message": f"Plan saved successfully. Use plan_id '{unique_plan_id}' for all subsequent operations.",
+        "approval_required": True,
+        "approval_message": "⚠️ この計画はユーザーの承認が必要です。計画内容をユーザーに提示し、承認を得てからorchestratorに委任してください。"
     }, ensure_ascii=False)
 
 
@@ -145,7 +155,39 @@ When creating a plan:
 - Define clear inputs and expected outputs for each step
 - Identify dependencies between steps
 - Consider error handling and fallback strategies
-- Include security checkpoints
+
+**CRITICAL: What to include and exclude in plans**
+
+✅ INCLUDE ONLY external A2A agents (agents that perform actual tasks):
+- airline_agent (フライト検索・予約)
+- hotel_agent (ホテル検索・予約)
+- car_rental_agent (レンタカー検索・予約)
+- local_tour_agent (現地ツアー検索・予約)
+- Other matched external agents from the Agent Store
+
+❌ DO NOT INCLUDE internal sub-agents or system agents:
+- secure_mediator (root agent - handles orchestration automatically)
+- final_anomaly_detector (security verification - called by root agent)
+- anomaly_detector (real-time monitoring - runs automatically via callback)
+- orchestrator (executes the plan - NOT a step in the plan)
+- planner (that's you - NOT a step in the plan)
+- matcher (agent discovery - already completed before planning)
+
+The plan should contain ONLY the steps that orchestrator will execute by calling
+external A2A agents. Security verification and final reporting are handled
+automatically by the root agent AFTER orchestrator completes all plan steps.
+
+Example of CORRECT plan:
+- Step 1: airline_agent - フライト検索
+- Step 2: hotel_agent - ホテル検索
+- Step 3: car_rental_agent - レンタカー検索
+- Step 4: local_tour_agent - ツアー検索
+- Step 5: 結果集約（orchestratorが内部で実行）
+
+Example of WRONG plan (DO NOT do this):
+- Step 1-4: 外部エージェント呼び出し
+- Step 5: final_anomaly_detector による検証 ← これは計画に含めない！
+- Step 6: secure_mediator による最終報告 ← これも計画に含めない！
 
 **Plan ID Format**
 Generate a descriptive plan_id based on the request content and date.
