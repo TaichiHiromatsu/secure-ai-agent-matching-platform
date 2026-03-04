@@ -37,7 +37,7 @@
 
 たとえば今回のデモでは、Agent Cardに記載の「顧客データ分析」「レポート生成」というスキルから「顧客データを分析してレポートを生成してください」というシナリオが自動で作られます。
 
-応答の評価では、**RAGTruth**形式で事前定義した期待応答があればGeminiに渡し、実際の応答との整合性を判定させます。さらにGeminiが**Task Completion・Dialogue Naturalness・Information Gathering**の3軸（各0.0〜1.0、平均0.7以上でPASS）で採点します。PDF・CSVなどの**Artifacts**もBase64デコード・SHA256ハッシュ検証のうえ評価材料に含めます。
+応答の評価では、事前定義した**期待応答JSONL**があればGeminiに渡し、実際の応答との整合性を判定させます。さらにGeminiが**Task Completion・Dialogue Naturalness・Information Gathering**の3軸（各0.0〜1.0、平均0.7以上でPASS）で採点します。PDF・CSVなどの**Artifacts**もBase64デコード・SHA256ハッシュ検証のうえ評価材料に含めます。
 
 ---
 
