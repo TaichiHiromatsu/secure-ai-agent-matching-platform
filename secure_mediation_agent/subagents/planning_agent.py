@@ -20,6 +20,7 @@ from datetime import datetime
 from pathlib import Path
 
 from google.adk import Agent
+from google.adk.agents.callback_context import CallbackContext
 from google.genai import types
 from ..config.safety import SAFETY_SETTINGS_RELAXED
 
@@ -130,6 +131,28 @@ async def create_structured_plan(
     return json.dumps(plan, indent=2, ensure_ascii=False)
 
 
+async def planner_change_approval_gate(
+    callback_context: CallbackContext,
+) -> types.Content | None:
+    """planner起動前にplan_change_approvedフラグを確認するbefore_agent_callback。
+
+    2回目以降の計画生成（計画変更）時に、ユーザーの承認がなければブロックする。
+    初回の計画生成（plan_generation_count == 0）はブロックしない。
+    """
+    state = callback_context.state
+    plan_count = state.get('plan_generation_count', 0)
+    if plan_count > 0 and not state.get('plan_change_approved', False):
+        return types.Content(
+            role="model",
+            parts=[types.Part(text=(
+                "⚠️ 計画の変更にはユーザーの承認が必要です。"
+                "計画を変更する理由をユーザーに説明し、承認を得てから"
+                "plannerに再委任してください。"
+            ))]
+        )
+    return None
+
+
 planner = Agent(
     model='gemini-2.5-pro',
     name='planner',
@@ -213,7 +236,13 @@ Example Plan Structure:
 ...
 
 After creating the plan, use the save_plan_as_artifact tool to save it.
+計画を保存した後は、計画の概要をユーザーに報告してください。
+orchestratorの実行を提案しないでください（承認フローはroot agentが管理します）。
+
+**重要: 計画の保存と報告が完了したら、必ず transfer_to_agent(agent_name='secure_mediator') を呼び出して、
+ルートエージェントに制御を返してください。** これにより、ユーザーの承認フローが正しく処理されます。
 """,
+    before_agent_callback=planner_change_approval_gate,
     tools=[
         save_plan_as_artifact,
         create_structured_plan,
