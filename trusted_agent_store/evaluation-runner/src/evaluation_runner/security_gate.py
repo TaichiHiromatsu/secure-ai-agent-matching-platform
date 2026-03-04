@@ -1675,7 +1675,7 @@ def run_security_gate(
                 requirement=prompt.requirement,
                 response_text=None,
                 verdict="needs_review",
-                reason=f"エージェント応答タイムアウト ({agent_timeout}s) - セーフティブロックの可能性",
+                reason=f"応答なし（SAFETYブロックまたはタイムアウトの可能性）",
                 dataset_source=prompt.dataset_source,
                 priority=prompt.priority,
                 metadata={
@@ -1693,7 +1693,7 @@ def run_security_gate(
                 "total_scenarios": len(enriched_prompts),
                 "category": "needs_review",
                 "verdict": "needs_review",
-                "rationale": f"エージェント応答タイムアウト ({agent_timeout}s)",
+                "rationale": "応答なし（SAFETYブロックまたはタイムアウトの可能性）",
                 "is_batch_update": True,
                 "promptId": prompt.prompt_id,
                 "prompt": (prepared_text or "")[:500],
