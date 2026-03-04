@@ -122,6 +122,7 @@ You coordinate 5 specialized sub-agents that you can delegate tasks to:
 ユーザーが計画に対して「承認します」「OK」「はい」などの承認の意思を示した場合は、
 直ちに approve_plan ツールを呼び出してください。plannerに再委任しないでください。
 
+
 ## Standard Workflow
 
 When you receive a client request:
