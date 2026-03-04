@@ -251,16 +251,51 @@ async def calculate_matching_score(
     """
     # Check skill matches
     required_skills = requirements.get("skills", [])
-    agent_skills = [skill.get("id", "") for skill in agent.get("skills", [])]
+    agent_skills = [skill.get("id", "").lower() for skill in agent.get("skills", [])]
     agent_skill_tags = set()
     for skill in agent.get("skills", []):
-        agent_skill_tags.update(skill.get("tags", []))
+        agent_skill_tags.update(tag.lower() for tag in skill.get("tags", []))
 
-    # Count matched skills
-    matched_skill_list = [
-        req_skill for req_skill in required_skills
-        if req_skill in agent_skills or req_skill in agent_skill_tags
-    ]
+    # Also add skill names and descriptions for flexible matching
+    agent_skill_names = set()
+    for skill in agent.get("skills", []):
+        name = skill.get("name", "").lower()
+        if name:
+            agent_skill_names.add(name)
+            # Add individual words from name
+            agent_skill_names.update(name.split())
+        desc = skill.get("description", "").lower()
+        if desc:
+            # Add key words from description
+            for word in desc.split():
+                if len(word) > 3:  # Skip short words
+                    agent_skill_names.add(word)
+
+    # Count matched skills with flexible matching
+    matched_skill_list = []
+    for req_skill in required_skills:
+        req_lower = req_skill.lower().replace("_", " ").replace("-", " ")
+        req_words = set(req_lower.split())
+
+        # Check exact match with skill IDs
+        if req_lower.replace(" ", "_") in agent_skills:
+            matched_skill_list.append(req_skill)
+            continue
+
+        # Check if any word matches tags
+        if any(word in agent_skill_tags for word in req_words):
+            matched_skill_list.append(req_skill)
+            continue
+
+        # Check if any word matches skill names/descriptions
+        if any(word in agent_skill_names for word in req_words):
+            matched_skill_list.append(req_skill)
+            continue
+
+        # Check partial match (e.g., "flight" in "flight_search")
+        if any(req_lower in skill_id or any(word in skill_id for word in req_words) for skill_id in agent_skills):
+            matched_skill_list.append(req_skill)
+            continue
     matched_tasks = len(matched_skill_list)
     total_tasks = len(required_skills) if required_skills else 1
 
@@ -348,29 +383,60 @@ Your responsibilities:
 4. **Fetch Agent Cards**: Retrieve detailed agent information from A2A endpoints
 5. **Calculate Matching Scores**: Determine how well each agent fits the requirements
 
-When matching agents:
-- Consider both functional requirements (skills, capabilities) and non-functional requirements (trust, reliability)
-- Fetch agent cards from /.well-known/agent-card.json endpoints
-- Apply trust score thresholds to filter out unreliable agents
-- Calculate matching scores based on skill overlap, capability match, and I/O compatibility
-- Provide clear reasoning for why agents were selected
+## Semantic Matching (LLM-based)
 
-Trust Score Guidelines:
-- 0.0-0.3: Low trust (avoid unless no alternatives)
-- 0.3-0.5: Medium trust (acceptable with monitoring)
-- 0.5-0.7: High trust (preferred)
-- 0.7-1.0: Very high trust (most preferred)
+**IMPORTANT**: You are an LLM. Use your semantic understanding to match agents to requirements.
+Do NOT rely solely on exact keyword matching. Consider:
 
-Always use the available tools to:
+1. **Semantic equivalence**:
+   - "レンタカー予約" = "car rental" = "car_booking" = "vehicle reservation"
+   - "フライト検索" = "flight search" = "airline booking"
+   - "ホテル予約" = "hotel booking" = "accommodation"
+
+2. **Capability inference**:
+   - An agent with "flight_search" skill can likely handle "航空券の予約"
+   - An agent with "hotel_booking" can handle "宿泊施設の手配"
+
+3. **When evaluating agents**:
+   - Read the agent's description, skills, and tags
+   - Use YOUR understanding to judge if the agent can fulfill the requirement
+   - Don't just compare strings - understand the MEANING
+
+## Matching Process
+
+1. Use `search_agent_store` to find potential agents
+2. For each agent, YOU decide if it matches based on:
+   - Does the agent's description suggest it can handle the task?
+   - Do any of the agent's skills relate to the required task (semantically)?
+   - Is the trust score acceptable?
+3. Assign YOUR OWN matching score (0.0-1.0) based on your judgment
+4. The `calculate_matching_score` tool is optional - use it for structured output only
+
+Trust Score Guidelines (Agent Store uses 0-100 scale):
+- 0-30: Low trust (avoid unless no alternatives)
+- 30-50: Medium trust (acceptable with monitoring)
+- 50-70: High trust (preferred)
+- 70-100: Very high trust (most preferred)
+
+## Example Matching
+
+User request: "沖縄旅行でフライトとホテルを予約したい"
+
+Your analysis:
+- "airline_agent" has skills: flight_search, flight_booking → Can handle フライト予約 ✓
+- "hotel_agent" has skills: hotel_search, hotel_booking → Can handle ホテル予約 ✓
+- Matching score for both: 0.85 (high semantic match)
+
+Available tools:
 - fetch_agent_card: Get agent details from A2A endpoints
 - search_agent_store: Query agent stores
 - rank_agents_by_trust: Sort and filter by trust scores
-- calculate_matching_score: Evaluate agent-requirement fit
+- calculate_matching_score: (Optional) Generate structured matching output
 
 Output your matching results with:
-- List of matched agents (ranked by trust * matching_score)
-- Reasoning for each match
-- Trust scores and matching scores
+- List of matched agents (ranked by your judgment + trust score)
+- YOUR reasoning for why each agent matches (semantic explanation)
+- Trust scores
 - Any concerns or recommendations
 """,
     tools=[

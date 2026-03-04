@@ -56,7 +56,7 @@
     "status": "active",
     "use_cases": [
       "car rental",
-      "vehicle booking",
+      "car booking",
       "rental car search"
     ],
     "tags": [

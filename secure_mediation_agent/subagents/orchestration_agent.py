@@ -20,6 +20,7 @@ from typing import Any
 import re
 
 from google.adk import Agent
+from google.adk.agents.callback_context import CallbackContext
 from google.genai import types
 from ..config.safety import SAFETY_SETTINGS_RELAXED
 import re
@@ -597,6 +598,26 @@ async def a2a_security_callback(
         }
 
 
+async def orchestrator_approval_gate(
+    callback_context: CallbackContext,
+) -> types.Content | None:
+    """orchestrator起動前にplan_approvedフラグを確認するbefore_agent_callback。
+
+    計画がユーザーに承認されていなければ、orchestratorの起動をブロックする。
+    """
+    state = callback_context.state
+    if not state.get('plan_approved', False):
+        return types.Content(
+            role="model",
+            parts=[types.Part(text=(
+                "⚠️ 計画がまだユーザーに承認されていません。"
+                "orchestratorを起動する前に、生成された計画をユーザーに提示し、"
+                "承認を得てください。ユーザーが承認したら、再度orchestratorに委任してください。"
+            ))]
+        )
+    return None
+
+
 orchestrator = Agent(
     model='gemini-2.5-pro',
     name='orchestrator',
@@ -670,6 +691,45 @@ Use the provided tools:
 1. First, use load_plan_from_artifact to load the plan file
 2. For each step, use parse_plan_for_step to get expected agent and output details
 3. Pass this information to execute_plan_step for security validation
+
+**CRITICAL RESTRICTIONS - DO NOT VIOLATE:**
+- You MUST ONLY use the tools listed above (load_plan_from_artifact, parse_plan_for_step, execute_plan_step, invoke_a2a_agent, check_step_dependencies, get_step_output)
+- DO NOT call any tool that does not exist in your tool list
+
+**IMPORTANT: You are a SUB-AGENT**
+You are orchestrator, a sub-agent of secure_mediator (the root agent).
+When you complete your task, you RETURN CONTROL to secure_mediator by ending your turn.
+You do NOT respond directly to the user - you report your results to your parent agent.
+secure_mediator will handle what happens next (you don't need to know the details).
+
+**YOUR COMPLETION BEHAVIOR:**
+When you finish executing all plan steps:
+1. Summarize what was executed (which agents were called, what results were obtained)
+2. Report the execution status (success/failure for each step)
+3. Include any errors encountered
+4. END YOUR TURN - control automatically returns to secure_mediator
+
+**DO NOT:**
+- Respond as if you are the final responder to the user
+- Mention what secure_mediator or any other agent will do next
+- Say things like "お待ちください" or "結果をお知らせします" (you don't deliver final results)
+- Pretend to know about subsequent processing steps
+
+**EXAMPLE OF CORRECT COMPLETION:**
+"計画の実行が完了しました。
+
+実行結果:
+- Step 1: airline_agent - フライト検索完了（東京→沖縄、12/20発、ANA便）
+- Step 2: hotel_agent - ホテル予約完了（那覇市内、2泊、沖縄グランドホテル）
+- Step 3: car_rental_agent - レンタカー予約完了（12/20-22、コンパクトカー）
+
+全3ステップが正常に完了しました。"
+
+**EXAMPLE OF WRONG COMPLETION (DO NOT DO THIS):**
+❌ "実行フェーズは完了しました。最終的なセキュリティ検証が進行中です。"
+❌ "secure_mediatorが結果をお知らせします。"
+❌ "もうしばらくお待ちください。"
+→ これらは言わないでください。あなたは結果を報告して終了するだけです。
 """,
     tools=[
         load_plan_from_artifact,
@@ -679,6 +739,7 @@ Use the provided tools:
         check_step_dependencies,
         get_step_output,
     ],
+    before_agent_callback=orchestrator_approval_gate,
     after_tool_callback=a2a_security_callback,  # セキュリティコールバックを有効化
     generate_content_config=types.GenerateContentConfig(
         temperature=0.1,  # Very low temperature for precise execution
