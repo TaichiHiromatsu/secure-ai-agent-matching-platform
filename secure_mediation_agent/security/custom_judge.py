@@ -181,7 +181,7 @@ from ..utils.trust_score_api import decrease_agent_trust_score, report_security_
 
 # Custom Judge Agent with plan verification tools and trust score management
 secure_mediation_judge = Agent(
-    model='gemini-2.5-flash-lite',
+    model='gemini-3-flash-preview',
     name='secure_mediation_judge',
     instruction=SECURE_MEDIATION_JUDGE_INSTRUCTION + """
 
