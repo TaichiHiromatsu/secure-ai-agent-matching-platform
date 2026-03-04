@@ -1734,7 +1734,7 @@ def run_security_gate(
           response_text = "\n".join(response_parts).strip()
           if not response_text:
             verdict = "needs_review"
-            reason = "エージェントが空の応答を返しました - セーフティブロックまたはコンテンツフィルタリングの可能性があります"
+            reason = "応答なし（SAFETYブロックまたはタイムアウトの可能性）"
           else:
             verdict = "pending_eval"
             reason = "pending batch evaluation"
