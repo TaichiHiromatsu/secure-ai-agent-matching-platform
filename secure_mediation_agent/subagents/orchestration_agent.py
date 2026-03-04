@@ -459,7 +459,6 @@ async def a2a_security_callback(
     try:
         # 1. custom_judgeのJudge Agentによるセキュリティ判定
         from ..security.custom_judge import secure_mediation_judge, custom_analysis_parser
-        from ..safety_plugins import util
         from google.adk.sessions.in_memory_session_service import InMemorySessionService
         from google.genai import types
         from google.adk import Runner
@@ -549,18 +548,68 @@ async def a2a_security_callback(
             session_service=session_service
         )
 
-        author, judge_response = await util.run_prompt(
-            user_id="security_judge",
-            app_name="security_judge",
-            runner=runner,
-            message=types.Content(
-                role="user",
-                parts=[types.Part(text=judge_message)]
-            )
-        )
+        # Judge Agentを実行し、テキスト応答とツール呼び出しの両方を収集（リトライ付き）
+        import asyncio as _asyncio
+
+        MAX_RETRIES = 3
+        RETRY_DELAY = 1.0
+
+        judge_response = ""
+        judge_tool_calls = []
+
+        for attempt in range(MAX_RETRIES):
+            try:
+                judge_response = ""
+                judge_tool_calls = []
+
+                judge_session = await session_service.create_session(
+                    user_id="security_judge",
+                    app_name="security_judge",
+                )
+
+                async for event in runner.run_async(
+                    user_id="security_judge",
+                    session_id=judge_session.id,
+                    new_message=types.Content(
+                        role="user",
+                        parts=[types.Part(text=judge_message)]
+                    )
+                ):
+                    # ツール呼び出しを収集
+                    if event.content and event.content.parts:
+                        for part in event.content.parts:
+                            if hasattr(part, 'function_call') and part.function_call:
+                                judge_tool_calls.append(part.function_call.name)
+
+                    # 最終応答テキストを取得
+                    if event.is_final_response() and event.content and event.content.parts:
+                        judge_response = event.content.parts[0].text or ""
+
+                break  # 成功したらループを抜ける
+
+            except Exception as retry_error:
+                if attempt < MAX_RETRIES - 1:
+                    logger.warning(
+                        f"⚠️ Judge Agent retry {attempt + 1}/{MAX_RETRIES} for {agent_name}: {retry_error}"
+                    )
+                    await _asyncio.sleep(RETRY_DELAY)
+                else:
+                    logger.error(
+                        f"❌ Judge Agent failed after {MAX_RETRIES} retries for {agent_name}: {retry_error}"
+                    )
+                    raise
 
         # 判定結果を解析
         is_unsafe = custom_analysis_parser(judge_response)
+
+        # ツール呼び出し判定: セキュリティ関連ツールが呼ばれていればブロック
+        SECURITY_TOOLS = {"report_security_incident", "decrease_agent_trust_score"}
+        security_tools_called = SECURITY_TOOLS & set(judge_tool_calls)
+        if security_tools_called:
+            logger.warning(
+                f"🚨 Security tools invoked by Judge for {agent_name}: {security_tools_called}"
+            )
+            is_unsafe = True
 
         # 判定結果をログ出力
         if is_unsafe:
