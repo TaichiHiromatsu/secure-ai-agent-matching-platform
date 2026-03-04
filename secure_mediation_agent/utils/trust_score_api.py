@@ -29,7 +29,7 @@ AGENT_STORE_API_URL = os.getenv("AGENT_STORE_API_URL", "http://127.0.0.1:8001/ap
 
 async def decrease_agent_trust_score(
     agent_id: str,
-    decrease_amount: int = 5,
+    multiplier: float = 0.95,
     reason: str = "Security issue detected",
     issue_type: str = "unknown",
 ) -> str:
@@ -39,9 +39,15 @@ async def decrease_agent_trust_score(
     - custom_judge: Detects indirect prompt injection, plan deviations
     - final_anomaly_detector: Detects hallucinations, prompt injection chains
 
+    The trust score is reduced by multiplying the current score by a multiplier:
+    - critical: 0.9 (10% reduction)
+    - high: 0.95 (5% reduction)
+    - medium: 0.97 (3% reduction)
+    - low: 0.99 (1% reduction)
+
     Args:
         agent_id: The ID of the agent in the Agent Store.
-        decrease_amount: Amount to decrease the trust score (1-20).
+        multiplier: Multiplier to apply to the current trust score (0.0-1.0).
         reason: Human-readable reason for the decrease.
         issue_type: Type of issue (prompt_injection, hallucination, plan_deviation, etc.)
 
@@ -74,9 +80,9 @@ async def decrease_agent_trust_score(
                 "agent_id": agent_id,
             }, ensure_ascii=False)
 
-        # Calculate new trust score
+        # Calculate new trust score using multiplier
         current_score = target_agent.get("trust_score") or 50
-        new_score = max(0, current_score - decrease_amount)
+        new_score = max(0, int(current_score * multiplier))
 
         # Update the trust score
         async with httpx.AsyncClient(timeout=10.0) as client:
@@ -99,7 +105,7 @@ async def decrease_agent_trust_score(
             "agent_name": target_agent.get("name"),
             "previous_score": current_score,
             "new_score": new_score,
-            "decrease_amount": decrease_amount,
+            "multiplier": multiplier,
             "reason": reason,
             "issue_type": issue_type,
             "updated_at": update_result.get("updated_at"),
@@ -129,11 +135,11 @@ async def report_security_incident(
 ) -> str:
     """Report a security incident and decrease trust score accordingly.
 
-    Severity levels and their trust score impacts:
-    - critical: -20 points (e.g., confirmed data exfiltration)
-    - high: -10 points (e.g., prompt injection detected)
-    - medium: -5 points (e.g., plan deviation)
-    - low: -2 points (e.g., minor anomaly)
+    Severity levels and their trust score multipliers:
+    - critical: ×0.9 (10% reduction, e.g., confirmed data exfiltration)
+    - high: ×0.95 (5% reduction, e.g., prompt injection detected)
+    - medium: ×0.97 (3% reduction, e.g., plan deviation)
+    - low: ×0.99 (1% reduction, e.g., minor anomaly)
 
     Args:
         agent_id: The ID of the agent.
@@ -145,21 +151,21 @@ async def report_security_incident(
     Returns:
         JSON string with the incident report and trust score update result.
     """
-    severity_impact = {
-        "critical": 20,
-        "high": 10,
-        "medium": 5,
-        "low": 2,
+    severity_multiplier = {
+        "critical": 0.9,
+        "high": 0.95,
+        "medium": 0.97,
+        "low": 0.99,
     }
 
-    decrease_amount = severity_impact.get(severity.lower(), 5)
+    multiplier = severity_multiplier.get(severity.lower(), 0.95)
 
     reason = f"{incident_type} ({severity}): {details.get('summary', 'No summary')}"
 
-    # Update the trust score
+    # Update the trust score using multiplier
     update_result = await decrease_agent_trust_score(
         agent_id=agent_id,
-        decrease_amount=decrease_amount,
+        multiplier=multiplier,
         reason=reason,
         issue_type=incident_type,
     )
