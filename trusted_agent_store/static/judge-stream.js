@@ -98,6 +98,9 @@ class JuryJudgeStream {
                 case 'round_complete':
                     this.handleRoundComplete(data);
                     break;
+                case 'final_judge_chunk':
+                    this.emit('final_judge_chunk', { chunk: data.chunk });
+                    break;
                 case 'final_judgment':
                 case 'evaluation_completed':
                     this.handleFinalJudgment(data);

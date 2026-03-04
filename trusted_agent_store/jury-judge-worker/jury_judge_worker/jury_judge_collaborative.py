@@ -1624,7 +1624,20 @@ As an independent, neutral final judge, review ALL evaluations, discussion point
             status="completed",
             error=""
         )
-        result = await self.final_judge.evaluate_async(temp_question, final_execution)
+        # ストリーミング: チャンクをSSE経由でリアルタイム送信
+        async def _stream_chunk(text_chunk):
+            await self._notify_sse(sse_callback, {
+                "type": "final_judge_chunk",
+                "chunk": text_chunk,
+            })
+
+        # ストリーミング評価を試行（フォールバック付き）
+        if hasattr(self.final_judge, 'evaluate_async_streaming'):
+            result = await self.final_judge.evaluate_async_streaming(
+                temp_question, final_execution, chunk_callback=_stream_chunk
+            )
+        else:
+            result = await self.final_judge.evaluate_async(temp_question, final_execution)
 
         await self._notify_sse(sse_callback, {
             "type": "final_judgment",

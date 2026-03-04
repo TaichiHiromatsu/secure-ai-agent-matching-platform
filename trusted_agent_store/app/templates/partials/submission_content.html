@@ -1448,7 +1448,7 @@
         if (progressEl) {
             progressEl.innerHTML = '';
             progressEl.className = 'text-sm text-green-600 font-semibold';
-            await typeTextInElement(progressEl, '✅ 完了', 30);
+            await typeTextInElement(progressEl, '✅ 完了', 15);
         }
         // 評価待ち表示を消す
         const pendingEl = document.getElementById('security-pending');
@@ -1460,7 +1460,7 @@
             if (securityState.needsReview === 0 && securityState.errors === 0) {
                 noIssuesEl.textContent = '';
                 noIssuesEl.className = 'text-sm text-green-600';
-                await typeTextInElement(noIssuesEl, '✅ 該当なし（全てブロック済み）', 20);
+                await typeTextInElement(noIssuesEl, '✅ 該当なし（全てブロック済み）', 10);
             } else {
                 noIssuesEl.textContent = '';
             }
@@ -1746,14 +1746,14 @@
                 const span = document.createElement('span');
                 span.className = `px-2 py-1 rounded text-xs ${cell.badge}`;
                 td.appendChild(span);
-                await typeTextInElement(span, cell.content, 5);
+                await typeTextInElement(span, cell.content, 3);
             } else if (cell.isCode) {
                 const pre = document.createElement('pre');
                 pre.className = 'whitespace-pre-wrap text-xs';
                 td.appendChild(pre);
-                await typeTextInElement(pre, cell.content, 8);
+                await typeTextInElement(pre, cell.content, 4);
             } else {
-                await typeTextInElement(td, cell.content, 5);
+                await typeTextInElement(td, cell.content, 3);
             }
         }
     }
@@ -1786,18 +1786,18 @@
         const headerDiv = document.createElement('div');
         headerDiv.className = 'font-semibold text-sm mb-1';
         div.appendChild(headerDiv);
-        await typeTextInElement(headerDiv, data.promptId || '匿名', 5);
+        await typeTextInElement(headerDiv, data.promptId || '匿名', 3);
 
         const verdictSpan = document.createElement('span');
         verdictSpan.className = `ml-2 text-xs px-2 py-1 rounded ${verdictClass}`;
         headerDiv.appendChild(verdictSpan);
-        await typeTextInElement(verdictSpan, data.verdict, 10);
+        await typeTextInElement(verdictSpan, data.verdict, 5);
 
         // Category/Perspective
         const metaDiv = document.createElement('div');
         metaDiv.className = 'text-xs text-gray-600 mb-2';
         div.appendChild(metaDiv);
-        await typeTextInElement(metaDiv, `Category: ${data.category || 'N/A'}${data.perspective ? ` | Perspective: ${data.perspective}` : ''}`, 3);
+        await typeTextInElement(metaDiv, `Category: ${data.category || 'N/A'}${data.perspective ? ` | Perspective: ${data.perspective}` : ''}`, 2);
 
         // Prompt
         const promptLabelDiv = document.createElement('div');
@@ -1806,12 +1806,12 @@
 
         const promptStrong = document.createElement('strong');
         promptLabelDiv.appendChild(promptStrong);
-        await typeTextInElement(promptStrong, 'Prompt:', 10);
+        await typeTextInElement(promptStrong, 'Prompt:', 5);
 
         const promptPre = document.createElement('pre');
         promptPre.className = 'mt-1 whitespace-pre-wrap bg-white p-2 rounded text-xs';
         promptLabelDiv.appendChild(promptPre);
-        await typeTextInElement(promptPre, promptText, 2);
+        await typeTextInElement(promptPre, promptText, 1);
 
         // Response
         const responseLabelDiv = document.createElement('div');
@@ -1820,12 +1820,12 @@
 
         const responseStrong = document.createElement('strong');
         responseLabelDiv.appendChild(responseStrong);
-        await typeTextInElement(responseStrong, 'Response:', 10);
+        await typeTextInElement(responseStrong, 'Response:', 5);
 
         const responsePre = document.createElement('pre');
         responsePre.className = 'mt-1 whitespace-pre-wrap bg-white p-2 rounded text-xs';
         responseLabelDiv.appendChild(responsePre);
-        await typeTextInElement(responsePre, responseText, 2);
+        await typeTextInElement(responsePre, responseText, 1);
 
         // Reason
         const reasonDiv = document.createElement('div');
@@ -1834,11 +1834,11 @@
 
         const reasonStrong = document.createElement('strong');
         reasonDiv.appendChild(reasonStrong);
-        await typeTextInElement(reasonStrong, 'Reason: ', 10);
+        await typeTextInElement(reasonStrong, 'Reason: ', 5);
 
         const reasonSpan = document.createElement('span');
         reasonDiv.appendChild(reasonSpan);
-        await typeTextInElement(reasonSpan, data.rationale || 'N/A', 3);
+        await typeTextInElement(reasonSpan, data.rationale || 'N/A', 2);
     }
 
     // ==== Agent Card Accuracy (Functional) Event Handlers ====
@@ -2378,11 +2378,11 @@
             div.appendChild(promptDiv);
             const promptStrong = document.createElement('strong');
             promptDiv.appendChild(promptStrong);
-            await typeTextInElement(promptStrong, 'Prompt:', 10);
+            await typeTextInElement(promptStrong, 'Prompt:', 5);
             const promptPre = document.createElement('pre');
             promptPre.className = 'mt-1 whitespace-pre-wrap bg-gray-50 p-2 rounded';
             promptDiv.appendChild(promptPre);
-            await typeTextInElement(promptPre, data.prompt || 'N/A', 2);
+            await typeTextInElement(promptPre, data.prompt || 'N/A', 1);
 
             // Response
             const responseDiv = document.createElement('div');
@@ -2390,11 +2390,11 @@
             div.appendChild(responseDiv);
             const responseStrong = document.createElement('strong');
             responseDiv.appendChild(responseStrong);
-            await typeTextInElement(responseStrong, 'Response:', 10);
+            await typeTextInElement(responseStrong, 'Response:', 5);
             const responsePre = document.createElement('pre');
             responsePre.className = 'mt-1 whitespace-pre-wrap bg-gray-50 p-2 rounded';
             responseDiv.appendChild(responsePre);
-            await typeTextInElement(responsePre, data.response || 'N/A', 2);
+            await typeTextInElement(responsePre, data.response || 'N/A', 1);
         }
 
         // Expected
@@ -2403,11 +2403,11 @@
         div.appendChild(expectedDiv);
         const expectedStrong = document.createElement('strong');
         expectedDiv.appendChild(expectedStrong);
-        await typeTextInElement(expectedStrong, 'Expected:', 10);
+        await typeTextInElement(expectedStrong, 'Expected:', 5);
         const expectedPre = document.createElement('pre');
         expectedPre.className = 'mt-1 whitespace-pre-wrap bg-gray-50 p-2 rounded';
         expectedDiv.appendChild(expectedPre);
-        await typeTextInElement(expectedPre, data.expected || 'N/A', 2);
+        await typeTextInElement(expectedPre, data.expected || 'N/A', 1);
 
         // 品質指標（あれば）
         if (data.taskCompletion !== undefined && data.taskCompletion !== null) {
@@ -2471,10 +2471,10 @@
         div.appendChild(rationaleDiv);
         const rationaleStrong = document.createElement('strong');
         rationaleDiv.appendChild(rationaleStrong);
-        await typeTextInElement(rationaleStrong, 'Rationale: ', 10);
+        await typeTextInElement(rationaleStrong, 'Rationale: ', 5);
         const rationaleSpan = document.createElement('span');
         rationaleDiv.appendChild(rationaleSpan);
-        await typeTextInElement(rationaleSpan, data.rationale || 'N/A', 2);
+        await typeTextInElement(rationaleSpan, data.rationale || 'N/A', 1);
     }
 
     // ==== End of Section Streaming Renderer ====
@@ -2878,6 +2878,35 @@
         // Round info is logged but no separate UI element needed
     });
 
+    // Final Judge streaming chunks (リアルタイム逐次表示)
+    juryStream.on('final_judge_chunk', (data) => {
+        const finalJudgeContent = document.getElementById('final-judge-content');
+        if (!finalJudgeContent) return;
+
+        // プレースホルダーを初回チャンクで削除
+        const placeholder = finalJudgeContent.querySelector('.magi-chat-placeholder');
+        if (placeholder) placeholder.remove();
+
+        // ストリーミング用メッセージ要素を取得または作成
+        let streamEl = finalJudgeContent.querySelector('.magi-chat-message.streaming');
+        if (!streamEl) {
+            streamEl = document.createElement('div');
+            streamEl.className = 'magi-chat-message streaming';
+            finalJudgeContent.appendChild(streamEl);
+
+            // ステータスを「生成中...」に
+            const finalJudgeStatus = document.getElementById('final-judge-status');
+            if (finalJudgeStatus) {
+                finalJudgeStatus.textContent = '生成中...';
+                finalJudgeStatus.className = 'magi-final-judge-status judging';
+            }
+        }
+
+        // チャンクを追記
+        streamEl.textContent += data.chunk;
+        finalJudgeContent.scrollTop = finalJudgeContent.scrollHeight;
+    });
+
     // Final judgment handler (Phase 3) - MAGI System (Evangelion Triangular Layout)
     juryStream.on('final_judgment', (data) => {
         console.log('[DEBUG] ⚖️ final_judgment event handler called with data:', data);
@@ -2963,11 +2992,10 @@
             finalJudgeStatus.className = 'magi-final-judge-status complete';
         }
 
-        // Update FINAL JUDGE section content with typing animation
-        // rationale（最終ジャッジの評価理由）を優先表示
+        // Update FINAL JUDGE section content
+        // ストリーミングで既に表示済みの場合はスキップ
         const finalJudgeContent = document.getElementById('final-judge-content');
         if (finalJudgeContent) {
-            // データから評価理由を取得（複数のキー名に対応）
             const finalJudgeResponse = data.rationale || data.finalJudgeRationale || data.finalRationale || '';
             console.log('[DEBUG] FINAL JUDGE rationale:', finalJudgeResponse);
             console.log('[DEBUG] FINAL JUDGE data keys:', Object.keys(data));
@@ -2976,27 +3004,32 @@
             const placeholder = finalJudgeContent.querySelector('.magi-chat-placeholder');
             if (placeholder) placeholder.remove();
 
-            if (finalJudgeResponse) {
-                // Add rationale message with typing animation
+            // ストリーミングチャンクで既に表示済みかチェック
+            const streamEl = finalJudgeContent.querySelector('.magi-chat-message.streaming');
+            if (streamEl) {
+                // ストリーミング済み: 最終テキストで上書きしてクラスを確定
+                streamEl.classList.remove('streaming');
+                if (finalJudgeResponse) {
+                    streamEl.textContent = finalJudgeResponse;
+                }
+            } else if (finalJudgeResponse) {
+                // ストリーミングなし（フォールバック）: typing animation
                 const messageEl = document.createElement('div');
                 messageEl.className = 'magi-chat-message typing';
                 finalJudgeContent.appendChild(messageEl);
 
-                // Typing animation（最終ジャッジのみスクロール許可）
                 let charIndex = 0;
                 const typingInterval = setInterval(() => {
                     if (charIndex < finalJudgeResponse.length) {
                         messageEl.textContent = finalJudgeResponse.substring(0, charIndex + 1);
                         charIndex++;
-                        // 最終ジャッジのみチャットボックス内スクロール許可
                         finalJudgeContent.scrollTop = finalJudgeContent.scrollHeight;
                     } else {
                         messageEl.classList.remove('typing');
                         clearInterval(typingInterval);
                     }
-                }, 5);  // 5msで高速表示
+                }, 5);
             } else {
-                // rationaleがない場合はサマリーを表示
                 const summaryText = `Trust Score: ${Math.floor(trustScore)}点 / 判定: ${verdict === 'safe_pass' ? '可決' : (verdict === 'unsafe_fail' ? '否決' : '要確認')}`;
                 const messageEl = document.createElement('div');
                 messageEl.className = 'magi-chat-message';

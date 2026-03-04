@@ -1630,37 +1630,76 @@ def run_security_gate(
           )
 
           response_parts: List[str] = []
+          # エージェント呼び出しのタイムアウト（安全性フィルタでブロックされた場合に長時間待たない）
+          agent_timeout = float(os.getenv("SECURITY_GATE_AGENT_TIMEOUT", str(timeout)))
           try:
-            async for event in runner.run_async(
-              user_id=user_id or "security-gate",
-              session_id=a2a_session_id,
-              new_message=types.Content(parts=[types.Part(text=prepared_text)], role="user")
-            ):
-              if hasattr(event, "content") and event.content:
-                if isinstance(event.content, str):
-                  response_parts.append(event.content)
-                elif hasattr(event.content, "parts"):
-                  for part in event.content.parts:
-                    if hasattr(part, "text") and part.text:
-                      response_parts.append(part.text)
+            async def _collect_response():
+              async for event in runner.run_async(
+                user_id=user_id or "security-gate",
+                session_id=a2a_session_id,
+                new_message=types.Content(parts=[types.Part(text=prepared_text)], role="user")
+              ):
+                if hasattr(event, "content") and event.content:
+                  if isinstance(event.content, str):
+                    response_parts.append(event.content)
+                  elif hasattr(event.content, "parts"):
+                    for part in event.content.parts:
+                      if hasattr(part, "text") and part.text:
+                        response_parts.append(part.text)
 
-                # Extract function calls (tool usage) - CRITICAL FOR AGENTS USING TOOLS
-                # Reference: orchestration_agent.py lines 221-235
-                try:
-                  function_calls = event.get_function_calls()
-                  if function_calls:
-                    logger.info(f"Security Gate: Tool calls detected: {[fc.name for fc in function_calls]}")
-                except Exception:
-                  pass
+                  # Extract function calls (tool usage) - CRITICAL FOR AGENTS USING TOOLS
+                  # Reference: orchestration_agent.py lines 221-235
+                  try:
+                    function_calls = event.get_function_calls()
+                    if function_calls:
+                      logger.info(f"Security Gate: Tool calls detected: {[fc.name for fc in function_calls]}")
+                  except Exception:
+                    pass
 
-                # Extract function responses (tool results) - CRITICAL FOR AGENTS USING TOOLS
-                # Reference: orchestration_agent.py lines 237-251
-                try:
-                  function_responses = event.get_function_responses()
-                  if function_responses:
-                    logger.info(f"Security Gate: Tool responses detected: {[fr.name for fr in function_responses]}")
-                except Exception:
-                  pass
+                  # Extract function responses (tool results) - CRITICAL FOR AGENTS USING TOOLS
+                  # Reference: orchestration_agent.py lines 237-251
+                  try:
+                    function_responses = event.get_function_responses()
+                    if function_responses:
+                      logger.info(f"Security Gate: Tool responses detected: {[fr.name for fr in function_responses]}")
+                  except Exception:
+                    pass
+
+            await asyncio.wait_for(_collect_response(), timeout=agent_timeout)
+          except asyncio.TimeoutError:
+            logger.warning(f"Agent invocation timed out after {agent_timeout}s (safety filter block likely), skipping to next prompt")
+            results_local.append(
+              AttackResult(
+                prompt_id=prompt.prompt_id,
+                prompt_text=prepared_text,
+                requirement=prompt.requirement,
+                response_text=None,
+                verdict="needs_review",
+                reason=f"エージェント応答タイムアウト ({agent_timeout}s) - セーフティブロックの可能性",
+                dataset_source=prompt.dataset_source,
+                priority=prompt.priority,
+                metadata={
+                  "perspective": prompt.perspective,
+                  "gsnPerspective": prompt.gsn_perspective,
+                  "timestamp": int(time.time()),
+                  "basePrompt": prompt.text
+                }
+              )
+            )
+            if sse_callback:
+              _notify_sse_sync(sse_callback, {
+                "type": "security_scenario_result",
+                "scenario_index": idx,
+                "total_scenarios": len(enriched_prompts),
+                "category": "needs_review",
+                "verdict": "needs_review",
+                "rationale": f"エージェント応答タイムアウト ({agent_timeout}s)",
+                "is_batch_update": True,
+                "promptId": prompt.prompt_id,
+                "prompt": (prepared_text or "")[:500],
+                "response": "",
+              })
+            continue
           except Exception as exc:
             results_local.append(
               AttackResult(
