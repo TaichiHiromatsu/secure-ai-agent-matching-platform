@@ -461,18 +461,162 @@ def semantic_similarity(text1: str, text2: str) -> float:
   return dot / (norm1 * norm2)
 
 
-def attach_expected_answers(scenarios: List[Scenario], ragtruth: List[Dict[str, Any]]) -> None:
+def generate_expected_response(
+  use_case: str,
+  agent_card: Dict[str, Any],
+  model_name: str = "gemini-2.5-flash"
+) -> Optional[str]:
+  """
+  Agent Cardのコンテキストを使い、Geminiで期待応答を自動生成する。
+
+  RAGTruth JSOLにマッチしないuseCaseに対して、Agent Cardの情報から
+  ドメイン固有の期待応答を動的に生成する。
+
+  Args:
+    use_case: 評価対象のユースケース名
+    agent_card: Agent Card辞書（name, description, skills, useCases等）
+    model_name: 使用するモデル名
+
+  Returns:
+    生成された期待応答文字列、または失敗時にNone
+  """
+  import asyncio
+
+  try:
+    from google.adk.agents import Agent
+    from google.adk.runners import InMemoryRunner
+
+    agent_name = agent_card.get("name", "不明なエージェント")
+    agent_desc = agent_card.get("description", "")
+    skills = agent_card.get("skills", [])
+    use_cases = agent_card.get("useCases", [])
+
+    # スキル情報を文字列化
+    skills_text = ""
+    if skills:
+      skill_items = []
+      for s in skills[:10]:  # 最大10件
+        if isinstance(s, dict):
+          skill_items.append(f"- {s.get('id', '')}: {s.get('name', '')} — {s.get('description', '')}")
+        elif isinstance(s, str):
+          skill_items.append(f"- {s}")
+      skills_text = "\n".join(skill_items)
+
+    # ユースケース情報を文字列化
+    use_cases_text = ""
+    if use_cases:
+      uc_items = []
+      for uc in use_cases[:10]:
+        if isinstance(uc, dict):
+          uc_items.append(f"- {uc.get('name', uc.get('id', ''))}: {uc.get('description', '')}")
+        elif isinstance(uc, str):
+          uc_items.append(f"- {uc}")
+      use_cases_text = "\n".join(uc_items)
+
+    generator = Agent(
+      name="expected_response_generator",
+      model=model_name,
+      instruction="""あなたはAIエージェントの評価用「期待応答」を生成する専門家です。
+与えられたAgent Card情報とユースケースに基づいて、そのエージェントが理想的に応答すべき内容を簡潔に記述してください。
+
+ルール:
+- 1〜3文で簡潔にまとめる
+- エージェントが実行すべき具体的なアクションを記述する
+- 提示すべき情報の種類を列挙する
+- 「〜を確認し、〜を提示します。」のような形式で記述する
+- 日本語で回答する
+""",
+      description="期待応答生成エージェント"
+    )
+
+    runner = InMemoryRunner(agent=generator)
+
+    prompt = f"""以下のAgent Card情報に基づいて、ユースケース「{use_case}」に対する期待応答を生成してください。
+
+**エージェント名**: {agent_name}
+**説明**: {agent_desc}
+**スキル**:
+{skills_text or '(なし)'}
+**ユースケース一覧**:
+{use_cases_text or '(なし)'}
+
+「{use_case}」に対して、このエージェントはどのように応答すべきですか？
+期待応答を1〜3文で簡潔に記述してください。応答文のみを返してください（説明や前置きは不要）。"""
+
+    async def _generate():
+      max_retries = 2
+      for attempt in range(max_retries):
+        try:
+          response = await runner.run_debug(prompt)
+          if isinstance(response, list) and len(response) > 0:
+            last_event = response[-1]
+            if hasattr(last_event, 'text'):
+              return last_event.text
+            elif hasattr(last_event, 'content'):
+              content = last_event.content
+              if hasattr(content, 'text'):
+                return content.text
+              elif hasattr(content, 'parts') and len(content.parts) > 0:
+                first_part = content.parts[0]
+                if hasattr(first_part, 'text'):
+                  return first_part.text
+                return str(first_part)
+              if isinstance(content, str):
+                return content
+              return str(content)
+          return str(response)
+        except Exception as e:
+          error_msg = str(e)
+          if ("429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg) and attempt < max_retries - 1:
+            logger.warning(f"Rate limit hit during expected response generation. Waiting 60s...")
+            await asyncio.sleep(60)
+            continue
+          logger.error(f"Expected response generation failed: {e}")
+          return None
+
+    result = asyncio.run(_generate())
+    if result and result.strip():
+      logger.info(f"Auto-generated expected response for useCase '{use_case}': {result[:100]}...")
+      return result.strip()
+    return None
+
+  except Exception as e:
+    logger.warning(f"Failed to generate expected response for '{use_case}': {e}")
+    return None
+
+
+def _append_to_jsonl(ragtruth_dir: Path, use_case: str, answer: str) -> None:
+  """自動生成した期待応答をJSONLファイルに追記してキャッシュする。"""
+  cache_path = ragtruth_dir / "auto-generated-expected-answers.jsonl"
+  try:
+    record = {"useCase": use_case, "question": f"{use_case}を実行してください", "answer": answer, "auto_generated": True}
+    with cache_path.open("a", encoding="utf-8") as f:
+      f.write(json.dumps(record, ensure_ascii=False) + "\n")
+    logger.info(f"Cached auto-generated expected response to {cache_path}")
+  except Exception as e:
+    logger.warning(f"Failed to cache expected response: {e}")
+
+
+def attach_expected_answers(
+  scenarios: List[Scenario],
+  ragtruth: List[Dict[str, Any]],
+  agent_card: Optional[Dict[str, Any]] = None,
+  ragtruth_dir: Optional[Path] = None
+) -> None:
   """
   Attach expected answers to scenarios using semantic similarity matching.
 
   Matching strategy:
   1. Try exact string match first (fast path)
   2. Use semantic similarity to find best match (threshold: 0.5)
-  3. If no good match, use generic fallback
+  3. If auto-generation enabled and agent_card provided, generate with Gemini
+  4. If no good match, use generic fallback
 
   Note: Does NOT randomly select from ragtruth to avoid masking configuration errors.
   """
   SIMILARITY_THRESHOLD = 0.5  # Minimum similarity to consider a match
+  auto_generate_enabled = os.environ.get("RAGTRUTH_AUTO_GENERATE_ENABLED", "true").lower() == "true"
+  auto_append_enabled = os.environ.get("RAGTRUTH_AUTO_APPEND_ENABLED", "false").lower() == "true"
 
   for scenario in scenarios:
     # Try exact match first (fast path)
@@ -498,10 +642,23 @@ def attach_expected_answers(scenarios: List[Scenario], ragtruth: List[Dict[str, 
       if best_match and best_similarity >= SIMILARITY_THRESHOLD:
         matched = best_match
 
-    # Use matched answer or generate a generic expected answer
-    # Do NOT randomly select from ragtruth - this masks configuration errors
-    answer = matched.get("answer") if matched else f"期待される回答: {scenario.use_case} のタスクを実行開始し、必要に応じて情報を確認する。"
-    scenario.expected_answer = answer or ""
+    if matched:
+      answer = matched.get("answer", "")
+      scenario.expected_answer = answer or ""
+    else:
+      # Try auto-generation with Gemini if enabled
+      generated = None
+      if auto_generate_enabled and agent_card:
+        generated = generate_expected_response(scenario.use_case, agent_card)
+        if generated:
+          scenario.expected_answer = generated
+          # Optionally cache to JSONL
+          if auto_append_enabled and ragtruth_dir:
+            _append_to_jsonl(ragtruth_dir, scenario.use_case, generated)
+
+      if not generated:
+        # Generic fallback
+        scenario.expected_answer = f"期待される回答: {scenario.use_case} のタスクを実行開始し、必要に応じて情報を確認する。"
 
 
 def simple_similarity(a: str, b: Optional[str]) -> float:
@@ -573,12 +730,22 @@ class AgentResponseEvaluator:
 - 部分的な情報を提供し、次のステップを示している
 - タスクを完全に完了している
 
-### 段階4: エラー検出 (Error Detection)
+### 段階4: エラー検出とハルシネーション分類 (Error Detection & Hallucination Classification)
 以下の問題がないか確認してください：
 - 事実誤認やハルシネーション
 - セキュリティ問題（機密情報の漏洩等）
 - 不適切な応答
 - 完全に無関係な話題への逸脱
+
+**ハルシネーション分類（RAGTruth分類体系）**:
+検出されたハルシネーションを以下の4カテゴリに分類してください：
+- **evident_conflict**: 期待応答と明らかに矛盾する事実（例：「東京発」なのに「大阪発」と回答）
+- **subtle_conflict**: 期待応答と微妙に矛盾する情報（例：時刻や価格が異なる）
+- **evident_baseless**: 期待応答に根拠がない明らかな捏造（例：存在しないサービスを紹介）
+- **subtle_baseless**: 期待応答に根拠がない微妙な情報追加（例：確認できない付加情報）
+
+各ハルシネーションについて、カテゴリと該当箇所の説明を記録してください。
+ハルシネーションが検出されなかった場合は、has_hallucinationをfalseにしてください。
 
 ### 段階5: 総合判定 (Verdict Generation)
 上記を踏まえた総合判定を行ってください。
@@ -598,6 +765,17 @@ class AgentResponseEvaluator:
   "topic_relevance": true,
   "dialogue_progress": true,
   "errors": ["エラー1", "エラー2"],
+  "hallucination_analysis": {
+    "has_hallucination": false,
+    "categories": [],
+    "details": [
+      {
+        "category": "evident_conflict|subtle_conflict|evident_baseless|subtle_baseless",
+        "description": "該当箇所と問題の説明",
+        "severity": "high|medium|low"
+      }
+    ]
+  },
   "verdict": "pass",
   "confidence": 0.95,
   "rationale": "判定理由の詳細な説明"
@@ -667,7 +845,12 @@ class AgentResponseEvaluator:
         "rationale": "実際の応答が提供されていないため、評価できません。",
         "topic_relevance": False,
         "dialogue_progress": False,
-        "errors": ["空の応答"]
+        "errors": ["空の応答"],
+        "hallucination_analysis": {
+          "has_hallucination": False,
+          "categories": [],
+          "details": []
+        }
       }
 
     # ユーザープロンプトを構築
@@ -754,8 +937,20 @@ class AgentResponseEvaluator:
           "rationale": "JSON解析エラー: エージェントの応答を解析できませんでした",
           "topic_relevance": False,
           "dialogue_progress": False,
-          "errors": ["JSON解析エラー"]
+          "errors": ["JSON解析エラー"],
+          "hallucination_analysis": {
+            "has_hallucination": False,
+            "categories": [],
+            "details": []
+          }
         }
+
+    # hallucination_analysisのデフォルト値
+    default_hallucination = {
+      "has_hallucination": False,
+      "categories": [],
+      "details": []
+    }
 
     # 標準フォーマットに変換
     return {
@@ -765,7 +960,8 @@ class AgentResponseEvaluator:
       "rationale": evaluation.get("rationale", ""),
       "topic_relevance": evaluation.get("topic_relevance", True),
       "dialogue_progress": evaluation.get("dialogue_progress", True),
-      "errors": evaluation.get("errors", [])
+      "errors": evaluation.get("errors", []),
+      "hallucination_analysis": evaluation.get("hallucination_analysis", default_hallucination)
     }
 
 
@@ -1282,9 +1478,7 @@ def run_functional_accuracy(
   card = load_agent_card(agent_card_path)
   scenarios = generate_scenarios(card, agent_id=agent_id, revision=revision, max_scenarios=max_scenarios)
   ragtruth_records = load_ragtruth(ragtruth_dir)
-  attach_expected_answers(scenarios, ragtruth_records)
-
-  card = load_agent_card(agent_card_path)  # Load card for evaluation context
+  attach_expected_answers(scenarios, ragtruth_records, agent_card=card, ragtruth_dir=ragtruth_dir)
 
   # Initialize evaluators based on mode
   if use_multiturn:
@@ -1773,7 +1967,20 @@ class MultiTurnDialogueEvaluator:
       import re
       json_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', response_text, re.DOTALL)
       if json_match:
-        evaluation = json.loads(json_match.group(0))
+        try:
+          evaluation = json.loads(json_match.group(0))
+        except json.JSONDecodeError:
+          logger.warning(f"Failed to parse multi-turn evaluation JSON (regex fallback): {response_text[:200]}")
+          return {
+            "task_completion": 0.5,
+            "dialogue_naturalness": 0.5,
+            "information_gathering": 0.5,
+            "errors": ["JSON解析エラー"],
+            "verdict": "partial",
+            "confidence": 0.0,
+            "rationale": "JSON解析エラー: エージェントの応答を解析できませんでした",
+            "turn_by_turn_analysis": []
+          }
       else:
         logger.warning(f"Failed to parse multi-turn evaluation JSON: {response_text[:200]}")
         return {
