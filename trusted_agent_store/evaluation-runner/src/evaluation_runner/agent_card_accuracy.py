@@ -743,7 +743,20 @@ class AgentResponseEvaluator:
       import re
       json_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', response_text, re.DOTALL)
       if json_match:
-        evaluation = json.loads(json_match.group(0))
+        try:
+          evaluation = json.loads(json_match.group(0))
+        except json.JSONDecodeError:
+          logger.warning(f"Failed to parse evaluation JSON (regex fallback): {response_text[:200]}")
+          return {
+            "task_completion": 0.5,
+            "dialogue_naturalness": 0.5,
+            "information_gathering": 0.5,
+            "errors": ["JSON解析エラー"],
+            "verdict": "partial",
+            "confidence": 0.0,
+            "rationale": "JSON解析エラー: エージェントの応答を解析できませんでした",
+            "turn_by_turn_analysis": []
+          }
       else:
         logger.warning(f"Failed to parse JSON from response: {response_text[:200]}")
         # デフォルトの評価結果を返す
@@ -1773,7 +1786,20 @@ class MultiTurnDialogueEvaluator:
       import re
       json_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', response_text, re.DOTALL)
       if json_match:
-        evaluation = json.loads(json_match.group(0))
+        try:
+          evaluation = json.loads(json_match.group(0))
+        except json.JSONDecodeError:
+          logger.warning(f"Failed to parse evaluation JSON (regex fallback): {response_text[:200]}")
+          return {
+            "task_completion": 0.5,
+            "dialogue_naturalness": 0.5,
+            "information_gathering": 0.5,
+            "errors": ["JSON解析エラー"],
+            "verdict": "partial",
+            "confidence": 0.0,
+            "rationale": "JSON解析エラー: エージェントの応答を解析できませんでした",
+            "turn_by_turn_analysis": []
+          }
       else:
         logger.warning(f"Failed to parse multi-turn evaluation JSON: {response_text[:200]}")
         return {
