@@ -991,16 +991,44 @@ def process_submission(submission_id: str):
 
             # SSE callback is already defined above and shared across all stages
 
-            judge_summary = run_judge_panel(
-                agent_id=submission.agent_id,
-                revision="v1",
-                agent_card_path=agent_card_path,
-                output_dir=output_dir / "judge",
-                dry_run=False,
-                security_gate_results=security_gate_results,
-                agent_card_accuracy=agent_card_accuracy,
-                sse_callback=sse_callback
-            )
+            try:
+                judge_summary = run_judge_panel(
+                    agent_id=submission.agent_id,
+                    revision="v1",
+                    agent_card_path=agent_card_path,
+                    output_dir=output_dir / "judge",
+                    dry_run=False,
+                    security_gate_results=security_gate_results,
+                    agent_card_accuracy=agent_card_accuracy,
+                    sse_callback=sse_callback
+                )
+            except Exception as judge_exc:
+                print(f"Error in run_judge_panel for {submission_id}: {judge_exc}")
+                import traceback
+                traceback.print_exc()
+                # フォールバック: 手動レビューに回す
+                judge_summary = {
+                    "trust_score": 0,
+                    "task_completion": 0,
+                    "tool": 0,
+                    "autonomy": 0,
+                    "safety": 0,
+                    "verdict": "manual",
+                    "manual": 1,
+                    "reject": 0,
+                    "approve": 0,
+                    "totalScenarios": 0,
+                    "passCount": 0,
+                    "failCount": 0,
+                    "needsReviewCount": 0,
+                    "scenarios": [],
+                    "error": str(judge_exc),
+                }
+                # SSEでエラーを通知
+                try:
+                    asyncio.run(notify_stage_update(submission_id, "judge", "failed"))
+                except RuntimeError as e:
+                    print(f"[SSE] Could not send judge failure notification: {e}")
 
             wandb_logger.log_stage_summary("judge", judge_summary)
             wandb_logger.save_artifact("judge", output_dir / "judge" / "jury_judge_report.jsonl", name="judge-report")
@@ -1138,11 +1166,14 @@ def process_submission(submission_id: str):
             db.commit()
 
             # Notify UI that Judge stage is completed
-            asyncio.run(notify_stage_update(submission_id, "judge", "completed"))
-            asyncio.run(notify_score_update(submission_id, {
-                "trust_score": submission.trust_score,
-                "judge_summary": enhanced_judge_summary,
-            }))
+            try:
+                asyncio.run(notify_stage_update(submission_id, "judge", "completed"))
+                asyncio.run(notify_score_update(submission_id, {
+                    "trust_score": submission.trust_score,
+                    "judge_summary": enhanced_judge_summary,
+                }))
+            except RuntimeError as e:
+                print(f"[SSE] Could not send Judge completion notification: {e}")
 
             print(f"Judge Panel completed for submission {submission_id}, trust score: {trust_score_from_judge}")
 
@@ -1175,10 +1206,13 @@ def process_submission(submission_id: str):
                 if publish_summary.get("status") == "published":
                     submission.state = "published"
                 # Send SSE notification for auto_approved -> published with stage updates
-                asyncio.run(notify_state_change(submission_id, old_state, submission.state, {
-                    "human": {"status": "skipped"},
-                    "publish": {"status": "completed"}
-                }))
+                try:
+                    asyncio.run(notify_state_change(submission_id, old_state, submission.state, {
+                        "human": {"status": "skipped"},
+                        "publish": {"status": "completed"}
+                    }))
+                except RuntimeError as e:
+                    print(f"[SSE] Could not send auto_approved notification: {e}")
             elif decision == "auto_rejected":
                 submission.state = "rejected"
                 # Update stages for progress bar: mark human and publish as skipped/failed
@@ -1193,10 +1227,13 @@ def process_submission(submission_id: str):
                 submission.score_breakdown = current_breakdown
                 flag_modified(submission, "score_breakdown")
                 # Send SSE notification for auto_rejected with stage updates
-                asyncio.run(notify_state_change(submission_id, old_state, submission.state, {
-                    "human": {"status": "skipped"},
-                    "publish": {"status": "failed"}
-                }))
+                try:
+                    asyncio.run(notify_state_change(submission_id, old_state, submission.state, {
+                        "human": {"status": "skipped"},
+                        "publish": {"status": "failed"}
+                    }))
+                except RuntimeError as e:
+                    print(f"[SSE] Could not send auto_rejected notification: {e}")
             else:
                 submission.state = "under_review"
                 # Update stages for progress bar: mark human as running
@@ -1207,9 +1244,12 @@ def process_submission(submission_id: str):
                 submission.score_breakdown = current_breakdown
                 flag_modified(submission, "score_breakdown")
                 # Send SSE notification for under_review with stage updates
-                asyncio.run(notify_state_change(submission_id, old_state, submission.state, {
-                    "human": {"status": "running"}
-                }))
+                try:
+                    asyncio.run(notify_state_change(submission_id, old_state, submission.state, {
+                        "human": {"status": "running"}
+                    }))
+                except RuntimeError as e:
+                    print(f"[SSE] Could not send under_review notification: {e}")
         else:
             judge_summary = None
             submission.trust_score = 0
@@ -1260,6 +1300,12 @@ def process_submission(submission_id: str):
         submission.state = "failed"
         submission.updated_at = datetime.utcnow()
         db.commit()
+
+        # UIに失敗を通知（SSEイベント送信）
+        try:
+            asyncio.run(notify_state_change(submission_id, "judge_panel_running", "failed", {}))
+        except Exception:
+            pass  # 通知失敗は無視（DB更新は完了済み）
     finally:
         db.close()
 
