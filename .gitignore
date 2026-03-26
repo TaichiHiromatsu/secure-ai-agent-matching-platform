@@ -150,3 +150,7 @@ trusted_agent_store/jury-judge-worker/.env.inspect
 *.old
 
 trusted_agent_store/wandb/
+
+# Local development artifacts
+.pids/
+.venv_batch/
