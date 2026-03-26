@@ -150,6 +150,7 @@ trusted_agent_store/jury-judge-worker/.env.inspect
 *.old
 
 trusted_agent_store/wandb/
+trusted_agent_store/evaluation-runner/artifacts/
 
 # Local development artifacts
 .pids/

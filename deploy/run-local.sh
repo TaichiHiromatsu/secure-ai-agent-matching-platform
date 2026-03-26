@@ -33,7 +33,11 @@ for arg in "$@"; do
 done
 
 # Image settings (same as Cloud Run)
-PROJECT_ID="${GCP_PROJECT_ID:-gen-lang-client-0585901015}"
+if [ -z "${GCP_PROJECT_ID}" ]; then
+    echo "Error: GCP_PROJECT_ID is not set. Set it in .env or export it."
+    exit 1
+fi
+PROJECT_ID="${GCP_PROJECT_ID}"
 REGION="${GCP_REGION:-asia-northeast1}"
 SERVICE_NAME="${SERVICE_NAME:-secure-mediation-a2a-platform}"
 IMAGE_BASE="${REGION}-docker.pkg.dev/${PROJECT_ID}/secure-mediation-agent/${SERVICE_NAME}"
