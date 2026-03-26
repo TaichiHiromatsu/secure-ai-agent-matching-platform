@@ -17,6 +17,7 @@
 [![A2A Protocol](https://img.shields.io/badge/A2A-v0.3-green.svg)](https://developers.googleblog.com/en/a2a-a-new-era-of-agent-interoperability/)
 [![Python](https://img.shields.io/badge/Python-3.12+-blue.svg)](https://www.python.org/)
 [![Tech Blog](https://img.shields.io/badge/Tech%20Blog-解説記事-orange.svg)](https://techblog.insightedge.jp/entry/geniac-prize-secure-a2a-platform)
+[![Zenn](https://img.shields.io/badge/Zenn-解説記事-3EA8FF.svg)](https://zenn.dev/family_chicken/articles/baad16ee633be5)
 
 ## 📋 目次
 
@@ -240,21 +241,13 @@ sequenceDiagram
 
 ---
 
-## 🎬 GENIAC-PRIZE審査員の方向けデモ再現手順
+## 🎬 デモ環境
 
-Cloud Run上にデモ環境を用意しています。ブラウザからアクセスしてお試しください。
+Cloud Run上にデモ環境をデプロイできます。デプロイ手順は `deploy/deploy-cloudrun.sh` を参照してください。
 
-### デモ環境へのアクセス
-
-1. **ブラウザで以下のURLにアクセス**
-   - 仲介エージェントデモ: https://secure-mediation-a2a-platform-343404053218.asia-northeast1.run.app/dev-ui/
-   - エージェントストアデモ: https://secure-mediation-a2a-platform-343404053218.asia-northeast1.run.app/store/
-
-2. **ログイン**
-   - 別途お渡ししているメールアドレスとパスワードでログインしてください
-
-3. **デモの詳細**
-   - 詳細な操作手順はログイン後の画面を参照してください
+デプロイ後、以下のパスでアクセスできます:
+- 仲介エージェントデモ: `https://<YOUR_CLOUD_RUN_URL>/dev-ui/`
+- エージェントストアデモ: `https://<YOUR_CLOUD_RUN_URL>/store/`
 
 > 💻 **開発者向け**: ローカル環境での実行は [docs/LOCAL_DEVELOPMENT.md](docs/LOCAL_DEVELOPMENT.md) を参照してください
 
@@ -424,7 +417,8 @@ Apache License 2.0
 
 ## 🔗 関連リンク
 
-- [本プラットフォームの技術解説ブログ](https://techblog.insightedge.jp/entry/geniac-prize-secure-a2a-platform)
+- [本プラットフォームの技術解説ブログ（InsightEdge）](https://techblog.insightedge.jp/entry/geniac-prize-secure-a2a-platform)
+- [AIエージェント同士の通信を安全にする仲介プラットフォームを作った話（Zenn）](https://zenn.dev/family_chicken/articles/baad16ee633be5)
 - [Google ADK Documentation](https://google.github.io/adk-docs/)
 - [A2A Protocol Specification](https://developers.googleblog.com/en/a2a-a-new-era-of-agent-interoperability/)
 - [GENIAC-PRIZE 公式サイト](https://geniac.io/)
