@@ -5,7 +5,7 @@
 > 本プロジェクトは [GENIAC-PRIZE 2025（領域03 セキュリティ分野）](https://geniac.io/) に提出した作品を原典とし、**Another Star合同会社**が継続開発・運用を行うリポジトリです。
 >
 > - 原典リポジトリ: [TaichiHiromatsu/secure-ai-agent-matching-platform](https://github.com/TaichiHiromatsu/secure-ai-agent-matching-platform)（GENIAC-PRIZE 提出用）
-> - アイディア原案: **広松太一**（Another Star合同会社）
+> - アイディア原案: **広松太一**
 
 外部企業が公開するAIエージェントとのA2A（Agent-to-Agent）通信における**セキュリティリスクを解決**する、AISI（AIセーフティ・インスティテュート）の評価基準に準拠した**国産OSSエージェント仲介プラットフォーム**です。
 
@@ -410,7 +410,7 @@ Apache License 2.0
 
 ## 👥 開発者
 
-- **アイディア原案・リード**: 広松太一（Another Star合同会社）
+- **アイディア原案・リード**: 広松太一
 - **原典**: GENIAC-PRIZE 2025 提出チーム
 
 ---
