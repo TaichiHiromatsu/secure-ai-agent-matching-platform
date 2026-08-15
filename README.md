@@ -318,6 +318,40 @@ graph LR
 | [SECURITY_IMPLEMENTATION.md](docs/secure_mediation_agent_design/SECURITY_IMPLEMENTATION.md) | セキュア仲介エージェント セキュリティ実装詳細 |
 | [trusted_agent_store_design.md](docs/trusted_agent_store_design.md) | エージェントストア設計ドキュメント（AISEV v3.0準拠） |
 | [LOCAL_DEVELOPMENT.md](docs/LOCAL_DEVELOPMENT.md) | ローカル環境での実行手順 |
+| [AP2_X402_RESEARCH.md](docs/AP2_X402_RESEARCH.md) | AP2・x402・chain/Stripe・現行構成の調査 |
+| [AP2_X402_REQUIREMENTS.md](docs/AP2_X402_REQUIREMENTS.md) | Marketplace型決済仲介の要件定義 |
+| [AP2_X402_DESIGN.md](docs/AP2_X402_DESIGN.md) | 単一upstream charge、payable、guarantee、payoutの設計 |
+| [AP2_X402_RUNBOOK.md](docs/AP2_X402_RUNBOOK.md) | simulationの起動、E2E、障害回復、reset手順 |
+| [AP2_X402_DEMO_GUIDE.md](docs/AP2_X402_DEMO_GUIDE.md) | 対外実演用のシナリオ、プロンプト、10分台本、想定Q&A |
+
+### AP2 / x402 Marketplace 決済デモ
+
+決済対応外部agentの有料quoteを仲介が受け、ユーザー側agentへ一回だけ`payment-required`を返す。charge後は外部agentへ二度目の即時決済をせず、仲介台帳のmerchant payableと署名済み`platform-credit` guaranteeで履行を許可し、後からmanual payoutする。
+
+```mermaid
+sequenceDiagram
+    participant U as User agent
+    participant M as Mediation marketplace
+    participant E as Paid external agent
+    U->>M: A2A order
+    M->>E: signed quote request
+    E-->>M: platform-credit quote requirement
+    M-->>U: input-required / upstream payment-required
+    U->>M: AP2 closed mandates + x402-shaped proof
+    M->>M: single simulated charge + payable
+    M->>E: signed payment guarantee
+    E-->>M: fulfillment receipt
+    M-->>U: completed + separate AP2/x402 receipts
+    Note over M,E: merchant payout is a later operator lifecycle
+```
+
+このprofileは実資産を動かさないproject-local simulationで、標準適合や法的保証を表さない。コンテナ起動後、次で正常系、manual payout、fulfillment failure、全額refundを検証できる。
+
+画面実演ではADK Webのagent選択から`payment_user_agent`を選び、予約を依頼する。価格表示後に日本語で`承認`と送った場合だけ仲介決済を実行し、`yes`は承認として扱わない。
+
+```bash
+docker exec secure-a2a-payment-demo /app/scripts/verify_payment_demo.sh
+```
 
 ---
 

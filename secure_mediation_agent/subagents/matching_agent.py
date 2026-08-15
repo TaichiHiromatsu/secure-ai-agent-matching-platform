@@ -90,15 +90,25 @@ def _convert_agent_entry_to_matcher_format(agent: dict[str, Any]) -> dict[str, A
     else:
         trust_score = 50.0  # Default trust score (middle of 0-100 scale)
 
+    card_capabilities = agent.get("capabilities") or {}
+    derived_capabilities = {
+        "booking": any("booking" in t.lower() for t in tags),
+        "search": any("search" in t.lower() for t in tags),
+    }
+    # Preserve extension metadata as typed data. Payment proofs never traverse
+    # this matcher or its LLM-facing JSON result.
+    capabilities = {**derived_capabilities, **card_capabilities}
+    registered_skills = agent.get("skills") or []
+    if registered_skills:
+        skills = registered_skills
+
     return {
         "name": agent.get("name", "unknown"),
         "url": agent.get("endpoint_url") or agent.get("agent_card_url", ""),
         "description": ", ".join(use_cases) if use_cases else f"Agent: {agent.get('name', 'unknown')}",
         "skills": skills,
-        "capabilities": {
-            "booking": any("booking" in t.lower() for t in tags),
-            "search": any("search" in t.lower() for t in tags),
-        },
+        "capabilities": capabilities,
+        "protocolVersion": agent.get("protocol_version") or "0.3.0",
         "trust_score": trust_score,
         "defaultInputModes": ["text"],
         "defaultOutputModes": ["text"],

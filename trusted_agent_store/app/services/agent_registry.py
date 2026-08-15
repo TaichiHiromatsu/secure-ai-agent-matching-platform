@@ -10,7 +10,7 @@ import json
 import uuid
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, List, Optional
 
 import os
 
@@ -30,6 +30,9 @@ class AgentEntry:
     status: str = "active"
     use_cases: List[str] = field(default_factory=list)
     tags: List[str] = field(default_factory=list)
+    protocol_version: Optional[str] = None
+    capabilities: dict[str, Any] = field(default_factory=dict)
+    skills: List[dict[str, Any]] = field(default_factory=list)
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
     # Evaluation scores

@@ -48,7 +48,12 @@ COPY trusted_agent_store/data/agents/registered-agents.json /app/data/agents/
 # ============================================
 COPY secure_mediation_agent ./secure_mediation_agent/secure_mediation_agent
 COPY user-agent ./user-agent
+# The existing ADK Web scans /app/secure_mediation_agent for agent packages.
+# Include the demo user agent there so it appears in the same chat UI selector.
+COPY user-agent ./secure_mediation_agent/payment_user_agent
 COPY external-agents ./external-agents
+COPY scripts ./scripts
+RUN chmod +x /app/scripts/verify_payment_demo.sh /app/user-agent/payment_cli.py
 
 # ============================================
 # Firebase Authentication
@@ -70,11 +75,14 @@ COPY deploy/start-nginx.sh /app/start-nginx.sh
 RUN chmod +x /app/start.sh /app/start-nginx.sh
 
 # Create required directories
-RUN mkdir -p /var/log/nginx /var/log/supervisor /app/logs
+RUN mkdir -p /var/log/nginx /var/log/supervisor /app/logs /app/payment-data /app/payment-evidence \
+    && chmod 700 /app/payment-evidence
 
 # Set environment variables
-ENV PYTHONPATH=/app:/app/trusted_agent_store:/app/jury-judge-worker:/app/evaluation-runner/src
+ENV PYTHONPATH=/app:/app/secure_mediation_agent:/app/trusted_agent_store:/app/jury-judge-worker:/app/evaluation-runner/src
 ENV DATABASE_URL=sqlite:////app/trusted_agent_store/data/agent_store.db
+ENV PAYMENT_MARKETPLACE_DB=/app/payment-data/marketplace.db
+ENV PAYMENT_EVIDENCE_DB=/app/payment-evidence/evidence.db
 
 # Cloud Run uses port 8080
 EXPOSE 8080

@@ -95,5 +95,64 @@
     "created_at": "2025-01-18T10:00:00Z",
     "updated_at": "2025-12-13T15:00:00Z",
     "trust_score": 90
+  },
+  {
+    "id": "agent-005",
+    "name": "paid_booking_agent",
+    "provider": "Another Star Demo Marketplace",
+    "agent_card_url": "http://127.0.0.1:8005/.well-known/agent-card.json",
+    "endpoint_url": "http://127.0.0.1:8005",
+    "token_hint": "signed-platform-credit",
+    "status": "active",
+    "use_cases": [
+      "paid booking",
+      "payment-aware fulfillment",
+      "merchant payout status"
+    ],
+    "tags": [
+      "booking",
+      "payment",
+      "ap2",
+      "x402",
+      "platform-credit"
+    ],
+    "protocol_version": "0.3.0",
+    "capabilities": {
+      "extensions": [
+        {
+          "uri": "urn:secure-a2a:extensions:ap2-x402-marketplace:v1",
+          "required": true,
+          "params": {
+            "profile": "urn:secure-a2a:extensions:ap2-x402-marketplace:v1",
+            "simulated": true,
+            "sdkPackage": "a2a-sdk",
+            "sdkVersion": "0.3.19",
+            "wireProtocolVersion": "0.3.0",
+            "roles": ["merchant"],
+            "merchantCredit": {
+              "schemes": ["platform-credit"],
+              "networks": ["demo:mediation-ledger"]
+            }
+          }
+        }
+      ]
+    },
+    "skills": [
+      {
+        "id": "paid_booking",
+        "name": "Paid demo booking",
+        "description": "Fulfil a booking after mediator-signed platform credit",
+        "tags": ["booking", "payment", "platform-credit"]
+      },
+      {
+        "id": "payout_status",
+        "name": "Payout status",
+        "description": "Create a merchant-scoped payout status request",
+        "tags": ["payment", "payout", "status"]
+      }
+    ],
+    "created_at": "2026-08-15T00:00:00Z",
+    "updated_at": "2026-08-15T00:00:00Z",
+    "trust_score": 90
   }
 ]
