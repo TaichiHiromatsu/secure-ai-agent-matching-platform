@@ -155,6 +155,7 @@ artifacts/**/*.json
 !artifacts/browser-evidence.json
 !artifacts/ap2-x402-release-validation.json
 !artifacts/cloud-run-candidate.json
+!artifacts/cloud-run-deployment.json
 
 # Jury Judge Worker temporary files
 trusted_agent_store/jury-judge-worker/out/

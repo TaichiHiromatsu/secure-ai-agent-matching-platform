@@ -318,45 +318,13 @@ graph LR
 | [SECURITY_IMPLEMENTATION.md](docs/secure_mediation_agent_design/SECURITY_IMPLEMENTATION.md) | セキュア仲介エージェント セキュリティ実装詳細 |
 | [trusted_agent_store_design.md](docs/trusted_agent_store_design.md) | エージェントストア設計ドキュメント（AISEV v3.0準拠） |
 | [LOCAL_DEVELOPMENT.md](docs/LOCAL_DEVELOPMENT.md) | ローカル環境での実行手順 |
-| [AP2_X402_DOCUMENT_INDEX.md](docs/AP2_X402_DOCUMENT_INDEX.md) | AP2／x402 統合資料の読み方、現在の範囲、文書の優先関係 |
-| [AP2_X402_INTEGRATED_REQUIREMENTS.md](docs/AP2_X402_INTEGRATED_REQUIREMENTS.md) | 二承認を含む統合要件と受入条件 |
-| [AP2_X402_INTEGRATED_DESIGN.md](docs/AP2_X402_INTEGRATED_DESIGN.md) | AP2、project-local x402 simulation、永続ワークフローの設計 |
-| [AP2_X402_IMPLEMENTATION_EVIDENCE.md](docs/AP2_X402_IMPLEMENTATION_EVIDENCE.md) | 最新イメージに拘束した実装・テスト証跡 |
-| [AP2_X402_RUNBOOK.md](docs/AP2_X402_RUNBOOK.md) | 耐久ローカル起動、readiness、障害回復、migration、reset |
-| [AP2_X402_DEMO_GUIDE.md](docs/AP2_X402_DEMO_GUIDE.md) | Firebase login と二承認ブラウザフローの実演手順 |
+| [決済ドキュメント](docs/payments/README.md) | AP2とA2A x402の役割、全体アーキテクチャ、要件、運用、実演、検証への入口 |
 
 ### AP2 / x402 統合決済デモ
 
-ADK Web では `payment_user_agent` 一つを選ぶ。この UI adapter の背後で、内部 `secure_mediation_agent` workflow が信頼済み Merchant の選定、計画提示、計画承認、価格提示、決済承認、AP2 証跡、A2A Task、simulation settlement を一つの耐久状態として管理する。
+AP2は「誰が、何を、いくらで支払うことを承認したか」という認可と署名済み証跡を扱い、A2A x402は支払条件・支払提出・処理結果をA2A Task上で交換する。今回の実装はAP2 v0.2 Human Present demoとproject-localなA2A x402 wire-shape fixtureを組み合わせたもので、実資産は移動せず、公式A2A x402には **NOT CONFORMANT** である。
 
-```mermaid
-sequenceDiagram
-    participant U as "利用者"
-    participant UI as "payment_user_agent"
-    participant M as "内部仲介ワークフロー"
-    participant E as "有料 Merchant"
-    U->>UI: 予約を依頼
-    M-->>UI: 計画の承認を要求
-    U->>UI: 承認
-    M->>E: A2A Task + Checkout
-    E-->>M: payment-required + 7価格項目
-    M-->>UI: 決済の承認を要求
-    U->>UI: 承認
-    M->>E: payment-submitted + AP2証跡参照
-    E-->>M: completed + Artifact + Receipts
-    M-->>UI: 完了結果とNOT CONFORMANT表示
-```
-
-この profile は `AP2 v0.2 Human Present demo` と project-local `x402-wire-simulation/1` の組合せである。x402 v0.1 の wire shape を検証する fixture に限られ、公式 x402 には **NOT CONFORMANT**。実 wallet、facilitator、blockchain、実資産、on-chain transaction は使用しない。
-
-耐久ローカル環境を起動する。
-
-```bash
-./deploy/run-local.sh --no-cache
-curl --fail http://127.0.0.1:8080/mediation-api/ready
-```
-
-画面では計画と決済のそれぞれに対して、完全一致の `承認` を1回ずつ送る。`yes`、`はい`、`承認します`、空白付き `承認` は承認として扱わない。詳しい操作と Firebase 認証、Cloud Run 一時デモの境界は [文書索引](docs/AP2_X402_DOCUMENT_INDEX.md) を参照する。
+構成、二段階承認、実装範囲、詳細設計への読み順は[決済ドキュメントの概要](docs/payments/README.md)を参照する。
 
 ---
 

@@ -1,0 +1,50 @@
+{
+  "schemaVersion": "cloud-run-payment-demo-deployment-observation/1",
+  "recordedAt": "2026-08-16T05:25:24+09:00",
+  "recordType": "post-deploy-observation",
+  "status": "PASS",
+  "source": {
+    "commit": "f8939dff4104948b26665b51106053845c76db0e",
+    "note": "Post-deploy observation transcribed from the final independent test record before documentation consolidation. This file is not an input to the release validator."
+  },
+  "candidateBinding": {
+    "candidateArtifactSha256": "sha256:4cb95b24534958b304a2bf278839e08c512868c93a64b741d408967528859e8e",
+    "conformanceReportSha256": "sha256:3416f1a4cabf6791b1239dcd3fed09959429f7559fc3511970419ed49f279170",
+    "releaseValidationSha256": "sha256:10bdd63e1ee19b424a4054c835ffa562e77e61cfd8ba00666bb346020c604d76",
+    "registryImage": "asia-northeast1-docker.pkg.dev/gen-lang-client-0585901015/secure-mediation-agent/payment-user-agent-demo@sha256:a22c3e696299c3c73dcf2391cba3df16c4e95c9333e72ad3ed8c0a19851a38bc"
+  },
+  "deployment": {
+    "project": "gen-lang-client-0585901015",
+    "region": "asia-northeast1",
+    "service": "payment-user-agent-demo",
+    "revision": "payment-user-agent-demo-00002-nt7",
+    "trafficPercent": 100,
+    "url": "https://payment-user-agent-demo-343404053218.asia-northeast1.run.app",
+    "readyRevisionImageMatchedCandidate": true,
+    "environment": {
+      "APP_ENV": "ephemeral-demo",
+      "DEV_MODE": "false",
+      "EPHEMERAL_CLOUD_RUN_DEMO": "true"
+    },
+    "minimumInstances": 1,
+    "maximumInstances": 1,
+    "durability": "NOT PROVIDED"
+  },
+  "remoteBrowser": {
+    "firebaseAuthentication": "PASS",
+    "onlyRootApp": "payment_user_agent",
+    "planApproval": "PASS",
+    "paymentApproval": "PASS",
+    "completed": "PASS",
+    "completedAfterReload": true,
+    "simulationBoundaryDisplayed": true,
+    "notConformantBoundaryDisplayed": true
+  },
+  "claims": {
+    "durableCloudRunPaid": "NOT RUN",
+    "officialX402": "NOT RUN",
+    "onChainSettlement": "NOT RUN",
+    "productionIdentityOrKms": "NOT RUN",
+    "realAssetTransfer": "NOT RUN"
+  }
+}
