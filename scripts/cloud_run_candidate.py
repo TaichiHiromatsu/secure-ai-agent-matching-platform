@@ -29,6 +29,7 @@ DEPLOY_ENVIRONMENT = {
     "EPHEMERAL_CLOUD_RUN_DEMO": "true",
 }
 DIGEST_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
+COMMIT_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 IMMUTABLE_IMAGE_PATTERN = re.compile(
     rf"^{re.escape(REGISTRY_REPOSITORY)}@(sha256:[0-9a-f]{{64}})$"
 )
@@ -172,7 +173,7 @@ def _source_info() -> dict[str, Any]:
         digest.update(str(len(payload)).encode("ascii") + b"\0")
         digest.update(payload)
     return {
-        "commit": _run("git", "rev-parse", "HEAD"),
+        "baseCommit": _run("git", "rev-parse", "HEAD"),
         "worktreeDigest": "sha256:" + digest.hexdigest(),
         "fileCount": len(files),
         "algorithm": "path-mode-size-bytes-v1",
@@ -193,6 +194,33 @@ def _assert_digest(value: object, label: str) -> str:
     if not isinstance(value, str) or not DIGEST_PATTERN.fullmatch(value):
         raise CandidateError(f"{label} must be an exact sha256 digest")
     return value
+
+
+def _verify_source_binding(stored: object) -> None:
+    if not isinstance(stored, dict):
+        raise CandidateError("candidate source binding must be an object")
+    base_commit = stored.get("baseCommit", stored.get("commit"))
+    if not isinstance(base_commit, str) or not COMMIT_PATTERN.fullmatch(base_commit):
+        raise CandidateError("source base commit must be an exact 40-character commit ID")
+    if (
+        "baseCommit" in stored
+        and "commit" in stored
+        and stored["baseCommit"] != stored["commit"]
+    ):
+        raise CandidateError("source baseCommit and legacy commit differ")
+    try:
+        _run("git", "cat-file", "-e", f"{base_commit}^{{commit}}")
+    except CandidateError as error:
+        raise CandidateError("source base commit does not exist as a commit") from error
+    try:
+        _run("git", "merge-base", "--is-ancestor", base_commit, "HEAD")
+    except CandidateError as error:
+        raise CandidateError("source base commit is not an ancestor of current HEAD") from error
+
+    current = _source_info()
+    for field in ("worktreeDigest", "fileCount", "algorithm"):
+        if stored.get(field) != current[field]:
+            raise CandidateError(f"source {field} differs from candidate")
 
 
 def _verify_evidence(image_id: str) -> dict[str, Any]:
@@ -341,8 +369,7 @@ def _verify_candidate(path: Path, require_pushed: bool, image_id: str | None) ->
     stored_image_id = _assert_digest(candidate.get("localImageId"), "candidate image ID")
     if image_id is not None and stored_image_id != image_id:
         raise CandidateError("loaded image ID differs from candidate")
-    if candidate.get("source") != _source_info():
-        raise CandidateError("source commit/worktree digest differs from candidate")
+    _verify_source_binding(candidate.get("source"))
     expected_artifacts = {
         name: _artifact_record(relative) for name, relative in ARTIFACT_PATHS.items()
     }

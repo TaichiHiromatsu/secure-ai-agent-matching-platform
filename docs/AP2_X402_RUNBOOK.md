@@ -146,10 +146,11 @@ jq '{status,platform,localImageId,source,registry,artifacts,embedded}' \
 - push script は `LOCAL_VALIDATED_NOT_PUSHED` candidate と loaded image の exact ID／platform／source／artifact binding が一致する場合だけ固定 Artifact Registry repository へ publish する。Cloud Run は変更しない。
 - deploy script は build／push を行わない。status `PASS` の tracked candidate が持つ固定 repository の immutable `@sha256:` reference だけを受け付ける。source／artifact／embedded result の不一致は deploy 前に拒否する。
 - deploy script は固定 target の read-only NEW-only preflight を行い、既存 `payment-user-agent-demo` service があれば拒否する。成功後も ready revision の image digest が candidate と一致しなければ失敗として扱う。
+- provenanceはbuild時HEADを`baseCommit`として記録し、40桁hex、commit objectの存在、current HEADのancestorを確認する。後続commitとの完全一致は要求せず、release sourceの`worktreeDigest`、`fileCount`、`algorithm`を厳密一致させるため、文書／証跡更新は許容しつつsource byte／mode変更は拒否する。
 
 - `EPHEMERAL_CLOUD_RUN_DEMO=true` を必須とし、状態と鍵が reset され得る警告を表示する。
 - `DEV_MODE=true` を拒否し、Firebase Authentication を使う。
-- exact `linux/amd64` candidateをArtifact Registryへpushし、新規一時serviceをデプロイ済み。現在はNEW-only guardにより同名serviceへの再deployを拒否する。
+- exact `linux/amd64` candidateをArtifact Registryへpushし、既存一時demo serviceの最終revisionへ反映済み。初回作成用NEW-only scriptは引き続き同名serviceを拒否する。
 - durable Cloud Run paid workflow、複数 instance、production deployment の証拠にはしない。
 
 現在の一時デモ:
@@ -157,14 +158,14 @@ jq '{status,platform,localImageId,source,registry,artifacts,embedded}' \
 | 項目 | 実測値 |
 | --- | --- |
 | project / region / service | `gen-lang-client-0585901015` / `asia-northeast1` / `payment-user-agent-demo` |
-| revision | `payment-user-agent-demo-00001-77d` |
+| revision / traffic | `payment-user-agent-demo-00002-nt7` / 100% |
 | URL | `https://payment-user-agent-demo-343404053218.asia-northeast1.run.app` |
-| immutable image | `asia-northeast1-docker.pkg.dev/gen-lang-client-0585901015/secure-mediation-agent/payment-user-agent-demo@sha256:68d6489c9091062e30c31d2b6287fb290c37c6bf94019683aaf4f3c274cc2529` |
+| immutable image | `asia-northeast1-docker.pkg.dev/gen-lang-client-0585901015/secure-mediation-agent/payment-user-agent-demo@sha256:a22c3e696299c3c73dcf2391cba3df16c4e95c9333e72ad3ed8c0a19851a38bc` |
 | environment | `EPHEMERAL_CLOUD_RUN_DEMO=true`, `APP_ENV=ephemeral-demo`, `DEV_MODE=false` |
 | scaling | min 1 / max 1、concurrency 1 |
 | durability | `NOT PROVIDED`。revision再起動・置換で状態と鍵が失われ得る |
 
-実測smoke testでは`/health`、`/auth/deployment`、`/auth/firebase-config`がPASSし、未認証のrootと`/list-apps`はloginへredirectした。Firebase Authorized Domainsにはこのserviceのhostを追加済みで、Emailログイン後に`/dev-ui/?app=payment_user_agent&session=...&userId=user`へredirectし、単独root appの`payment_user_agent`が選択された。公開remote browserで依頼、計画承認、決済承認、完了までPASSし、reload後も認証・app選択・完了状態を維持した。revisionの直近30分のerror logは0件だった。
+最終revisionでFirebase cookie認証を維持し、Emailログイン後に`/dev-ui/?app=payment_user_agent&session=...&userId=user`へredirectして、単独root appの`payment_user_agent`が選択された。公開remote browserで依頼、計画承認、決済承認、完了までPASSし、reload後も認証・app選択・完了状態を維持した。simulation／`NOT CONFORMANT`表示も維持した。
 
 ## 10. 将来課題
 

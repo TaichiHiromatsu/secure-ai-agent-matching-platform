@@ -2,7 +2,7 @@
   "appSelected": "payment_user_agent",
   "browser": "chromium-cdp-real-ui",
   "completedAfterRefresh": true,
-  "imageDigest": "sha256:68d6489c9091062e30c31d2b6287fb290c37c6bf94019683aaf4f3c274cc2529",
+  "imageDigest": "sha256:a22c3e696299c3c73dcf2391cba3df16c4e95c9333e72ad3ed8c0a19851a38bc",
   "interactions": [
     "browser booking",
     "\u627f\u8a8d",
@@ -15,5 +15,5 @@
   "releaseManifestDigest": "sha256:701f2b1a66af81b9fe6dacefbb1a713fb35c181571621f8fda85296e363d3495",
   "schemaVersion": "ap2-x402-browser-evidence/1",
   "status": "PASS",
-  "workflowId": "workflow:c08438c2c5394e9caf7eff6f5cbc27d1"
+  "workflowId": "workflow:82dc6864f4384916951b642b49068073"
 }

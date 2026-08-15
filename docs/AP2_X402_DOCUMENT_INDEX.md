@@ -14,7 +14,7 @@
 | 内部実装 | `secure_mediation_agent` package の durable workflow が状態・認可・署名・Merchant 呼出しの正本 |
 | 認証 | Firebase Authentication。ローカルに限り固定 demo identity の `DEV_MODE=true` を許可 |
 | 耐久性 | 明示的 POSIX mount を使う単一 host／単一 container だけを受入済み |
-| Cloud Run | 一時デモ `payment-user-agent-demo` を `asia-northeast1` へデプロイし、Firebase認証後のremote browser full flowとreload後の状態復元までPASS。状態と鍵が失われ得る非永続構成で、耐久 paid releaseではない |
+| Cloud Run | revision `payment-user-agent-demo-00002-nt7`へexact `sha256:a22c3e69...a38bc`を反映し100% traffic。Firebase認証後のremote browser full flowとreload後の状態復元までPASS。状態と鍵が失われ得る非永続構成で、耐久 paid releaseではない |
 
 画面名と内部名は役割が異なる。`payment_user_agent` は利用者向けの薄い UI adapter である。文書中の `secure_mediator` は仲介の論理的役割を、`secure_mediation_agent` はその内部 package／workflow を指す。利用者が複数の root agent を選び分ける構成ではない。
 

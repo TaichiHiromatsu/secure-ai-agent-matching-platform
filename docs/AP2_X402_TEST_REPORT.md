@@ -951,3 +951,59 @@ Firebase Authorized Domainsへ`payment-user-agent-demo-343404053218.asia-northea
 追加の拒否／期限切れ／replay、長時間運転、負荷、alert、追加partnerは今後のedge caseとして追跡する。これらの未実施を今回のremote browser PASSへ含めない。
 
 **DEPLOYED EPHEMERAL REMOTE BROWSER PASS — exact registry digestで新規revisionが起動し、公開health／auth境界、Firebase認証、二承認、完了、reload後の状態維持を確認済み。**
+
+## 23. release commit後のprovenance ancestry修正とlocal candidate再固定
+
+実施日: 2026-08-16（Asia/Tokyo）
+
+§22のデプロイ後に証跡／artifact／文書をrelease commitへ含めると、旧validatorはcandidateのbuild時commitとcurrent HEADの完全一致を要求するため、release source bytesが同一でも`source commit/worktree digest differs`として拒否した。これはsource-set外の証跡更新を自己参照的に拒否するprovenance gateの欠陥だった。
+
+candidateはbuild時HEADを`source.baseCommit`として記録するよう修正した。verifyはbase commitが40桁hexで実在するcommit objectかつcurrent HEADのancestorであることを要求し、`worktreeDigest`、`fileCount`、`algorithm`はcurrent release source setと厳密一致させる。legacy `source.commit`もbase commitとして受理する。後続の証跡／artifact／文書commitはsource bytesが同一ならPASSし、source byte変更、file mode変更、non-ancestor base、存在しないcommitはFAILすることを7回帰で確認した。
+
+Git-visible clean context 233 files、base commit `dbd88afc31da9426f159efbeff08be7870dd8c65`、worktree digest `sha256:c42a61f72c61e357e3ff410b4026125920db305be6df163f140606047c4b741f`から、`linux/amd64`をno-cache buildした。exact local imageは`sha256:a22c3e696299c3c73dcf2391cba3df16c4e95c9333e72ad3ed8c0a19851a38bc`である。
+
+| gate | result |
+| --- | --- |
+| regression | payment 173 / evaluator 17 / jury 13 collected、全suite PASS、unexpected skip 0 |
+| real Chromium | 1 PASS、`payment_user_agent`二承認とrefresh後completed |
+| markers | spike 11 / unit 11 / AP2 17 / x402 simulation 2 / integration 45 / security 44 / restart 27 / migration 4 / concurrency 2 / container 12 / browser 1、全PASS |
+| release validator | `status=PASS`, `failures={}` |
+| candidate | `LOCAL_VALIDATED_NOT_PUSHED`、`verify-local` exit 0 |
+
+current artifact SHAはregression `sha256:bfb222ee5389e5c09f0793842da3abd4c233d58e3f7e062895a7c4c01aca8784`、browser `sha256:a4b4517036d2794025254b760126964b4ba7a484d8c51b3e8237bac8b24956f7`、conformance `sha256:c553d69c49c9d14bf43d50b3339704b81408b423867bf7af6086e4577ce4f6f8`、release validation `sha256:1d11b276f79cfb3ee67137273321b2dd40024cdad59f10ac3eef2c4c37ca1cc5`、candidate `sha256:cfe0403e0546542b1d3f7df25b5125856dba79f0e2554c974e599dd5cc3f3cc7`で、全byte bindingが一致した。
+
+§22のrevision `payment-user-agent-demo-00001-77d`とregistry image `sha256:68d6489c...2529`は現在のデプロイ済み実測として維持するが、新`sha256:a22c3e69...a38bc` candidateでsupersede予定である。今回Artifact Registry pushとCloud Run deployは**NOT RUN**。公式x402、wallet／facilitator、実資産、on-chain settlementも引き続き**NOT RUN / not claimed**である。
+
+**LOCAL PROVENANCE PASS — base commit ancestryとcurrent release source bytesを分離して検証し、後続のsource-set外release commitを許容しながらsource／mode／ancestry改変をfail closedにした。新exact candidateの全gateはPASS、push／deployは未実行。**
+
+## 24. provenance ancestry修正後candidate 最終独立判定
+
+実施日: 2026-08-16（Asia/Tokyo）
+
+本節は§21のlocal candidate `sha256:68d6489c...2529` をsupersedeし、§23のprovenance修正後candidateを独立再試験した最終結果である。対象tag `enterprise-a2a-pf:payment-user-agent-cloudrun-amd64` のexact image ID / RepoDigestは `sha256:a22c3e696299c3c73dcf2391cba3df16c4e95c9333e72ad3ed8c0a19851a38bc`、image metadataは `linux/amd64` と完全一致した。
+
+current artifact SHAはregression `sha256:bfb222ee5389e5c09f0793842da3abd4c233d58e3f7e062895a7c4c01aca8784`、browser `sha256:a4b4517036d2794025254b760126964b4ba7a484d8c51b3e8237bac8b24956f7`、conformance `sha256:c553d69c49c9d14bf43d50b3339704b81408b423867bf7af6086e4577ce4f6f8`、release validation `sha256:1d11b276f79cfb3ee67137273321b2dd40024cdad59f10ac3eef2c4c37ca1cc5`、candidate `sha256:cfe0403e0546542b1d3f7df25b5125856dba79f0e2554c974e599dd5cc3f3cc7`。candidate内の4 artifact byte SHA、image、platform、manifest、conformance evidenceはすべてcurrent bytesと一致し、statusは `LOCAL_VALIDATED_NOT_PUSHED`、registry image/digestは `NOT_PUSHED`。`cloud_run_candidate.py verify-local` はexit 0だった。
+
+source bindingは `baseCommit=dbd88afc31da9426f159efbeff08be7870dd8c65`、233 files、`worktreeDigest=sha256:c42a61f72c61e357e3ff410b4026125920db305be6df163f140606047c4b741f`、algorithm `path-mode-size-bytes-v1`。独立試験時のcurrent HEADも同じ `dbd88af...8c65` で、commit objectの実在、`baseCommit`がcurrent HEADのancestorであること、current release sourceのbytes／mode／file countがcandidate記録と同一であることを実データで確認した。
+
+exact image内のprovenance focused testは **7/7 PASS**。内訳は、(1) base commitとcurrent commitが異なってもbaseがancestorかつrelease source digest／file count／algorithmが同一ならPASSするsource-set外後続commit相当、(2) source bytes変更をFAIL、(3) executable mode変更をFAIL、(4) non-ancestor base commitをFAIL、(5) commit形式不正をFAIL、(6) 40桁hexでも不存在commitをFAIL、(7) legacy `source.commit`互換をPASS、である。従って後続のsource-set外commitを許容する一方、release source／mode／ancestry／存在性の改変はfail closedとなる。
+
+source treeをmountせずoutput directoryだけをmountしたfresh regressionはpayment **173/173 PASS**、evaluation-runner **17/17 PASS**、jury-worker **13 collected / 5 PASS / allowlist済み8 skips**、unexpected skip 0。実Chromium/CDP evidenceも `payment_user_agent`、request → `承認` → `承認` → refresh、`completedAfterRefresh=true` でPASSした。
+
+current regression/browser/conformanceを同じexact imageへread-only mountしたfull validatorはexit 0、`status=PASS`, `failures={}`。全11 markerは `spike=11`, `unit=11`, `contract_ap2=17`, `contract_x402_simulation=2`, `integration=45`, `security=44`, `restart=27`, `migration=4`, `concurrency=2`, `container=12`, `browser=1` で、failure/error/skip/xfailは0だった。
+
+**FINAL INDEPENDENT PASS — `sha256:a22c3e69...a38bc` のlocal `linux/amd64` candidate、artifact/source/provenance binding、payment 173、evaluator 17、jury 13、実Chromium、全11 marker（container 12）、validator `failures={}`、provenance 7ケースはすべて独立PASS。§21の旧local candidate判定は本節がsupersedeする。今回のpush / deployは指示どおりNOT RUN。** 公式 x402 / wallet / facilitator / real asset / on-chain settlementは引き続き **NOT RUN / not claimed**。
+
+## 25. provenance修正後candidateの最終Cloud Run反映
+
+実施日: 2026-08-16（Asia/Tokyo）
+
+§24で独立PASSしたexact imageを固定Artifact Registry repositoryへpushし、既存一時demo service `payment-user-agent-demo`へ反映した。revisionは`payment-user-agent-demo-00002-nt7`、trafficは100%。ready revisionのimageは`asia-northeast1-docker.pkg.dev/gen-lang-client-0585901015/secure-mediation-agent/payment-user-agent-demo@sha256:a22c3e696299c3c73dcf2391cba3df16c4e95c9333e72ad3ed8c0a19851a38bc`と完全一致した。公開URLは`https://payment-user-agent-demo-343404053218.asia-northeast1.run.app`のままである。
+
+最終revisionでもFirebase cookie認証を維持し、`/dev-ui/?app=payment_user_agent&session=...&userId=user`へredirectした。root appは`payment_user_agent`だけで選択済み。公開remote browserで依頼→計画承認→決済承認→完了がPASSし、reload後も認証・app選択・完了状態を維持した。simulation／`NOT CONFORMANT`表示も確認した。
+
+provenanceは`baseCommit=dbd88afc31da9426f159efbeff08be7870dd8c65`をcurrent HEADのancestorとして検証し、release sourceの`worktreeDigest=sha256:c42a61f72c61e357e3ff410b4026125920db305be6df163f140606047c4b741f`、233 files、`path-mode-size-bytes-v1`を厳密照合する設計を維持する。commit完全一致は要求せず、source-set外の証跡／文書更新を許容しながらsource byte／mode／file count／algorithm変更はfail closedとなる。
+
+旧revision `payment-user-agent-demo-00001-77d`／`sha256:68d6489c...2529`は本節がsupersedeする。このserviceは引き続き`durability=NOT PROVIDED`の一時デモであり、耐久Cloud Run paid、production identity／KMS、公式x402、wallet／facilitator、実資産、on-chain settlementは**NOT RUN / not claimed**。追加の拒否／期限切れ／replay、長時間運転、負荷、alert、追加partnerは今後のedge caseとして追跡する。
+
+**FINAL DEPLOYED EPHEMERAL REMOTE BROWSER PASS — exact `a22c3e69...a38bc`、revision `00002-nt7`、100% traffic、Firebase認証、二承認、完了、reload後の状態維持、`NOT CONFORMANT`境界を最終Cloud Runで確認済み。**

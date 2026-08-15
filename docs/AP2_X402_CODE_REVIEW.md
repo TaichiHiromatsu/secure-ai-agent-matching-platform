@@ -196,3 +196,69 @@ Exact image の local ephemeral nginx smoke:
 4. deploy 承認後のみ exact registry digest で作成し、revision full image URI、startup、Firebase login、二承認 flow を actual URL で確認する。
 
 以上の Cloud-side 手順は本レビュでは実行していない。したがって、この superseding PASS を「Cloud Run deployment 実績」や「公式 x402／on-chain 成功」と表現してはならない。
+
+---
+
+## 最終 provenance 独立再レビュ — 2026-08-16
+
+**PASS — `sha256:a22c3e696299c3c73dcf2391cba3df16c4e95c9333e72ad3ed8c0a19851a38bc` は、local pre-push provenance gate を通過した exact `linux/amd64` candidate である。**
+
+本節は直前の local candidate `68d6489c...2529` に対する判定を、最終 provenance 修正後の candidate について supersede する。この独立再レビュで Artifact Registry push と Cloud Run deploy は実行していない。
+
+| binding | 独立確認値 |
+| --- | --- |
+| local image | `sha256:a22c3e696299c3c73dcf2391cba3df16c4e95c9333e72ad3ed8c0a19851a38bc` |
+| platform | `linux/amd64` |
+| source base commit | `dbd88afc31da9426f159efbeff08be7870dd8c65` |
+| worktree source digest | `sha256:c42a61f72c61e357e3ff410b4026125920db305be6df163f140606047c4b741f` |
+| source set | 233 files, `path-mode-size-bytes-v1` |
+| candidate status | `LOCAL_VALIDATED_NOT_PUSHED` |
+| candidate artifact SHA | `sha256:cfe0403e0546542b1d3f7df25b5125856dba79f0e2554c974e599dd5cc3f3cc7` |
+
+### Provenance 設計の判定
+
+- `baseCommit` は40桁 lowercase hex に限定され、`git cat-file ...^{commit}` で commit object の実在、`git merge-base --is-ancestor` で current `HEAD` の祖先性を検証する。実測で candidate base は current `HEAD` の有効な commit ancestor である。
+- commit の完全一致は要求せず、current Git-visible release source set の path、executable mode、size、exact bytes を SHA-256 で再計算し、`worktreeDigest`、`fileCount`、`algorithm` を厳密比較する。
+- この分離により、artifact、conformance 証跡、レビュ文書など source set 外だけの後続 commit は、base の祖先性と source digest が不変なら許容される。candidate artifact 自身を source digest へ含めないため、release artifact を commit するたびに自己参照で無効化する問題は解消した。
+- source byte 変更、executable mode 変更、file count／algorithm 不一致、不正／不存在 commit、non-ancestor base は fail closed となる。tracked source が欠落すれば regular-file check または source digest／file count 不一致で拒否される。
+- legacy `source.commit` は同じ base commit として受理される。実 artifact を legacy field へ変換した end-to-end `verify-local` は exit 0。`baseCommit` と legacy `commit` が両方あり値が異なる場合は拒否された。
+
+Exact image 内の `scripts/cloud_run_candidate.py` と provenance test の SHA-256 は host worktree と一致し、mode もそれぞれ `0755`／`0644` で一致した。source mount を使わない focused test は次の結果である。
+
+```text
+tests/container/test_cloud_run_candidate_source.py
+tests/container/test_release_image_contract.py
+tests/container/test_release_validator_binding.py
+tests/security/test_release_boundaries.py
+tests/security/test_firebase_session.py
+
+22 passed, 1 dependency warning
+```
+
+追加した provenance 7回帰は、source-set 外の後続 commit 許容、source bytes／mode 拒否、non-ancestor 拒否、invalid／missing commit 拒否、legacy field 互換をすべて PASS した。warning は従来の `requests` dependency compatibility warning で、test failure ではない。
+
+### Candidate／evidence の再検証
+
+```text
+verify-local: PASS
+verify-deploy on LOCAL_VALIDATED_NOT_PUSHED: rejected
+payment-release: 173 collected, PASS
+evaluation-runner: 17 collected, PASS
+jury-worker: 13 collected, PASS
+real Chromium: PASS, payment_user_agent only, completed after refresh
+release validator: PASS, failures={}
+marker suites: 11/11 PASS, failure/error/skip-or-xfail 0
+```
+
+regression、browser、conformance、release-validation の全 artifact digest は candidate 記録と一致し、すべて exact `a22c3e69...a38bc` image ID へ拘束されている。必須 JSON は全件 Git-visible／non-ignored である。`git diff --check`、release shell の `bash -n`、script executable mode も PASS した。
+
+### Build／push／deploy の fail-closed 境界
+
+- build／push／deploy の各 script は不明な引数をすべて exit 2 で拒否した。
+- push は local image ID／`linux/amd64`／`verify-local` を Cloud への書き込み前に要求し、固定 repository の registry digest を得た後も remote platform と final candidate binding を再検証する。push script は Cloud Run を操作しない。
+- deploy は `PASS` status と固定 repository の immutable `@sha256` がなければ作成に進まない。fixed project／region／service、`EPHEMERAL_CLOUD_RUN_DEMO=true,APP_ENV=ephemeral-demo,DEV_MODE=false`、single instance／concurrency 1 を保持し、DB／durable storage resource を作成しない。
+- NEW-only preflight は既存 fixed service を検出した場合に exit 3 で中止し、後続の deploy を実行しない。wrong revision repository／digest も post-deploy exact URI check で exit 4 となる回帰が PASS している。
+
+現在の証跡には fixed service `payment-user-agent-demo` の既存 revision が記録されている。したがって、現状の NEW-only deploy script はその service を更新せず、意図どおり拒否しなければならない。新 candidate で既存 service を supersede するには、既存 service を触る別の明示的な lifecycle 判断が必要であり、この local PASS はその権限や実行実績を意味しない。
+
+**最終判定:** provenance 修正に hard code blocker は確認しなかった。`a22c3e69...a38bc` は publish 判断に進められる local candidate であるが、push／deploy、新 candidate の remote runtime、公式 x402／wallet／facilitator／実資産／on-chain settlement はすべて **NOT RUN / not claimed** のままである。

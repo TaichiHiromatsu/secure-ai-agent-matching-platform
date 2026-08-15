@@ -1,8 +1,9 @@
 # AP2 / x402 simulation 実装証跡
 
 - 証跡日: 2026-08-16（Asia/Tokyo）
-- 最新Cloud Runイメージ: `sha256:68d6489c9091062e30c31d2b6287fb290c37c6bf94019683aaf4f3c274cc2529`（`linux/amd64`）
-- 候補状態: `PASS`（Artifact Registryへpush済み、一時Cloud Run demoへdeploy済み）
+- 最新Cloud Runイメージ: `sha256:a22c3e696299c3c73dcf2391cba3df16c4e95c9333e72ad3ed8c0a19851a38bc`（`linux/amd64`）
+- 候補状態: `PASS`（Artifact Registryへpush済み、既存一時demo serviceへ反映済み）
+- 現在のCloud Run revision: `payment-user-agent-demo-00002-nt7`、traffic 100%。旧`payment-user-agent-demo-00001-77d`／`sha256:68d6489c...2529`をsupersede
 
 ## リリースで主張する範囲
 
@@ -112,27 +113,30 @@ deploy/run-local.sh
 release path は次の三段階に分離した。
 
 1. `deploy/build-payment-demo-candidate.sh` は Git から可視な file だけで clean context を作り、`--platform linux/amd64 --no-cache --provenance=false --load` で一度だけ build する。source mount なしで組込み regression、実 Chromium、全11 marker、conformance validator を実行し、`artifacts/cloud-run-candidate.json` を `LOCAL_VALIDATED_NOT_PUSHED` として固定する。publish／deploy は行わない。
-2. `deploy/push-payment-demo-candidate.sh` は local image ID、`linux/amd64`、source commit／worktree digest、各証跡の exact byte SHA、組込み suite 結果が一致する場合に限り、固定 Artifact Registry repository へ同一候補を push する。Cloud Run は操作しない。
+2. `deploy/push-payment-demo-candidate.sh` は local image ID、`linux/amd64`、source base commitのancestry／worktree digest、各証跡の exact byte SHA、組込み suite 結果が一致する場合に限り、固定 Artifact Registry repository へ同一候補を push する。Cloud Run は操作しない。
 3. `deploy/deploy-payment-demo-cloudrun.sh` は build／push を一切行わず、candidate status `PASS` と固定 repository の `@sha256:` reference が一致する場合にだけ NEW-only preflight 後の deploy を許す。
 
 今回の固定値は次のとおりである。
 
 | binding | value |
 | --- | --- |
-| source commit | `9730a597a3359f7ecac0f2bf10513a80f9b3c56e` |
-| release worktree digest | `sha256:9c8de67d9fc5bbcf5d935b9af5be4991d9d0c550da6eb1a71127f1f8ce01a7f1`（232 files、path-mode-size-bytes-v1） |
-| local image / platform | `sha256:68d6489c9091062e30c31d2b6287fb290c37c6bf94019683aaf4f3c274cc2529` / `linux/amd64` |
-| regression artifact | `sha256:a5d65ccaa4de9634d1cf36bd1177d440bc4fd7787600d706da1c5d258ac2781e` |
-| browser artifact | `sha256:e4fff3b9c823ef0eab5cea4e32a77e31cadb00c7f42064027d7ff7ecc0cbc7e8` |
-| conformance report | `sha256:e22cf092ed1c79a087d3c697d8a567504c98ad0c8147fc5da5ef9bf58159d25f` |
-| release validation | `sha256:e4bffbefe1c89e785bcdfcb3ce2a6b1d14fc9de3c349dfa87a4b7f9edffd1d30` |
-| registry | `asia-northeast1-docker.pkg.dev/gen-lang-client-0585901015/secure-mediation-agent/payment-user-agent-demo@sha256:68d6489c9091062e30c31d2b6287fb290c37c6bf94019683aaf4f3c274cc2529` |
+| source base commit | `dbd88afc31da9426f159efbeff08be7870dd8c65` |
+| release worktree digest | `sha256:c42a61f72c61e357e3ff410b4026125920db305be6df163f140606047c4b741f`（233 files、path-mode-size-bytes-v1） |
+| local image / platform | `sha256:a22c3e696299c3c73dcf2391cba3df16c4e95c9333e72ad3ed8c0a19851a38bc` / `linux/amd64` |
+| regression artifact | `sha256:bfb222ee5389e5c09f0793842da3abd4c233d58e3f7e062895a7c4c01aca8784` |
+| browser artifact | `sha256:a4b4517036d2794025254b760126964b4ba7a484d8c51b3e8237bac8b24956f7` |
+| conformance report | `sha256:3416f1a4cabf6791b1239dcd3fed09959429f7559fc3511970419ed49f279170` |
+| release validation | `sha256:10bdd63e1ee19b424a4054c835ffa562e77e61cfd8ba00666bb346020c604d76` |
+| candidate artifact | `sha256:4cb95b24534958b304a2bf278839e08c512868c93a64b741d408967528859e8e` |
+| registry | `asia-northeast1-docker.pkg.dev/gen-lang-client-0585901015/secure-mediation-agent/payment-user-agent-demo@sha256:a22c3e696299c3c73dcf2391cba3df16c4e95c9333e72ad3ed8c0a19851a38bc` |
 
-clean-context の実試験で、従来 `*.json` に隠れていた evaluation-runner の schema／prompt JSON も発見したため、公開 Firebase config、AP2/x402 spec manifest、regression／release manifest、conformance／evidence artifact と合わせて exact allowlist にした。`git check-ignore -q` は必須 JSON 全件で non-ignored を返し、clean-context image 内で payment 166、evaluation-runner 17、jury 13、実 Chromium 1、全11 marker が PASS した。CLI と verifier の認証 cookie は server と同じ `__Host-payment-session` に統一し、公開 `/mediation-api/` request の回帰テストを追加した。`deploy/run-local.sh` と関連 start／release script の executable mode も復元した。
+candidateの`baseCommit`はbuild時HEADを記録し、verify時には40桁hex、commit objectの存在、current HEADのancestorであることを検証する。commit完全一致は要求せず、`worktreeDigest`、`fileCount`、`algorithm`を現在のrelease source setと厳密比較する。これにより、source set外の証跡／artifact／文書だけを更新する後続release commitは許可しつつ、source byte、file mode、file count、algorithmの変更、non-ancestor baseはfail closedとなる。legacy candidateの`source.commit`も同じbase commitとして検証する。
 
-Artifact Registryの固定repositoryへexact imageをpushし、新規Cloud Run service `payment-user-agent-demo`、revision `payment-user-agent-demo-00001-77d` をproject `gen-lang-client-0585901015`、region `asia-northeast1`へデプロイした。URLは `https://payment-user-agent-demo-343404053218.asia-northeast1.run.app`。環境は`EPHEMERAL_CLOUD_RUN_DEMO=true,APP_ENV=ephemeral-demo,DEV_MODE=false`、min/max instance 1である。`/health`、auth deployment/configはPASSし、未認証root／list-appsはloginへredirectした。
+clean-context image 内で payment 173、evaluation-runner 17、jury 13、実 Chromium 1、全11 marker が PASS した。今回追加したprovenance回帰7件を含み、container markerは12件である。新`a22c3e69...a38bc`をArtifact Registryへpushし、旧`68d6489c...2529` revisionをsupersedeした。
 
-Firebase Authorized Domainsへ`payment-user-agent-demo-343404053218.asia-northeast1.run.app`を追加し、Emailログイン後に`/dev-ui/?app=payment_user_agent&session=...&userId=user`へredirectすることを確認した。root appは`payment_user_agent`だけで、公開remote browserの依頼→計画承認→決済承認→完了がPASSした。計画画面は未決済表示と1250 USD、決済画面は課金警告、Demo Merchant、`customerTotal=1250`、simulated／`NOT CONFORMANT`を表示した。完了画面はDemo booking confirmed、AP2 evidence、`AP2 v0.2 Human Present demo`、実資産／on-chainなしを表示し、reload後も認証・app選択・完了状態を維持した。revisionの直近30分のerror logは0件だった。
+既存Cloud Run service `payment-user-agent-demo`をrevision `payment-user-agent-demo-00002-nt7`へ更新し、100% trafficを割り当てた。ready revisionのimageは上記full immutable registry URIと完全一致する。projectは`gen-lang-client-0585901015`、regionは`asia-northeast1`、URLは `https://payment-user-agent-demo-343404053218.asia-northeast1.run.app`のままである。環境は`EPHEMERAL_CLOUD_RUN_DEMO=true,APP_ENV=ephemeral-demo,DEV_MODE=false`、min/max instance 1である。
+
+最終revisionでFirebase cookie認証を維持し、`/dev-ui/?app=payment_user_agent&session=...&userId=user`へredirectすることを確認した。root appは`payment_user_agent`だけで、公開remote browserの依頼→計画承認→決済承認→完了がPASSした。計画画面は未決済表示と1250 USD、決済画面は課金警告、Demo Merchant、`customerTotal=1250`、simulated／`NOT CONFORMANT`を表示した。完了画面はDemo booking confirmed、AP2 evidence、`AP2 v0.2 Human Present demo`、実資産／on-chainなしを表示し、reload後も認証・app選択・完了状態を維持した。
 
 post-deploy gate は Cloud Run revision の `status.imageDigest` が返す full immutable URIを、candidateの `repository/image@sha256:...` full URIと完全一致で比較する。fake gcloud回帰ではexact full URIがexit 0、repositoryだけを変えたURIとdigestだけを変えたURIがともにexit 4となった。この修正を含むsourceから上記candidateを再buildし、全gateを再実行した。
 

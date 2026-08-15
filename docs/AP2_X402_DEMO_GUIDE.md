@@ -129,13 +129,13 @@ Firebase 認証を有効にした環境では、認証済み session cookie を 
 
 Cloud Run 一時デモは `build-payment-demo-candidate.sh`、`push-payment-demo-candidate.sh`、`deploy-payment-demo-cloudrun.sh` の三段階で扱う。build は Git-visible clean context の `linux/amd64` exact imageを組込み regression／実 Chromium／全 marker validatorで固定するだけで、push／deployしない。push はそのlocal bindingが一致するときだけ固定 Artifact Registryへpublishし、deployしない。deployはbuild／pushせず、source／artifact binding済みのimmutable `@sha256:` referenceだけを使う。
 
-deploy前には固定project／region／serviceをread-onlyで照会し、同名serviceが存在すれば拒否する。override flagはない。現在の一時デモはrevision `payment-user-agent-demo-00001-77d` として次のURLへデプロイ済みである。
+初回作成用deploy scriptは固定project／region／serviceをread-onlyで照会し、同名serviceが存在すれば拒否する。override flagはない。最終candidateを既存一時demoへ反映した現在のrevisionは`payment-user-agent-demo-00002-nt7`で、trafficは100%である。公開URLは変わらない。
 
 ```text
 https://payment-user-agent-demo-343404053218.asia-northeast1.run.app
 ```
 
-exact imageは `asia-northeast1-docker.pkg.dev/gen-lang-client-0585901015/secure-mediation-agent/payment-user-agent-demo@sha256:68d6489c9091062e30c31d2b6287fb290c37c6bf94019683aaf4f3c274cc2529`。`EPHEMERAL_CLOUD_RUN_DEMO=true`、`APP_ENV=ephemeral-demo`、`DEV_MODE=false`、min/max instance 1で起動している。
+exact imageは `asia-northeast1-docker.pkg.dev/gen-lang-client-0585901015/secure-mediation-agent/payment-user-agent-demo@sha256:a22c3e696299c3c73dcf2391cba3df16c4e95c9333e72ad3ed8c0a19851a38bc`。ready revisionのfull immutable image URIと完全一致する。`EPHEMERAL_CLOUD_RUN_DEMO=true`、`APP_ENV=ephemeral-demo`、`DEV_MODE=false`、min/max instance 1で起動している。
 
 - `EPHEMERAL_CLOUD_RUN_DEMO=true` で起動し、状態と鍵が再起動で失われ得る旨を画面に表示する。
 - Firebase Authentication を使用する。`DEV_MODE=true` は禁止する。
@@ -143,7 +143,7 @@ exact imageは `asia-northeast1-docker.pkg.dev/gen-lang-client-0585901015/secure
 - `/ready` とpublic deployment warningは `target=ephemeral-cloud-run-demo`、`durability=NOT PROVIDED`、state reset warningを同じ値で返し、durable markerをreadiness proofとして返さない。
 - durable Cloud Run paid release、複数 instance、production identity／KMS、official x402、on-chain settlement は主張しない。
 
-デプロイ後のsmoke testは`/health`、`/auth/deployment`、`/auth/firebase-config`をPASSし、未認証のrootと`/list-apps`がloginへredirectすることを確認した。Firebase Authorized Domainsへservice hostを追加後、Emailログイン、`payment_user_agent`の単独選択、依頼、計画承認、決済承認、完了まで公開remote browserでPASSした。計画画面は「まだ決済されない」ことと1250 USD、決済画面は課金警告、Demo Merchant、`customerTotal=1250`、simulated／`NOT CONFORMANT`を表示した。完了画面はDemo booking confirmed、AP2 evidence、`AP2 v0.2 Human Present demo`、実資産／on-chainなしを表示し、reload後も認証・選択・完了状態を維持した。
+最終revisionでもFirebase cookie認証を維持し、`/dev-ui/?app=payment_user_agent&session=...&userId=user`へのredirect、`payment_user_agent`の単独選択、依頼、計画承認、決済承認、完了まで公開remote browserでPASSした。計画画面は「まだ決済されない」ことと1250 USD、決済画面は課金警告、Demo Merchant、`customerTotal=1250`、simulated／`NOT CONFORMANT`を表示した。完了画面はDemo booking confirmed、AP2 evidence、`AP2 v0.2 Human Present demo`、実資産／on-chainなしを表示し、reload後も認証・選択・完了状態を維持した。
 
 ## 6. 想定Q&A
 

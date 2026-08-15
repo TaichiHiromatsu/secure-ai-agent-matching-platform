@@ -1,7 +1,7 @@
 {
-  "conformanceReportDigest": "sha256:923d66d8e0e2bac7bc812c3cffe0d1e861d8ca40155c9e137870811274608d69",
+  "conformanceReportDigest": "sha256:3416f1a4cabf6791b1239dcd3fed09959429f7559fc3511970419ed49f279170",
   "failures": {},
-  "imageDigest": "sha256:68d6489c9091062e30c31d2b6287fb290c37c6bf94019683aaf4f3c274cc2529",
+  "imageDigest": "sha256:a22c3e696299c3c73dcf2391cba3df16c4e95c9333e72ad3ed8c0a19851a38bc",
   "officialX402": "NOT RUN",
   "onChainSettlement": "NOT RUN",
   "releaseManifestDigest": "sha256:701f2b1a66af81b9fe6dacefbb1a713fb35c181571621f8fda85296e363d3495",
@@ -23,7 +23,7 @@
       "status": "PASS"
     },
     "container": {
-      "collected": 5,
+      "collected": 12,
       "errors": 0,
       "failures": 0,
       "skippedOrXfailed": 0,

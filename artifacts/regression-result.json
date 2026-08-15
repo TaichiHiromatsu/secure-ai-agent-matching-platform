@@ -1,12 +1,12 @@
 {
-  "imageDigest": "sha256:68d6489c9091062e30c31d2b6287fb290c37c6bf94019683aaf4f3c274cc2529",
+  "imageDigest": "sha256:a22c3e696299c3c73dcf2391cba3df16c4e95c9333e72ad3ed8c0a19851a38bc",
   "regressionManifestDigest": "sha256:7d72de56a96a3f7438b539e0131167e3e7c9acd2c8e0fa204916dbdd7cfd7339",
   "releaseManifestDigest": "sha256:701f2b1a66af81b9fe6dacefbb1a713fb35c181571621f8fda85296e363d3495",
   "schemaVersion": "pytest-regression-manifest/1",
   "status": "PASS",
   "suites": [
     {
-      "collected": 166,
+      "collected": 173,
       "errors": 0,
       "failures": 0,
       "minimumCollected": 166,
