@@ -4,8 +4,10 @@ version = "0.1.0"
 description = "Secure AI Agent Matching Platform with A2A Protocol"
 requires-python = ">=3.12"
 dependencies = [
+    "ap2",
     "google-adk[a2a]==1.19.0",
     "a2a-sdk==0.3.19",
+    "cryptography==46.0.5",
     "httpx>=0.28.1",
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.34.0",
@@ -16,6 +18,8 @@ dependencies = [
     "pydantic-settings>=2.1.0",
     "jsonschema>=4.23.0",
     "python-jose[cryptography]>=3.3.0",
+    "jwcrypto==1.5.6",
+    "rfc8785==0.1.4",
     "passlib[bcrypt]>=1.7.4",
     "aiofiles>=23.2.1",
     "wandb>=0.18.0",
@@ -28,3 +32,21 @@ dev = [
 ]
 
 [tool.uv.sources]
+ap2 = { git = "https://github.com/google-agentic-commerce/AP2.git", rev = "e1ea56db72a6385bce3e5c1112b3a56ce60acb43" }
+
+[tool.pytest.ini_options]
+markers = [
+    "spike: pinned dependency and API compatibility checks",
+    "unit: deterministic domain unit tests",
+    "contract_ap2: AP2 v0.2 schema and signed object contracts",
+    "contract_x402_simulation: project-local x402 v0.1 wire-shape fixtures",
+    "integration: integrated workflow tests",
+    "security: authorization, isolation, and redaction tests",
+    "restart: process restart and recovery tests",
+    "migration: schema migration tests",
+    "concurrency: duplicate and concurrent operation tests",
+    "container: explicit durable single-host container tests",
+    "browser: ADK Web browser smoke tests",
+    "slow: tests that start real services or browser processes",
+    "x402_onchain: disabled official x402 profile tests",
+]

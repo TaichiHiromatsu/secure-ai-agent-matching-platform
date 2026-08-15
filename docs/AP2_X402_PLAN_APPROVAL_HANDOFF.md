@@ -1,5 +1,7 @@
 # Google A2A x402 Payments Extension v0.1 / 計画承認統合 — 新規チャット引継ぎ要件シード
 
+> **文書状態:** 実装前に作成した履歴資料である。現在の実装範囲と最終判定は `AP2_X402_DOCUMENT_INDEX.md`、`AP2_X402_IMPLEMENTATION_EVIDENCE.md`、`AP2_X402_TEST_REPORT.md` の末尾にある最新再試験節を優先する。
+
 ## 0. この文書の位置づけ
 
 この文書は、GoogleのAgent Payments Protocol（AP2）周辺で公開されている**公式 A2A x402 Payments Extension v0.1**を仲介エージェントへ取り込み、さらに「仲介エージェントによる計画提示と利用者承認」を組み込む次作業の引継ぎ資料である。現時点の確定要望、発見済みの欠落、要求される状態遷移、受入条件をまとめる。
@@ -58,7 +60,7 @@ flowchart LR
 
 したがって、現状のブラウザデモは次を満たしていない。
 
-- 既存`secure_mediator`への仲介依頼
+- `payment_user_agent`への仲介依頼
 - Trusted Agent Store / matcherによる外部エージェント選定
 - plannerによる計画作成
 - 計画全文・要約・制約の利用者提示
@@ -75,7 +77,7 @@ flowchart LR
 
 ただし現在はsession上のbooleanであり、`planId`、計画内容digest、選定agent、金額上限、通貨、商品、手数料方針へ拘束されていない。このbooleanを決済認可として流用してはならない。
 
-### 2.3 現在確認済みの決済デモbaseline
+### 2.3 当時確認済みだった決済デモの基準点
 
 - payment test suite: 65 tests passed
 - Docker image build: success
@@ -105,7 +107,7 @@ flowchart LR
 sequenceDiagram
     participant U as "利用者"
     participant UA as "ユーザーエージェント"
-    participant M as "secure_mediator"
+    participant M as "payment_user_agent"
     participant S as "Trusted Agent Store / matcher"
     participant P as "planner"
     participant O as "orchestrator"
@@ -191,7 +193,7 @@ stateDiagram-v2
 }
 ```
 
-### Binding要件
+### 結び付けの要件
 
 - plan approvalはcustomer、session、plan ID、exact plan digestへ拘束する。
 - orderは`planId`と`planDigest`を必須で保持する。
@@ -213,7 +215,7 @@ stateDiagram-v2
 - 画面上で現在の承認対象を明確に表示する。
 - CLIとADK Webで同じstate machineを使用する。
 
-### 6.2 secure mediator / planner / matcher
+### 6.2 仲介エージェント／planner／matcher
 
 - Trusted Agent Storeから公式v0.1 canonical extension URIとpayment skillを宣言した候補を選ぶ。
 - planに選定agent、skill、商品、数量、金額上限、通貨、fee policy、各stepを含める。
@@ -222,7 +224,7 @@ stateDiagram-v2
 - session booleanだけを認可根拠にしない。
 - 計画変更時は旧承認を失効させる。
 
-### 6.3 orchestrator
+### 6.3 orchestrator（実行制御）
 
 - 有効なplan approvalがない場合はコードレベルで実行を拒否する。
 - 実行中の各stepをplan ID/digestへ関連付ける。
@@ -230,7 +232,7 @@ stateDiagram-v2
 - paid external agentのA2A action/data contractと既存text型RemoteA2aAgentの非互換を解消する。
 - 外部agentの返答により計画の主体・商品・金額上限・通貨・fee policyが変わる場合、勝手に続行せず再計画・再承認へ戻す。
 
-### 6.4 Marketplace Payment API
+### 6.4 Marketplace Payment API（決済API）
 
 - `start_order`に検証可能なplan approval参照または署名済みplan authorizationを必須化する。
 - direct REST/A2A/CLIのどの経路でも、plan approvalなしの注文開始を拒否する。
@@ -248,7 +250,7 @@ stateDiagram-v2
 - 公式v0.1 activationがないmonetized requestを拒否する。
 - `input-required` Taskで`payment-required`を返し、同一`taskId`の`payment-submitted`を受け、最終TaskStatus.messageへ全receiptを含める。
 
-### 6.6 公式v0.1 protocol要件
+### 6.6 公式v0.1プロトコル要件
 
 - Agent Card declarationとrequest activationにはcanonical URIを完全一致で使う。
 - payment requestはA2A Task state `input-required`とし、TaskStatus.message metadataに`x402.payment.status: payment-required`および`x402.payment.required`を含める。
@@ -280,7 +282,7 @@ stateDiagram-v2
 
 ## 9. 受入条件
 
-| ID | Given | When | Then |
+| ID | 前提 | 操作 | 期待結果 |
 |---|---|---|---|
 | PA-ACC-001 | 新規有料依頼 | 最初のpromptを送る | 計画が表示され、order/charge/guarantee/fulfillmentは0件 |
 | PA-ACC-002 | 未承認計画 | orchestratorまたはstart_orderを直接呼ぶ | stable errorで拒否し外部副作用0件 |
@@ -317,7 +319,7 @@ stateDiagram-v2
 6. 利用者: `承認`
 7. 仲介: 決済・保証・履行を実行し、order/plan/receiptを表示。
 
-### 必須negative scenario
+### 必須の異常系シナリオ
 
 - 計画承認前の直接注文
 - 計画承認前の直接orchestrator起動

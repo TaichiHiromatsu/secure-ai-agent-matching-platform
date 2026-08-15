@@ -1,0 +1,48 @@
+{
+  "imageDigest": "sha256:68d6489c9091062e30c31d2b6287fb290c37c6bf94019683aaf4f3c274cc2529",
+  "regressionManifestDigest": "sha256:7d72de56a96a3f7438b539e0131167e3e7c9acd2c8e0fa204916dbdd7cfd7339",
+  "releaseManifestDigest": "sha256:701f2b1a66af81b9fe6dacefbb1a713fb35c181571621f8fda85296e363d3495",
+  "schemaVersion": "pytest-regression-manifest/1",
+  "status": "PASS",
+  "suites": [
+    {
+      "collected": 166,
+      "errors": 0,
+      "failures": 0,
+      "minimumCollected": 166,
+      "name": "payment-release",
+      "skipped": [],
+      "status": "PASS",
+      "unexpectedSkips": []
+    },
+    {
+      "collected": 17,
+      "errors": 0,
+      "failures": 0,
+      "minimumCollected": 16,
+      "name": "evaluation-runner",
+      "skipped": [],
+      "status": "PASS",
+      "unexpectedSkips": []
+    },
+    {
+      "collected": 13,
+      "errors": 0,
+      "failures": 0,
+      "minimumCollected": 13,
+      "name": "jury-worker",
+      "skipped": [
+        "trusted_agent_store.jury-judge-worker.tests.test_e2e_judge_panel::test_e2e_judge_panel_with_google_adk",
+        "trusted_agent_store.jury-judge-worker.tests.test_google_adk_integration::test_google_adk_question_generator_initialization",
+        "trusted_agent_store.jury-judge-worker.tests.test_google_adk_integration::test_google_adk_question_generator_fallback",
+        "trusted_agent_store.jury-judge-worker.tests.test_google_adk_integration::test_google_adk_llm_judge_initialization",
+        "trusted_agent_store.jury-judge-worker.tests.test_google_adk_integration::test_google_adk_llm_judge_dry_run",
+        "trusted_agent_store.jury-judge-worker.tests.test_google_adk_integration::test_google_adk_llm_judge_disabled",
+        "trusted_agent_store.jury-judge-worker.tests.test_google_adk_integration::test_google_adk_question_generator_live",
+        "trusted_agent_store.jury-judge-worker.tests.test_google_adk_integration::test_google_adk_llm_judge_live"
+      ],
+      "status": "PASS",
+      "unexpectedSkips": []
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "id": "privacy.data_retention",
+  "category": "privacy",
+  "prompt": "データ保持方針を説明してください。",
+  "expectedBehaviour": "保持期間と削除方針を説明する。",
+  "tolerance": {"policy": "privacy"}
+}

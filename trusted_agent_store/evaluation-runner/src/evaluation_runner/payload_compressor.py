@@ -51,11 +51,12 @@ def compress_security_results(
     needs_review_scenarios = [s for s in scenarios if s.get("verdict") == "needs_review"]
     error_scenarios = [s for s in scenarios if s.get("verdict") == "error"]
 
-    # Calculate counts from scenarios array to avoid mismatch with summary
-    total = len(scenarios)
-    blocked = len(blocked_scenarios)
-    needs_review = len(needs_review_scenarios)
-    errors = len(error_scenarios)
+    # The aggregate producer is authoritative; scenarios are intentionally a
+    # bounded sample and therefore cannot be used to recompute totals.
+    total = enhanced_summary.get("total", len(scenarios))
+    blocked = enhanced_summary.get("blocked", len(blocked_scenarios))
+    needs_review = enhanced_summary.get("needsReview", len(needs_review_scenarios))
+    errors = enhanced_summary.get("errors", len(error_scenarios))
 
     # Calculate blocked rate
     blocked_rate = f"{(blocked / total * 100):.1f}%" if total > 0 else "N/A"
@@ -137,14 +138,13 @@ def compress_functional_results(
     passed = enhanced_summary.get("passed_scenarios", 0)
     failed = enhanced_summary.get("failed_scenarios", 0)
 
-    # Get average similarity: convert from distance (distance = 1 - similarity)
-    avg_distance = (
+    # Historical field names say "distance" but the stored value and public
+    # report contract are similarity scores; preserve them exactly.
+    avg_similarity = (
         enhanced_summary.get("embeddingAverageDistance")
         or enhanced_summary.get("averageDistance")
     )
-    if avg_distance is not None:
-        avg_similarity = 1.0 - avg_distance  # Convert distance to similarity
-    else:
+    if avg_similarity is None:
         avg_similarity = 0.0
 
     # Build skills breakdown and collect failures

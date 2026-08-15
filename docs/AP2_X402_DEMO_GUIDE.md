@@ -1,200 +1,170 @@
-# AP2 / x402 Marketplace 決済仲介デモ 実演ガイド
+# AP2 / x402 統合決済デモ — 実演ガイド
 
-## 1. このデモで伝えること
+## 1. このデモで示すこと
 
-このデモは、利用者エージェントが外部の有料エージェントを直接決済するのではなく、仲介エージェントへ一度だけ支払い、仲介者が事業者への債務と支払保証を発行して後日精算する marketplace 型フローを示す。
+利用者が ADK Web の `payment_user_agent` に依頼すると、内部の `secure_mediation_agent` ワークフローが信頼済み Merchant を選定し、次の二段階で明示的な同意を得る。
 
-実資産、実blockchain、実wallet、実Stripe、法的なpayment guaranteeは使用しない。`exact-simulated` / `demo:local` の固定残高と、`platform-credit` / `demo:mediation-ledger` の内部債務を使う再現可能なデモである。
+1. 計画を提示し、完全一致の `承認` で計画だけを承認する。この時点では決済しない。
+2. Merchant、価格、期限、simulation 条件を提示し、別の完全一致 `承認` で決済を承認する。
 
 ```mermaid
 sequenceDiagram
     participant U as "利用者"
-    participant UA as "利用者エージェント"
-    participant M as "仲介エージェント"
-    participant PA as "有料外部エージェント"
+    participant UI as "ADK Web / payment_user_agent"
+    participant M as "内部 secure_mediation_agent workflow"
+    participant S as "Trusted Agent Store"
+    participant P as "有料 Merchant :8005"
 
-    U->>UA: "12.50 USD以内で予約して"
-    UA->>M: 注文要求
-    M->>PA: A2A quote要求
-    PA-->>M: 署名済みplatform-credit要求
-    M-->>UA: AP2 closed mandate入力要求
-    UA->>M: Human Present承認 + x402-shaped payload
-    M->>M: 利用者から一度だけsimulated charge
-    M->>M: balanced payableを計上
-    M->>PA: A2A 署名済み支払保証
-    PA-->>M: 署名済み履行receipt
-    M-->>UA: 完了 + AP2/x402 receipt
-    Note over M,PA: 事業者送金は注文時ではなく後日
-    M->>PA: manual payout
-    PA->>M: 自組織payout status照会
-    M-->>PA: paid
+    U->>UI: 予約を依頼
+    UI->>M: 認証済み依頼
+    M->>S: 信頼済み候補を照合
+    M-->>UI: 計画の承認を要求
+    U->>UI: 承認
+    M->>P: A2A Task開始・Checkout取得
+    P-->>M: payment-required・7項目価格
+    M-->>UI: 決済の承認を要求
+    U->>UI: 承認
+    M->>M: AP2 closed Mandates・simulation payload・settlement
+    M->>P: 同一Taskでpayment-submitted
+    P-->>M: completed・Artifact・Receipts
+    M-->>UI: 完了結果と非準拠ラベル
 ```
+
+このデモは `AP2 v0.2 Human Present demo` である。x402 は project-local profile `x402-wire-simulation/1` による wire-shape fixture だけで、**NOT CONFORMANT** である。`exact-simulated`／`demo:local` を使い、実 wallet、facilitator、blockchain、実資産、on-chain transaction は使用しない。
 
 ## 2. 実演前の準備
 
-推奨所要時間は10分。デモ前に新しいイメージと新しいcontainerを用意する。
+### 2.1 耐久ローカルデモ
+
+リポジトリ直下から次を実行する。
 
 ```bash
-docker build -t secure-a2a-payment-demo .
-docker run -d --name secure-a2a-payment-demo -p 18080:8080 secure-a2a-payment-demo
-curl --fail http://127.0.0.1:18080/payment/ready
-curl --fail http://127.0.0.1:18080/paid-agent/ready
+./deploy/run-local.sh --no-cache
+curl --fail http://127.0.0.1:8080/mediation-api/ready
 ```
 
-同名containerが既にある場合は、そのcontainerが削除可能なデモ用であることを確認してから作り直す。既存のDBを消してよいか不明な場合は別名を使う。
+`deploy/run-local.sh` は既定で次をホストへ作成し、明示 mount する。
 
-次の画面を開いておくと説明しやすい。
+- `.local/payment-data`: `marketplace.db` と `paid-agent.db`
+- `.local/payment-evidence`: `evidence.db`
+- `.local/ap2-demo-keys`: role ごとの demo key
 
-- ADK Web: `http://127.0.0.1:18080/`（ログイン後、`payment_user_agent`を選択）
-- 仲介Agent Card: `http://127.0.0.1:18080/payment/.well-known/agent-card.json`
-- 有料外部Agent Card: `http://127.0.0.1:18080/paid-agent/.well-known/agent-card.json`
+ローカルで Firebase login を省略する場合だけ、`.env` で `DEV_MODE=true` を使用できる。`DEV_MODE=true` は `APP_ENV=local` 以外では起動を拒否する。本番相当または Cloud Run では Firebase Authentication を使う。
 
-## 3. 10分の実演台本
+### 2.2 画面を開く
 
-### 0:00–1:00 導入
+1. `http://127.0.0.1:8080/` を開く。
+2. Firebase login が表示された場合は認証する。
+3. ADK Web のアプリ選択で `payment_user_agent` を選ぶ。
 
-話す内容:
+画面名は `payment_user_agent` だが、認可、状態、署名、Merchant 呼出しは内部の `secure_mediation_agent` workflow が担当する。ADK session の boolean や UI adapter 自体は認可の正本ではない。
 
-> 有料エージェントへその場で二重に送金するデモではありません。App Storeと同様に、利用者から仲介者へ一度だけ回収し、事業者分は未払金として計上します。外部エージェントは、仲介者の署名済み支払保証を受けて履行し、実際の事業者精算は後から別処理で行います。
+## 3. 5分の実演台本
 
-Agent Cardでは次を見せる。
+### 0:00–1:00 範囲を説明する
 
-- profile URIが両者で一致する。
-- SDK package version `0.3.19` と wire `protocolVersion=0.3.0` が区別される。
-- 仲介側は`exact-simulated`、外部agent側は`platform-credit`を宣言する。
-- すべて`simulated=true`である。
+次を明示する。
 
-### 1:00–4:00 正常購入
+> AP2 v0.2 Human Present の認可と証跡を使う、価値を移動しないローカル決済 simulation です。x402 は v0.1 の wire shape を検証する project-local fixture で、公式 x402 準拠や on-chain settlement は主張しません。
 
-画面に出すプロンプト:
+### 1:00–2:00 計画を承認する
 
-> 信頼済みの予約エージェントを使い、デモ予約を1件取得してください。支払総額が12.50 USDを超える場合は、承認前に止めてください。
+次の依頼を送る。
 
-ADK Webで`payment_user_agent`を選び、上のプロンプトを送る。利用者エージェントは仲介のA2A endpointへ接続し、受取人と7項目の価格内訳をチャットへ表示する。表示内容を確認して、次の1語だけを送る。
+> 信頼済みの予約エージェントを使い、デモ予約を1件取得してください。支払総額が12.50 USDを超える場合は止めてください。
+
+画面で次を確認する。
+
+- 見出しが「計画の承認」である。
+- Merchant、商品、数量、最大総額、期限が表示される。
+- 「この承認ではまだ決済されない」旨が表示される。
+- x402 profile は project-local simulation と表示される。
+
+続けて、次の1語だけを送る。
 
 > 承認
 
-`yes`は承認として扱わない。`承認`の完全一致時だけ、決定論的Trusted Surfaceがclosed mandateを作り、元のtask/contextへ決済を送信する。LLMは価格判定、署名、決済実行に関与しない。
+`yes`、`はい`、`承認します`、前後に空白がある `承認` は承認として扱わない。
 
-CLIで同じ2ターンを自動実演する場合は次を実行する。
+### 2:00–3:30 決済を承認する
+
+計画承認後、画面で次を確認する。
+
+- 見出しが「決済の承認」である。
+- Merchant／payee、order／Task ID、期限が表示される。
+- 商品価格、customer surcharge、collection rail cost、customer total、provider commission、merchant payable amount、payout rail cost の7項目が表示される。
+- `x402-wire-simulation/1`、`exact-simulated`、`demo:local`、`NOT CONFORMANT` が表示される。
+- この承認で simulated charge が始まる旨が表示される。
+
+内容を確認し、別の意思表示として再び次を送る。
+
+> 承認
+
+### 3:30–5:00 完了と復元を確認する
+
+完了画面で plan、Merchant、order、Task、Artifact、AP2 Checkout／Payment Receipt、simulation receipt の ID／digest を確認する。raw Mandate、credential、private key、payment proof は表示されない。
+
+ブラウザを再読み込みし、同じ workflow が `completed` として復元されることも確認する。最後に次の自動検証を実行できる。
 
 ```bash
-docker exec secure-a2a-payment-demo /app/.venv/bin/python \
+docker exec secure-platform /app/scripts/verify_payment_demo.sh
+```
+
+この verifier は公開 `/mediation-api/` を通り、非完全一致承認の拒否、二承認の正常系、利用者拒否、offline evidence verification を確認する。
+
+## 4. CLI で同じフローを確認する
+
+```bash
+docker exec secure-platform /app/.venv/bin/python \
   /app/user-agent/payment_cli.py \
-  --mediator-url http://127.0.0.1:8004 \
+  --workflow-url http://127.0.0.1:8080/mediation-api \
   --prompt "デモ予約を1件取得して" \
-  --approval "承認"
+  --plan-approval "承認" \
+  --payment-approval "承認"
 ```
 
-正常系、後日精算、失敗返金、timeout再照会をまとめて確認する場合は次を実行する。
+Firebase 認証を有効にした環境では、認証済み session cookie を `--session-cookie` または `WORKFLOW_SESSION_COOKIE` で渡す。CLI から内部 port `:8004` を直接呼ぶ経路は非対応である。
 
-```bash
-docker exec secure-a2a-payment-demo /app/scripts/verify_payment_demo.sh
+## 5. Cloud Run 一時デモの境界
+
+Cloud Run 一時デモは `build-payment-demo-candidate.sh`、`push-payment-demo-candidate.sh`、`deploy-payment-demo-cloudrun.sh` の三段階で扱う。build は Git-visible clean context の `linux/amd64` exact imageを組込み regression／実 Chromium／全 marker validatorで固定するだけで、push／deployしない。push はそのlocal bindingが一致するときだけ固定 Artifact Registryへpublishし、deployしない。deployはbuild／pushせず、source／artifact binding済みのimmutable `@sha256:` referenceだけを使う。
+
+deploy前には固定project／region／serviceをread-onlyで照会し、同名serviceが存在すれば拒否する。override flagはない。現在の一時デモはrevision `payment-user-agent-demo-00001-77d` として次のURLへデプロイ済みである。
+
+```text
+https://payment-user-agent-demo-343404053218.asia-northeast1.run.app
 ```
 
-正常系で説明する観点:
+exact imageは `asia-northeast1-docker.pkg.dev/gen-lang-client-0585901015/secure-mediation-agent/payment-user-agent-demo@sha256:68d6489c9091062e30c31d2b6287fb290c37c6bf94019683aaf4f3c274cc2529`。`EPHEMERAL_CLOUD_RUN_DEMO=true`、`APP_ENV=ephemeral-demo`、`DEV_MODE=false`、min/max instance 1で起動している。
 
-1. 外部agentが仲介へ署名済みquoteをA2Aで返す。
-2. 仲介は利用者agentへAP2 closed Checkout/Payment Mandateの承認材料を返す。
-3. `payTo=mediation-platform`へ12.50 USD相当を一度だけchargeする。
-4. 仲介の台帳で`Dr simulated_cash / Cr merchant_payable`を同額計上する。
-5. 外部agentへ現金やcustomer proofを渡さず、`platform-credit`保証だけを渡す。
-6. 外部agentの署名済みreceiptを検証して注文を`completed`にする。
+- `EPHEMERAL_CLOUD_RUN_DEMO=true` で起動し、状態と鍵が再起動で失われ得る旨を画面に表示する。
+- Firebase Authentication を使用する。`DEV_MODE=true` は禁止する。
+- 単一 instance／concurrency 1でも、ephemeral filesystem は耐久性を提供しない。
+- `/ready` とpublic deployment warningは `target=ephemeral-cloud-run-demo`、`durability=NOT PROVIDED`、state reset warningを同じ値で返し、durable markerをreadiness proofとして返さない。
+- durable Cloud Run paid release、複数 instance、production identity／KMS、official x402、on-chain settlement は主張しない。
 
-### 4:00–5:30 後日精算
+デプロイ後のsmoke testは`/health`、`/auth/deployment`、`/auth/firebase-config`をPASSし、未認証のrootと`/list-apps`がloginへredirectすることを確認した。Firebase Authorized Domainsへservice hostを追加後、Emailログイン、`payment_user_agent`の単独選択、依頼、計画承認、決済承認、完了まで公開remote browserでPASSした。計画画面は「まだ決済されない」ことと1250 USD、決済画面は課金警告、Demo Merchant、`customerTotal=1250`、simulated／`NOT CONFORMANT`を表示した。完了画面はDemo booking confirmed、AP2 evidence、`AP2 v0.2 Human Present demo`、実資産／on-chainなしを表示し、reload後も認証・選択・完了状態を維持した。
 
-画面に出すプロンプト:
+## 6. 想定Q&A
 
-> 完了済み予約について、対象事業者の支払可能残高を確認し、運用者の明示操作として精算してください。
+### なぜ `承認` が2回必要か
 
-話す内容:
+最初は「どの Merchant に何を依頼するか」という計画への同意、2回目は具体的な価格と支払条件への同意だからである。2つは別 record、別 nonce、別 evidence として保存される。
 
-> 注文時の利用者課金と、事業者へのpayoutは別ライフサイクルです。初期手数料は0ですが、価格内訳にはcustomer surchargeとprovider commissionの独立項目があり、将来のversioned policyで非ゼロにできます。
+### `payment_user_agent` と `secure_mediator` は別システムか
 
-確認する出力:
+利用者が選ぶ ADK app は `payment_user_agent` 一つである。これは画面用の薄い adapter で、内部の `secure_mediation_agent` workflow が状態と認可の正本を持つ。利用者が2つの agent を選び分ける構成ではない。
 
-- `payoutState`が`paid`。
-- 事業者はmerchant署名済みrequestで自組織のpayout状態を確認する。
-- payout journalは`Dr merchant_payable / Cr simulated_cash`で均衡する。
+### x402 に準拠しているか
 
-### 5:30–7:00 履行失敗と全額返金
+準拠していない。公式 v0.1 と同形の dotted metadata、Task correlation、receipt history を project-local fixture として検証しているだけである。公式 URI、wallet、facilitator、on-chain settlement は `NOT RUN`。
 
-画面に出すプロンプト:
+### 実際のお金は動くか
 
-> 予約の履行が失敗した場合、成功扱いにせず、事業者への未払金を止めて利用者へ全額返金してください。
+動かない。`LocalPaymentRail` の simulated balance だけを変更する。実 transaction hash や法的な支払保証は生成しない。
 
-確認する出力:
+## 7. デモ後の追加検証
 
-- `failedState`が`refund_required`。
-- `refundState`が`settled`。
-- fee/costが0なので返金額は商品代金12.50 USDの全額。
-- 元仕訳は変更せず、別の返金仕訳とreceiptが追加される。
+主要なブラウザフローが成功した後、必要に応じて拒否、改ざん、replay、期限切れ、process death、migration、refund／reconciliation を検証する。これらの現行リリース証跡は `docs/AP2_X402_TEST_REPORT.md` と `artifacts/ap2-x402-release-validation.json` に記録済みである。
 
-### 7:00–8:30 タイムアウトと再照会
-
-画面に出すプロンプト:
-
-> 外部エージェントの応答がタイムアウトした場合、再課金や新しい保証を作らず、元の注文IDと保証IDで状態を照会して確定してください。
-
-話す内容:
-
-> タイムアウトは失敗とも成功とも推測しません。仲介は`reconciliation_required`に止まり、同じorder IDとguarantee IDで外部agentの正本状態を照会します。今回のfixtureでは外部agent側の履行commit後に応答だけが失われています。
-
-確認する出力:
-
-- `reconciledState`が`completed`。
-- charge件数、rail operation、保証IDは増えない。
-- merchant署名済みstatus/receiptだけで状態を進める。
-
-### 8:30–10:00 再起動と境界
-
-```bash
-docker restart secure-a2a-payment-demo
-curl --fail http://127.0.0.1:18080/payment/ready
-curl --fail http://127.0.0.1:18080/paid-agent/ready
-curl -i -X POST http://127.0.0.1:18080/payment/internal/v1/payouts
-```
-
-最後のrouteが`404`になること、再起動後も既存DBが残りreadinessが`200`になることを見せる。外部公開はnginxの8080だけで、operator route、merchantの署名生成route、fulfillment reconciliation routeは公開しない。
-
-## 4. 出力の読み方
-
-`verify_payment_demo.sh`の最終JSONは次の意味を持つ。
-
-| Field | 見せる意味 |
-|---|---|
-| `happyState=completed` | 利用者課金、未払金、保証、履行が完了 |
-| `payoutState=paid` | 注文とは別の事業者精算が完了 |
-| `failedState=refund_required` | 履行失敗を成功扱いしていない |
-| `refundState=settled` | 全額返金が完了 |
-| `reconciledState=completed` | timeout後に再課金せずstatus照会で確定 |
-
-台本とwire actionの機械判読版は`/app/scripts/payment_demo_scenarios.json`に同梱される。
-
-## 5. 想定Q&A
-
-### なぜ二段階の即時決済にしないのか
-
-marketplaceの利用者に対する販売/回収主体を仲介者とし、事業者には内部債務を計上して後日精算できるため。注文時に利用者→仲介、仲介→事業者の二つの外部決済を同期実行する必要はない。
-
-### x402はblockchain必須か
-
-概念上のHTTP payment protocolとAP2は特定railに限定されない。一方、現時点で公開されているx402の相互運用実装はstablecoin/on-chain settlementを中心にしている。本デモはchainを使わず、将来`PaymentRail` adapterをStripe/card/bank/chainへ差し替える境界だけを示す。
-
-### Stripeを使えるか
-
-将来のcollection railとして追加できる。ただしStripe PaymentIntentやカード決済が、そのまま公開x402 ecosystemの`exact` settlementになるわけではない。実Stripeを追加する際はPCI/SCA、refund/chargeback、custody、KYC/AML、規制と会計を再要件化する。
-
-### 手数料は取れるか
-
-初期値は0。`merchandiseAmount`、`customerSurcharge`、`collectionRailCost`、`customerTotal`、`providerCommission`、`merchantPayableAmount`、`payoutRailCost`を分離しているため、負担主体、丸め、税務・会計を決めた新しいpricing policyを追加できる。
-
-## 6. 現在のデモ範囲
-
-- 単一customer、単一merchant、USD minor unit、固定商品。
-- Human Present closed mandateのみ。
-- local SQLite、固定の公開test HMAC vector、手動payout。
-- 自然言語promptは実演上の意図表示であり、現行の保証対象は決定論的scriptからHTTP/A2A wireへの変換。
-- Copilot/Gemini固有API、A2A 1.0、実Stripe、実chain、実wallet、実資産、dispute/chargebackは対象外。
-
-この境界を説明せず、AP2/x402適合、本番決済、法的保証、blockchain不要の一般相互運用が完成したと表現してはならない。
+将来拡張する non-critical edge case や production hardening は、主要ブラウザフローのデモ完了を妨げない別 issue として扱う。ただし、公式 x402 の有効化、実資産移動、耐久 Cloud Run、production identity／KMS は適合・安全性に関わるため、単なる表示上の edge case として扱わない。

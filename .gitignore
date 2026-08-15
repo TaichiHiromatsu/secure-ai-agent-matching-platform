@@ -136,7 +136,25 @@ artifacts/
 !.vscode/*.json
 !trusted_agent_store/data/agents/registered-agents.json
 !**/agent.json
+!deploy/auth/firebase-config.json
+!secure_mediation_agent/spec_manifest.json
+!tests/regression/suite_manifest.json
+!tests/release/release_manifest.json
+!docs/ap2_x402_conformance_report.json
+!trusted_agent_store/evaluation-runner/prompts/aisi/manifest.sample.json
+!trusted_agent_store/evaluation-runner/prompts/aisi/questions/privacy.data_retention.json
+!trusted_agent_store/evaluation-runner/prompts/aisi/questions/safety.general.json
+!trusted_agent_store/evaluation-runner/schemas/fairness_probe.schema.json
+!trusted_agent_store/evaluation-runner/schemas/policy_score.schema.json
+!trusted_agent_store/evaluation-runner/schemas/response_sample.schema.json
 artifacts/**/*.json
+
+# Immutable AP2/x402 release evidence is intentionally versioned.
+!artifacts/
+!artifacts/regression-result.json
+!artifacts/browser-evidence.json
+!artifacts/ap2-x402-release-validation.json
+!artifacts/cloud-run-candidate.json
 
 # Jury Judge Worker temporary files
 trusted_agent_store/jury-judge-worker/out/

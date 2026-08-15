@@ -1,5 +1,7 @@
 # AP2 / x402 / 現行デモ調査レポート
 
+> **文書状態:** 2026-08-15 に作成した旧 marketplace 案の調査記録であり、現在の実装方式や適合範囲を示す文書ではない。現行状態は `AP2_X402_DOCUMENT_INDEX.md`、`AP2_X402_IMPLEMENTATION_EVIDENCE.md`、`AP2_X402_TEST_REPORT.md` の末尾にある最新再試験節を参照する。
+
 - 調査基準日: 2026-08-15
 - 対象: Secure AI Agent Matching Platform の仲介エージェントと外部デモエージェント
 - 目的: Google AP2 の x402 extension を、ユーザー側エージェントまで含む決済仲介として実装するための事実整理

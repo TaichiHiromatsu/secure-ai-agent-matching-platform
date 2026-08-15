@@ -7,7 +7,6 @@
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
   <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-analytics-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/ui/6.1.0/firebase-ui-auth.js"></script>
   <link rel="stylesheet" href="https://www.gstatic.com/firebasejs/ui/6.1.0/firebase-ui-auth.css">
   <style>
@@ -46,81 +45,96 @@
       margin-top: 20px;
       display: none;
     }
+    .deployment-notice {
+      color: #8a4b00;
+      background: #fff3cd;
+      border: 1px solid #ffda6a;
+      border-radius: 6px;
+      padding: 10px;
+      margin-bottom: 16px;
+      display: none;
+    }
   </style>
 </head>
 <body>
   <div class="login-container">
     <h1>Secure Mediation A2A Platform</h1>
+    <div id="deployment-notice" class="deployment-notice"></div>
     <p>Please sign in to continue</p>
     <div id="firebaseui-auth-container"></div>
     <div id="error-message" class="error-message"></div>
   </div>
 
   <script>
-    const firebaseConfig = {
-      apiKey: "AIzaSyDZe6TJSZ9nBhkeqjiZYOEzNLxfHX_A44Y",
-      authDomain: "mediation-a2a-platform.firebaseapp.com",
-      projectId: "mediation-a2a-platform",
-      storageBucket: "mediation-a2a-platform.firebasestorage.app",
-      messagingSenderId: "366409135946",
-      appId: "1:366409135946:web:d2a433466c605f03d4f3b3",
-      measurementId: "G-9SLLF8PNHM"
-    };
+    const errorElement = document.getElementById('error-message');
+    let exchangeInFlight = false;
 
-    firebase.initializeApp(firebaseConfig);
-    firebase.analytics();
-
-    const ui = new firebaseui.auth.AuthUI(firebase.auth());
-
-    ui.start('#firebaseui-auth-container', {
-      signInOptions: [
-        firebase.auth.EmailAuthProvider.PROVIDER_ID
-      ],
-      signInFlow: 'popup',
-      callbacks: {
-        signInSuccessWithAuthResult: function(authResult, redirectUrl) {
-          // Get Firebase ID token and set as cookie
-          firebase.auth().currentUser.getIdToken(true).then(function(idToken) {
-            // Set cookie with token (expires in 1 hour, matching token expiry)
-            document.cookie = `session=${idToken}; path=/; max-age=3600; SameSite=Lax`;
-            // Redirect to main app
-            window.location.href = '/store/';
-          }).catch(function(error) {
-            document.getElementById('error-message').textContent = 'Authentication error: ' + error.message;
-            document.getElementById('error-message').style.display = 'block';
-          });
-          return false;
-        },
-        signInFailure: function(error) {
-          document.getElementById('error-message').textContent = 'Sign in failed: ' + error.message;
-          document.getElementById('error-message').style.display = 'block';
+    fetch('/auth/deployment', {credentials: 'same-origin'})
+      .then(response => response.json())
+      .then(deployment => {
+        if (deployment.ephemeral) {
+          const notice = document.getElementById('deployment-notice');
+          notice.textContent = deployment.notice;
+          notice.style.display = 'block';
         }
-      }
-    });
+      });
 
-    // Check if already logged in
-    // Prevent redirect loop: only redirect if not coming from a failed auth attempt
-    firebase.auth().onAuthStateChanged(function(user) {
-      if (user) {
-        // Check if we're in a redirect loop (came from / within last 5 seconds)
-        const redirectLoop = sessionStorage.getItem('auth_redirect_time');
-        const now = Date.now();
-        if (redirectLoop && (now - parseInt(redirectLoop)) < 5000) {
-          // In redirect loop - don't redirect again, show error
-          console.warn('Redirect loop detected, staying on login page');
-          document.getElementById('error-message').textContent = 'Authentication service unavailable. Please try again later or contact administrator.';
-          document.getElementById('error-message').style.display = 'block';
-          sessionStorage.removeItem('auth_redirect_time');
-          return;
-        }
+    function showError(error) {
+      errorElement.textContent = 'Authentication error: ' + error.message;
+      errorElement.style.display = 'block';
+    }
 
-        user.getIdToken(true).then(function(idToken) {
-          document.cookie = `session=${idToken}; path=/; max-age=3600; SameSite=Lax`;
-          sessionStorage.setItem('auth_redirect_time', now.toString());
-          window.location.href = '/store/';
+    async function establishServerSession(user, csrfToken) {
+      if (exchangeInFlight) return;
+      exchangeInFlight = true;
+      try {
+        const idToken = await user.getIdToken(true);
+        const response = await fetch('/auth/session', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': csrfToken
+          },
+          body: JSON.stringify({id_token: idToken})
         });
+        if (!response.ok) throw new Error('server session exchange failed');
+        window.location.replace('/?app=payment_user_agent');
+      } catch (error) {
+        exchangeInFlight = false;
+        showError(error);
       }
-    });
+    }
+
+    Promise.all([
+      fetch('/auth/firebase-config', {credentials: 'same-origin'}).then(response => {
+        if (!response.ok) throw new Error('Firebase configuration unavailable');
+        return response.json();
+      }),
+      fetch('/auth/csrf', {credentials: 'same-origin'}).then(response => {
+        if (!response.ok) throw new Error('CSRF initialization failed');
+        return response.json();
+      })
+    ]).then(([firebaseConfig, csrf]) => {
+      firebase.initializeApp(firebaseConfig);
+      const ui = new firebaseui.auth.AuthUI(firebase.auth());
+      ui.start('#firebaseui-auth-container', {
+        signInOptions: [firebase.auth.EmailAuthProvider.PROVIDER_ID],
+        signInFlow: 'popup',
+        callbacks: {
+          signInSuccessWithAuthResult: function(authResult) {
+            establishServerSession(authResult.user, csrf.csrfToken);
+            return false;
+          },
+          signInFailure: function(error) {
+            showError(error);
+          }
+        }
+      });
+      firebase.auth().onAuthStateChanged(function(user) {
+        if (user) establishServerSession(user, csrf.csrfToken);
+      });
+    }).catch(showError);
   </script>
 </body>
 </html>

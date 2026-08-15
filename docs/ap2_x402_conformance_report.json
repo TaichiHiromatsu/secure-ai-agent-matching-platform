@@ -1,0 +1,110 @@
+{
+  "acceptance": {
+    "ACC-001": "PASS",
+    "ACC-002": "PASS",
+    "ACC-003": "PASS",
+    "ACC-004": "PASS",
+    "ACC-005": "PASS",
+    "ACC-006": "PASS_SIMULATION",
+    "ACC-007": "PASS_SIMULATION",
+    "ACC-008": "PASS_SIMULATION",
+    "ACC-009": "PASS",
+    "ACC-010": "PASS_SIMULATION",
+    "ACC-011": "PASS",
+    "ACC-012": "PASS_SIMULATION",
+    "ACC-013": "PASS_SIMULATION",
+    "ACC-014": "PASS_SIMULATION",
+    "ACC-015": "PASS",
+    "ACC-016": "PASS_SIMULATION",
+    "ACC-017": "PASS",
+    "ACC-018": "PASS",
+    "ACC-019": "PASS",
+    "ACC-020": "PASS",
+    "ACC-021": "PASS_SIMULATION_AUTHORITY",
+    "ACC-022": "PASS",
+    "ACC-023": "PASS",
+    "ACC-024": "PASS",
+    "ACC-025": "PASS",
+    "ACC-026": "PASS",
+    "ACC-027": "PASS",
+    "ACC-028": "PASS_SIMULATION_SCOPE",
+    "ACC-029": "PASS_SIMULATION_SCOPE",
+    "ACC-030": "NOT_RUN_CONDITIONAL",
+    "ACC-031": "PASS",
+    "ACC-032": "PASS_SINGLE_HOST_DURABLE_TARGET",
+    "ACC-033": "PASS",
+    "ACC-034": "PASS",
+    "ACC-035": "PASS_SIMULATION_AUTHORITY"
+  },
+  "claims": {
+    "ap2": "v0.2 Human Present demo",
+    "durableCloudRunPaid": "BLOCKED",
+    "ephemeralCloudRunDemo": "PUSHED_NOT_DEPLOYED",
+    "officialX402": "NOT RUN",
+    "onChain": "NOT RUN",
+    "railMode": "simulated; no real asset or on-chain transaction",
+    "walletFacilitator": "NOT RUN",
+    "x402": "v0.1 wire-shape fixture (NOT CONFORMANT)"
+  },
+  "evidence": {
+    "browserArtifactDigest": "sha256:e4fff3b9c823ef0eab5cea4e32a77e31cadb00c7f42064027d7ff7ecc0cbc7e8",
+    "regressionArtifactDigest": "sha256:a5d65ccaa4de9634d1cf36bd1177d440bc4fd7787600d706da1c5d258ac2781e",
+    "releaseManifestDigest": "sha256:701f2b1a66af81b9fe6dacefbb1a713fb35c181571621f8fda85296e363d3495"
+  },
+  "generatedAt": "2026-08-16T04:00:00+09:00",
+  "profile": "x402-wire-simulation/1",
+  "schemaVersion": "secure-mediation-conformance-report/2",
+  "status": "PASS",
+  "target": "explicit-durable-single-host-single-container",
+  "tests": {
+    "actualProcessDeathRecovery": {
+      "checkpoints": 12,
+      "status": "PASS"
+    },
+    "cleanNoCacheContainerBuild": "PASS",
+    "cloudRunNewOnlyPreflight": "PASS_NOT_DEPLOYED",
+    "compatibilitySpikes": {
+      "failed": 0,
+      "passed": 11,
+      "status": "PASS"
+    },
+    "containerHappyPath": "PASS",
+    "containerRestart": "PASS",
+    "ephemeralReadinessContract": "PASS",
+    "evaluationRunner": {
+      "collected": 17,
+      "failed": 0,
+      "status": "PASS",
+      "unexpectedSkips": 0
+    },
+    "externalMerchantA2A": "PASS",
+    "freshPersistentRecreate": "PASS",
+    "integratedAttackMatrix": "PASS",
+    "juryWorker": {
+      "collected": 13,
+      "configuredGoogleSkips": 8,
+      "failed": 0,
+      "status": "PASS",
+      "unexpectedSkips": 0
+    },
+    "legacyPublicRoutes": "PASS_404",
+    "migratedV1ContainerRestart": "PASS",
+    "migratedV1PersistentRecreate": "PASS",
+    "realChromiumAdkWeb": "PASS",
+    "registryDigest": "sha256:68d6489c9091062e30c31d2b6287fb290c37c6bf94019683aaf4f3c274cc2529",
+    "registryImage": "asia-northeast1-docker.pkg.dev/gen-lang-client-0585901015/secure-mediation-agent/payment-user-agent-demo@sha256:68d6489c9091062e30c31d2b6287fb290c37c6bf94019683aaf4f3c274cc2529",
+    "releaseImageDigest": "sha256:68d6489c9091062e30c31d2b6287fb290c37c6bf94019683aaf4f3c274cc2529",
+    "releasePlatform": "linux/amd64",
+    "repository": {
+      "failed": 0,
+      "passed": 166,
+      "status": "PASS"
+    },
+    "upstreamAp2": {
+      "failed": 2,
+      "passed": 186,
+      "scope": "two intermediate kb+sd-jwt+kb expected-claim negatives; terminal release-used path passes repository negative tests",
+      "status": "EXPLAINED_PARTIAL"
+    }
+  }
+}

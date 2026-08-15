@@ -1,0 +1,25 @@
+{
+  "name": "payment_user_agent",
+  "description": "Sole ADK UI for the authoritative internal secure mediation workflow. AP2 v0.2 Human Present with a local x402 v0.1 wire-shape simulation (NOT CONFORMANT; no real asset or on-chain transaction).",
+  "url": "http://localhost:8000",
+  "version": "3.0.0-simulation",
+  "protocolVersion": "0.3.19",
+  "capabilities": {
+    "durableWorkflow": true,
+    "humanPresentApprovals": 2,
+    "paymentProfile": "x402-wire-simulation/1",
+    "railMode": "simulated",
+    "officialX402": false
+  },
+  "skills": [
+    {
+      "id": "demo-paid-booking",
+      "name": "Durable mediated demo booking",
+      "description": "One fixed demo booking through plan approval, payment approval, simulated settlement, and fulfillment.",
+      "tags": ["ap2-v0.2", "human-present", "x402-v0.1-wire-shape", "simulation", "not-conformant"]
+    }
+  ],
+  "defaultInputModes": ["text/plain"],
+  "defaultOutputModes": ["text/plain"],
+  "supportsAuthenticatedExtendedCard": false
+}

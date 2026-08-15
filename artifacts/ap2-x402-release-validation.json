@@ -1,0 +1,89 @@
+{
+  "conformanceReportDigest": "sha256:923d66d8e0e2bac7bc812c3cffe0d1e861d8ca40155c9e137870811274608d69",
+  "failures": {},
+  "imageDigest": "sha256:68d6489c9091062e30c31d2b6287fb290c37c6bf94019683aaf4f3c274cc2529",
+  "officialX402": "NOT RUN",
+  "onChainSettlement": "NOT RUN",
+  "releaseManifestDigest": "sha256:701f2b1a66af81b9fe6dacefbb1a713fb35c181571621f8fda85296e363d3495",
+  "schemaVersion": "ap2-x402-release-validation/2",
+  "status": "PASS",
+  "suites": {
+    "browser": {
+      "collected": 1,
+      "errors": 0,
+      "failures": 0,
+      "skippedOrXfailed": 0,
+      "status": "PASS"
+    },
+    "concurrency": {
+      "collected": 2,
+      "errors": 0,
+      "failures": 0,
+      "skippedOrXfailed": 0,
+      "status": "PASS"
+    },
+    "container": {
+      "collected": 5,
+      "errors": 0,
+      "failures": 0,
+      "skippedOrXfailed": 0,
+      "status": "PASS"
+    },
+    "contract_ap2": {
+      "collected": 17,
+      "errors": 0,
+      "failures": 0,
+      "skippedOrXfailed": 0,
+      "status": "PASS"
+    },
+    "contract_x402_simulation": {
+      "collected": 2,
+      "errors": 0,
+      "failures": 0,
+      "skippedOrXfailed": 0,
+      "status": "PASS"
+    },
+    "integration": {
+      "collected": 45,
+      "errors": 0,
+      "failures": 0,
+      "skippedOrXfailed": 0,
+      "status": "PASS"
+    },
+    "migration": {
+      "collected": 4,
+      "errors": 0,
+      "failures": 0,
+      "skippedOrXfailed": 0,
+      "status": "PASS"
+    },
+    "restart": {
+      "collected": 27,
+      "errors": 0,
+      "failures": 0,
+      "skippedOrXfailed": 0,
+      "status": "PASS"
+    },
+    "security": {
+      "collected": 44,
+      "errors": 0,
+      "failures": 0,
+      "skippedOrXfailed": 0,
+      "status": "PASS"
+    },
+    "spike": {
+      "collected": 11,
+      "errors": 0,
+      "failures": 0,
+      "skippedOrXfailed": 0,
+      "status": "PASS"
+    },
+    "unit": {
+      "collected": 11,
+      "errors": 0,
+      "failures": 0,
+      "skippedOrXfailed": 0,
+      "status": "PASS"
+    }
+  }
+}

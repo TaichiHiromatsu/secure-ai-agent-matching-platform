@@ -1,5 +1,7 @@
 # AP2 / x402 決済仲介 要件定義書
 
+> **文書状態:** 旧 marketplace-credit／deferred payout 案の履歴要件であり、現行実装の規範ではない。現行要件は `AP2_X402_INTEGRATED_REQUIREMENTS.md`、現在の適合範囲は `AP2_X402_DOCUMENT_INDEX.md` を参照する。
+
 - 文書版: 2.2
 - 作成日: 2026-08-15
 - 対象: Secure AI Agent Matching Platform

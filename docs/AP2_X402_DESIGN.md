@@ -1,5 +1,7 @@
 # AP2 / x402 Marketplace 決済仲介 設計書
 
+> **文書状態:** 旧 marketplace-credit／manual payout 案の履歴設計であり、現行 `payment_user_agent`／内部 `secure_mediation_agent` 構成の設計ではない。現行設計は `AP2_X402_INTEGRATED_DESIGN.md` を参照する。
+
 - 文書版: 1.2-implemented
 - 作成日: 2026-08-15
 - 対象要件: `docs/AP2_X402_REQUIREMENTS.md` v2.1

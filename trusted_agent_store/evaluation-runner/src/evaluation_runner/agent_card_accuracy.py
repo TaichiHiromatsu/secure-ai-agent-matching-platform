@@ -215,10 +215,10 @@ def generate_scenarios(card: Dict[str, Any], *, agent_id: str, revision: str, ma
   locale = translation.get("locale", card.get("defaultLocale", "ja-JP"))
 
   # Extract data from agent card
-  use_cases = card.get("useCases", [])
+  use_cases = card.get("useCases") or translation.get("useCases", [])
   skills = card.get("skills", [])
-  agent_description = card.get("description", "")
-  agent_name = card.get("name", "Agent")
+  agent_description = card.get("description") or translation.get("shortDescription") or translation.get("description", "")
+  agent_name = card.get("name") or translation.get("displayName") or translation.get("name", "Agent")
 
   scenarios: List[Scenario] = []
 
@@ -1475,13 +1475,22 @@ def run_functional_accuracy(
           user_id=user_id
         )
 
-        # エージェントベース評価を使用
-        evaluation = agent_evaluator.evaluate_response(
-          use_case=scenario.use_case,
-          expected_answer=scenario.expected_answer,
-          actual_response=response_text or "",
-          agent_card=card
-        )
+        # Dry-run is an offline artifact-shape regression and must never call
+        # an external evaluator/model.
+        if status == "dry_run":
+          evaluation = {
+            "similarity": 1.0,
+            "distance": 0.0,
+            "verdict": "pass",
+            "rationale": "deterministic dry-run",
+          }
+        else:
+          evaluation = agent_evaluator.evaluate_response(
+            use_case=scenario.use_case,
+            expected_answer=scenario.expected_answer,
+            actual_response=response_text or "",
+            agent_card=card
+          )
 
         # エラーが発生した場合は、エラーとしてカウントし、needs_reviewには含めない
         if status == "error":

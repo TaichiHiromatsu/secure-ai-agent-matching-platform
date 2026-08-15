@@ -35,7 +35,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     # NOTE: schemas live at evaluation-runner/schemas rather than inside src/
     # Using parents[2] keeps the default stable even when the package is installed editable.
     default_schema_dir = Path(__file__).resolve().parents[2] / "schemas"
-    default_manifest = Path(__file__).resolve().parents[3] / "prompts/aisi/manifest.sample.json"
+    default_manifest = Path(__file__).resolve().parents[2] / "prompts/aisi/manifest.sample.json"
     parser.add_argument("--schema-dir", default=str(default_schema_dir), help="Directory containing JSON schemas")
     parser.add_argument("--prompt-manifest", default=str(default_manifest), help="AISI prompt manifest used for question ID validation")
     parser.add_argument("--generate-fairness", action="store_true", help="Emit fairness_probe.json artifact")
@@ -264,11 +264,9 @@ def main(argv: list[str] | None = None) -> int:
         functional_summary = run_functional_accuracy(
             agent_id=args.agent_id,
             revision=args.revision,
-            agent_card_path=Path(args.agent_card),
-            ragtruth_dir=Path(args.ragtruth_dir),
-            advbench_dir=Path(args.advbench_dir),
-            advbench_limit=(args.advbench_limit if args.advbench_limit > 0 else None),
-            output_dir=functional_output,
+                agent_card_path=Path(args.agent_card),
+                ragtruth_dir=Path(args.ragtruth_dir),
+                output_dir=functional_output,
             max_scenarios=max(1, args.functional_max_scenarios),
             dry_run=args.dry_run,
             endpoint_url=args.functional_endpoint or args.relay_endpoint,

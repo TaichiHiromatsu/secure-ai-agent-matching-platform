@@ -318,40 +318,45 @@ graph LR
 | [SECURITY_IMPLEMENTATION.md](docs/secure_mediation_agent_design/SECURITY_IMPLEMENTATION.md) | セキュア仲介エージェント セキュリティ実装詳細 |
 | [trusted_agent_store_design.md](docs/trusted_agent_store_design.md) | エージェントストア設計ドキュメント（AISEV v3.0準拠） |
 | [LOCAL_DEVELOPMENT.md](docs/LOCAL_DEVELOPMENT.md) | ローカル環境での実行手順 |
-| [AP2_X402_RESEARCH.md](docs/AP2_X402_RESEARCH.md) | AP2・x402・chain/Stripe・現行構成の調査 |
-| [AP2_X402_REQUIREMENTS.md](docs/AP2_X402_REQUIREMENTS.md) | Marketplace型決済仲介の要件定義 |
-| [AP2_X402_DESIGN.md](docs/AP2_X402_DESIGN.md) | 単一upstream charge、payable、guarantee、payoutの設計 |
-| [AP2_X402_RUNBOOK.md](docs/AP2_X402_RUNBOOK.md) | simulationの起動、E2E、障害回復、reset手順 |
-| [AP2_X402_DEMO_GUIDE.md](docs/AP2_X402_DEMO_GUIDE.md) | 対外実演用のシナリオ、プロンプト、10分台本、想定Q&A |
+| [AP2_X402_DOCUMENT_INDEX.md](docs/AP2_X402_DOCUMENT_INDEX.md) | AP2／x402 統合資料の読み方、現在の範囲、文書の優先関係 |
+| [AP2_X402_INTEGRATED_REQUIREMENTS.md](docs/AP2_X402_INTEGRATED_REQUIREMENTS.md) | 二承認を含む統合要件と受入条件 |
+| [AP2_X402_INTEGRATED_DESIGN.md](docs/AP2_X402_INTEGRATED_DESIGN.md) | AP2、project-local x402 simulation、永続ワークフローの設計 |
+| [AP2_X402_IMPLEMENTATION_EVIDENCE.md](docs/AP2_X402_IMPLEMENTATION_EVIDENCE.md) | 最新イメージに拘束した実装・テスト証跡 |
+| [AP2_X402_RUNBOOK.md](docs/AP2_X402_RUNBOOK.md) | 耐久ローカル起動、readiness、障害回復、migration、reset |
+| [AP2_X402_DEMO_GUIDE.md](docs/AP2_X402_DEMO_GUIDE.md) | Firebase login と二承認ブラウザフローの実演手順 |
 
-### AP2 / x402 Marketplace 決済デモ
+### AP2 / x402 統合決済デモ
 
-決済対応外部agentの有料quoteを仲介が受け、ユーザー側agentへ一回だけ`payment-required`を返す。charge後は外部agentへ二度目の即時決済をせず、仲介台帳のmerchant payableと署名済み`platform-credit` guaranteeで履行を許可し、後からmanual payoutする。
+ADK Web では `payment_user_agent` 一つを選ぶ。この UI adapter の背後で、内部 `secure_mediation_agent` workflow が信頼済み Merchant の選定、計画提示、計画承認、価格提示、決済承認、AP2 証跡、A2A Task、simulation settlement を一つの耐久状態として管理する。
 
 ```mermaid
 sequenceDiagram
-    participant U as User agent
-    participant M as Mediation marketplace
-    participant E as Paid external agent
-    U->>M: A2A order
-    M->>E: signed quote request
-    E-->>M: platform-credit quote requirement
-    M-->>U: input-required / upstream payment-required
-    U->>M: AP2 closed mandates + x402-shaped proof
-    M->>M: single simulated charge + payable
-    M->>E: signed payment guarantee
-    E-->>M: fulfillment receipt
-    M-->>U: completed + separate AP2/x402 receipts
-    Note over M,E: merchant payout is a later operator lifecycle
+    participant U as "利用者"
+    participant UI as "payment_user_agent"
+    participant M as "内部仲介ワークフロー"
+    participant E as "有料 Merchant"
+    U->>UI: 予約を依頼
+    M-->>UI: 計画の承認を要求
+    U->>UI: 承認
+    M->>E: A2A Task + Checkout
+    E-->>M: payment-required + 7価格項目
+    M-->>UI: 決済の承認を要求
+    U->>UI: 承認
+    M->>E: payment-submitted + AP2証跡参照
+    E-->>M: completed + Artifact + Receipts
+    M-->>UI: 完了結果とNOT CONFORMANT表示
 ```
 
-このprofileは実資産を動かさないproject-local simulationで、標準適合や法的保証を表さない。コンテナ起動後、次で正常系、manual payout、fulfillment failure、全額refundを検証できる。
+この profile は `AP2 v0.2 Human Present demo` と project-local `x402-wire-simulation/1` の組合せである。x402 v0.1 の wire shape を検証する fixture に限られ、公式 x402 には **NOT CONFORMANT**。実 wallet、facilitator、blockchain、実資産、on-chain transaction は使用しない。
 
-画面実演ではADK Webのagent選択から`payment_user_agent`を選び、予約を依頼する。価格表示後に日本語で`承認`と送った場合だけ仲介決済を実行し、`yes`は承認として扱わない。
+耐久ローカル環境を起動する。
 
 ```bash
-docker exec secure-a2a-payment-demo /app/scripts/verify_payment_demo.sh
+./deploy/run-local.sh --no-cache
+curl --fail http://127.0.0.1:8080/mediation-api/ready
 ```
+
+画面では計画と決済のそれぞれに対して、完全一致の `承認` を1回ずつ送る。`yes`、`はい`、`承認します`、空白付き `承認` は承認として扱わない。詳しい操作と Firebase 認証、Cloud Run 一時デモの境界は [文書索引](docs/AP2_X402_DOCUMENT_INDEX.md) を参照する。
 
 ---
 
