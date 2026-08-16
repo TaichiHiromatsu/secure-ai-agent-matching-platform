@@ -123,5 +123,6 @@ sequenceDiagram
 | 主張可能な範囲と証跡の検証 | [VERIFICATION.md](VERIFICATION.md) |
 | 起動、移行、回復、デプロイ | [OPERATIONS.md](OPERATIONS.md) |
 | 5分の実演 | [DEMO.md](DEMO.md) |
+| 従来の仲介エージェントへ決済を組み込む修正要件 | [MEDIATOR_PAYMENT_INTEGRATION_HANDOFF.md](MEDIATOR_PAYMENT_INTEGRATION_HANDOFF.md) |
 
 本文と見出しは日本語で記述し、仕様の正式名称、wire field、状態値、コード識別子だけを原文で表記する。現在のテスト件数、image digest、Cloud Run revisionなどの可変値は本文へ転記せず、[検証ガイド](VERIFICATION.md)から機械可読な証跡を参照する。
