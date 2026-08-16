@@ -1,4 +1,4 @@
-"""Additive schema-v2 migration for the three explicit SQLite authorities."""
+"""Additive schema migrations for the three explicit SQLite authorities."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Iterable
 
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 4
 
 
 def utc_now() -> str:
@@ -497,6 +497,232 @@ CREATE TABLE IF NOT EXISTS merchant_capability_consumptions_v2 (
 """
 
 
+MARKETPLACE_SCHEMA_V3 = r"""
+CREATE TABLE IF NOT EXISTS payment_continuations_v3 (
+    continuation_id TEXT PRIMARY KEY,
+    payment_workflow_id TEXT NOT NULL UNIQUE,
+    tenant_id TEXT NOT NULL,
+    subject_id TEXT NOT NULL,
+    session_id TEXT NOT NULL,
+    context_id TEXT NOT NULL,
+    mediation_session_id TEXT NOT NULL,
+    plan_id TEXT NOT NULL,
+    plan_version INTEGER NOT NULL CHECK(plan_version > 0),
+    plan_digest TEXT NOT NULL,
+    plan_approval_id TEXT NOT NULL,
+    step_id TEXT NOT NULL,
+    canonical_agent_id TEXT NOT NULL,
+    agent_card_digest TEXT NOT NULL,
+    rpc_endpoint TEXT NOT NULL,
+    task_id TEXT NOT NULL,
+    task_context_id TEXT NOT NULL,
+    order_id TEXT NOT NULL,
+    quote_id TEXT NOT NULL,
+    requirement_json TEXT NOT NULL,
+    requirement_digest TEXT NOT NULL,
+    checkout_jwt TEXT NOT NULL,
+    checkout_hash TEXT NOT NULL,
+    amount_minor INTEGER NOT NULL CHECK(amount_minor > 0),
+    currency TEXT NOT NULL,
+    payee TEXT NOT NULL,
+    profile_id TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    attach_digest TEXT NOT NULL,
+    state TEXT NOT NULL CHECK(state IN (
+        'waiting_for_payment_approval','payment_approved','guaranteed',
+        'payment_submitting','payment_submitted','settled',
+        'fulfillment_committing','completed','guarantee_cancelled',
+        'review_required','refund_required','refunded'
+    )),
+    version INTEGER NOT NULL DEFAULT 1 CHECK(version > 0),
+    payment_approval_id TEXT,
+    payment_approval_digest TEXT,
+    checkout_mandate_digest TEXT,
+    payment_mandate_digest TEXT,
+    authorization_envelope_digest TEXT,
+    guarantee_id TEXT,
+    guarantee_digest TEXT,
+    settlement_id TEXT,
+    settlement_receipt_digest TEXT,
+    fulfillment_digest TEXT,
+    last_error_code TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE(tenant_id,subject_id,session_id,mediation_session_id,plan_id,plan_version,step_id),
+    UNIQUE(task_id,task_context_id,order_id,quote_id)
+);
+CREATE INDEX IF NOT EXISTS ix_payment_continuation_owner_state_v3
+ON payment_continuations_v3(tenant_id,subject_id,session_id,state,updated_at);
+
+CREATE TABLE IF NOT EXISTS payment_bridge_approvals_v3 (
+    approval_id TEXT PRIMARY KEY,
+    continuation_id TEXT NOT NULL UNIQUE REFERENCES payment_continuations_v3(continuation_id),
+    owner_digest TEXT NOT NULL,
+    display_digest TEXT NOT NULL,
+    approval_message_digest TEXT NOT NULL,
+    nonce TEXT NOT NULL UNIQUE,
+    checkout_mandate_evidence_id TEXT NOT NULL,
+    checkout_mandate_digest TEXT NOT NULL,
+    payment_mandate_evidence_id TEXT NOT NULL,
+    payment_mandate_digest TEXT NOT NULL,
+    approved_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL
+);
+CREATE TRIGGER IF NOT EXISTS payment_bridge_approval_immutable_update_v3
+BEFORE UPDATE ON payment_bridge_approvals_v3
+BEGIN SELECT RAISE(ABORT, 'payment bridge approval is immutable'); END;
+
+CREATE TABLE IF NOT EXISTS payment_guarantees_v3 (
+    guarantee_id TEXT PRIMARY KEY,
+    continuation_id TEXT NOT NULL UNIQUE REFERENCES payment_continuations_v3(continuation_id),
+    authorization_envelope_evidence_id TEXT NOT NULL,
+    authorization_envelope_digest TEXT NOT NULL,
+    guarantee_evidence_id TEXT NOT NULL,
+    guarantee_digest TEXT NOT NULL,
+    settlement_commitment_id TEXT NOT NULL UNIQUE,
+    state TEXT NOT NULL CHECK(state IN ('guaranteed','submitted','cancelled','settled')),
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS payment_bridge_outbox_v3 (
+    outbox_id TEXT PRIMARY KEY,
+    continuation_id TEXT NOT NULL REFERENCES payment_continuations_v3(continuation_id),
+    event_type TEXT NOT NULL CHECK(event_type IN ('guarantee-submit','fulfillment-commit','refund-submit')),
+    operation_id TEXT NOT NULL UNIQUE,
+    request_digest TEXT NOT NULL,
+    payload_json TEXT NOT NULL,
+    status TEXT NOT NULL CHECK(status IN ('pending','done','failed','review-required')),
+    attempts INTEGER NOT NULL DEFAULT 0,
+    last_error_code TEXT,
+    created_at TEXT NOT NULL,
+    completed_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS payment_bridge_settlements_v3 (
+    settlement_id TEXT PRIMARY KEY,
+    continuation_id TEXT NOT NULL UNIQUE REFERENCES payment_continuations_v3(continuation_id),
+    guarantee_id TEXT NOT NULL UNIQUE REFERENCES payment_guarantees_v3(guarantee_id),
+    amount_minor INTEGER NOT NULL CHECK(amount_minor > 0),
+    currency TEXT NOT NULL,
+    request_digest TEXT NOT NULL,
+    receipt_json TEXT NOT NULL,
+    receipt_digest TEXT NOT NULL,
+    state TEXT NOT NULL CHECK(state IN ('settled','failed','unknown')),
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS payment_bridge_refunds_v3 (
+    refund_id TEXT PRIMARY KEY,
+    continuation_id TEXT NOT NULL UNIQUE REFERENCES payment_continuations_v3(continuation_id),
+    settlement_id TEXT NOT NULL UNIQUE REFERENCES payment_bridge_settlements_v3(settlement_id),
+    amount_minor INTEGER NOT NULL CHECK(amount_minor > 0),
+    currency TEXT NOT NULL,
+    reason TEXT NOT NULL CHECK(reason='fulfillment-failed'),
+    idempotency_key TEXT NOT NULL UNIQUE,
+    request_digest TEXT NOT NULL,
+    result_json TEXT NOT NULL,
+    result_digest TEXT NOT NULL,
+    state TEXT NOT NULL CHECK(state IN ('refunded','unknown')),
+    created_at TEXT NOT NULL
+);
+"""
+
+
+MERCHANT_SCHEMA_V3 = r"""
+CREATE TABLE IF NOT EXISTS merchant_guarantees_v3 (
+    guarantee_id TEXT PRIMARY KEY,
+    task_id TEXT NOT NULL UNIQUE REFERENCES merchant_tasks_v2(task_id),
+    context_id TEXT NOT NULL,
+    order_id TEXT NOT NULL,
+    quote_id TEXT NOT NULL,
+    guarantee_jwt TEXT NOT NULL,
+    guarantee_digest TEXT NOT NULL,
+    authorization_envelope_digest TEXT NOT NULL,
+    payment_mandate_digest TEXT NOT NULL,
+    request_digest TEXT NOT NULL UNIQUE,
+    settlement_id TEXT UNIQUE,
+    settlement_receipt_digest TEXT,
+    state TEXT NOT NULL CHECK(state IN ('accepted','cancelled','fulfilled')),
+    accepted_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE TRIGGER IF NOT EXISTS merchant_guarantee_immutable_identity_v3
+BEFORE UPDATE OF guarantee_id,task_id,context_id,order_id,quote_id,guarantee_jwt,
+                 guarantee_digest,authorization_envelope_digest,payment_mandate_digest,
+                 request_digest ON merchant_guarantees_v3
+BEGIN SELECT RAISE(ABORT, 'merchant guarantee identity is immutable'); END;
+"""
+
+
+EVIDENCE_SCHEMA_V3 = r"""
+"""
+
+
+MARKETPLACE_SCHEMA_V4 = r"""
+CREATE TABLE IF NOT EXISTS mediation_sessions_v4 (
+    row_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    mediation_session_id TEXT NOT NULL UNIQUE,
+    scope_key TEXT NOT NULL,
+    state TEXT NOT NULL CHECK(state IN (
+        'WaitingForPlanApproval','Executing','WaitingForPaymentApproval',
+        'PaymentApproved','ResumingA2A','Completed','Blocked','ReviewRequired',
+        'Cancelled','RefundPending','RefundSubmitting','Refunded'
+    )),
+    version INTEGER NOT NULL CHECK(version >= 0),
+    plan_digest TEXT NOT NULL,
+    approval_target_digest TEXT,
+    session_schema_version TEXT NOT NULL,
+    key_version INTEGER NOT NULL CHECK(key_version > 0),
+    session_nonce BLOB NOT NULL,
+    session_ciphertext BLOB NOT NULL,
+    session_digest TEXT NOT NULL,
+    view_schema_version TEXT NOT NULL,
+    view_nonce BLOB NOT NULL,
+    view_ciphertext BLOB NOT NULL,
+    view_digest TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_mediation_active_scope_v4
+ON mediation_sessions_v4(scope_key)
+WHERE state IN (
+    'WaitingForPlanApproval','Executing','WaitingForPaymentApproval',
+    'PaymentApproved','ResumingA2A','ReviewRequired','RefundPending',
+    'RefundSubmitting'
+);
+CREATE INDEX IF NOT EXISTS ix_mediation_latest_scope_v4
+ON mediation_sessions_v4(scope_key, updated_at DESC, row_id DESC);
+
+CREATE TABLE IF NOT EXISTS mediation_requests_v4 (
+    scope_key TEXT NOT NULL,
+    request_id TEXT NOT NULL,
+    request_digest TEXT NOT NULL,
+    status TEXT NOT NULL CHECK(status IN ('processing','completed','failed')),
+    mediation_session_id TEXT,
+    result_version INTEGER CHECK(result_version IS NULL OR result_version >= 0),
+    result_view_schema_version TEXT,
+    result_key_version INTEGER CHECK(result_key_version IS NULL OR result_key_version > 0),
+    result_view_nonce BLOB,
+    result_view_ciphertext BLOB,
+    result_view_digest TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY(scope_key, request_id)
+);
+CREATE INDEX IF NOT EXISTS ix_mediation_requests_session_v4
+ON mediation_requests_v4(scope_key, mediation_session_id);
+"""
+
+
+MERCHANT_SCHEMA_V4 = r"""
+"""
+
+
+EVIDENCE_SCHEMA_V4 = r"""
+"""
+
+
 @dataclass(frozen=True, slots=True)
 class DatabasePaths:
     marketplace: Path
@@ -523,18 +749,41 @@ def _add_evidence_columns(conn: sqlite3.Connection) -> None:
             conn.execute(f"ALTER TABLE evidence ADD COLUMN {name} TEXT")
 
 
+def _add_merchant_v3_columns(conn: sqlite3.Connection) -> None:
+    columns = {
+        row["name"] for row in conn.execute("PRAGMA table_info(merchant_guarantees_v3)")
+    }
+    for name in ("settlement_id", "settlement_receipt_digest"):
+        if name not in columns:
+            conn.execute(f"ALTER TABLE merchant_guarantees_v3 ADD COLUMN {name} TEXT")
+    conn.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS ux_merchant_guarantee_settlement_v3 "
+        "ON merchant_guarantees_v3(settlement_id) WHERE settlement_id IS NOT NULL"
+    )
+
+
 def migrate(paths: DatabasePaths) -> dict[str, int]:
     schemas = (
-        (paths.marketplace, MARKETPLACE_SCHEMA_V2),
-        (paths.merchant, MERCHANT_SCHEMA_V2),
-        (paths.evidence, EVIDENCE_SCHEMA_V2),
+        (
+            paths.marketplace,
+            MARKETPLACE_SCHEMA_V2,
+            MARKETPLACE_SCHEMA_V3,
+            MARKETPLACE_SCHEMA_V4,
+        ),
+        (paths.merchant, MERCHANT_SCHEMA_V2, MERCHANT_SCHEMA_V3, MERCHANT_SCHEMA_V4),
+        (paths.evidence, EVIDENCE_SCHEMA_V2, EVIDENCE_SCHEMA_V3, EVIDENCE_SCHEMA_V4),
     )
-    checksum = hashlib.sha256("\n".join(schema for _, schema in schemas).encode()).hexdigest()
-    for path, schema in schemas:
+    checksum = hashlib.sha256(
+        "\n".join(schema for entry in schemas for schema in entry[1:]).encode()
+    ).hexdigest()
+    for path, *parts in schemas:
         with _connect(path) as conn:
             conn.execute("BEGIN IMMEDIATE")
             _ensure_migration_table(conn)
-            conn.executescript(schema)
+            for schema in parts:
+                conn.executescript(schema)
+            if path == paths.merchant:
+                _add_merchant_v3_columns(conn)
             if path == paths.evidence:
                 _add_evidence_columns(conn)
             conn.execute(

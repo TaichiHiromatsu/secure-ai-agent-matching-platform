@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import os
 import json
+import hashlib
+import inspect
 import stat
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Annotated, Callable
+from typing import Annotated, Awaitable, Callable, Literal
 
+import httpx
 from fastapi import Depends, FastAPI, Header, Query, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr
@@ -17,6 +20,18 @@ from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr
 from secure_mediation_agent.ap2.keys import DemoKeySet, ROLE_KIDS
 from secure_mediation_agent.identity import VerifiedIdentity, verify_identity_assertion
 from secure_mediation_agent.merchant.client import HttpPaidBookingMerchant
+from secure_mediation_agent.mediation.controller import (
+    MediationController as SessionMediationController,
+)
+from secure_mediation_agent.mediation.errors import MediationError, SecurityBlocked
+from secure_mediation_agent.mediation.models import (
+    MediationPublicView,
+    PendingAction,
+    SubjectScope,
+    TextPart as MediationTextPart,
+    TraceEvent,
+)
+from secure_mediation_agent.mediation.store import InMemoryMediationStore
 
 from .controller import Identity, WorkflowController
 from .errors import DomainError
@@ -41,6 +56,36 @@ class WorkflowMessageBody(ApiModel):
     expected_version: StrictInt | None = Field(default=None, alias="expectedVersion", ge=1)
 
 
+class MediationTurnMessage(ApiModel):
+    parts: list[MediationTextPart] = Field(min_length=1)
+
+
+class MediationTurnBody(ApiModel):
+    schema_version: Literal["mediation-turn-request/1"] = Field(
+        default="mediation-turn-request/1", alias="schemaVersion"
+    )
+    request_id: StrictStr = Field(alias="requestId", min_length=8, max_length=256)
+    expected_version: StrictInt | None = Field(
+        default=None, alias="expectedVersion", ge=0
+    )
+    message: MediationTurnMessage
+    selection_token: None = Field(default=None, alias="selectionToken")
+
+
+class MediationTurnResponse(ApiModel):
+    schema_version: Literal["mediation-turn-response/1"] = Field(
+        default="mediation-turn-response/1", alias="schemaVersion"
+    )
+    request_id: StrictStr = Field(alias="requestId")
+    mediation_session_id: StrictStr = Field(alias="mediationSessionId")
+    state: StrictStr
+    version: StrictInt
+    pending_action: PendingAction = Field(alias="pendingAction")
+    view: MediationPublicView
+    trace: tuple[TraceEvent, ...]
+    error: None = None
+
+
 @dataclass(slots=True)
 class WorkflowRuntime:
     controller: WorkflowController
@@ -51,10 +96,11 @@ class WorkflowRuntime:
     keys: DemoKeySet | None = None
     key_directory: Path | None = None
     merchant_probe: Callable[[], bool] | None = None
-    route_config: Path | None = None
+    public_route_probe: Callable[[], bool | Awaitable[bool]] | None = None
     spec_manifest: Path | None = None
     allow_ephemeral_test_dependencies: bool = False
     ephemeral_cloud_run_demo: bool = False
+    mediation_controller: SessionMediationController | None = None
 
 
 def _default_runtime() -> WorkflowRuntime:
@@ -74,6 +120,10 @@ def _default_runtime() -> WorkflowRuntime:
         os.environ.get("PAYMENT_MERCHANT_A2A_URL", "http://127.0.0.1:8005")
     )
     repository = WorkflowRepository(paths)
+    from secure_mediation_agent.mediation.composition import (
+        create_production_controller,
+    )
+
     return WorkflowRuntime(
         controller=WorkflowController(
             repository,
@@ -87,10 +137,16 @@ def _default_runtime() -> WorkflowRuntime:
         keys=keys,
         key_directory=Path(os.environ["AP2_DEMO_KEY_DIR"]).resolve(),
         merchant_probe=merchant.health,
-        route_config=Path("/etc/nginx/nginx.conf"),
+        public_route_probe=lambda: _probe_public_routes(
+            os.environ.get("PUBLIC_EDGE_PROBE_URL", "http://127.0.0.1:8080")
+        ),
         spec_manifest=Path(__file__).resolve().parents[1] / "spec_manifest.json",
         ephemeral_cloud_run_demo=(
             os.environ.get("EPHEMERAL_CLOUD_RUN_DEMO") == "true"
+        ),
+        mediation_controller=create_production_controller(
+            repository=repository,
+            keys=keys,
         ),
     )
 
@@ -128,22 +184,52 @@ def _keys_ready(runtime: WorkflowRuntime) -> bool:
     return True
 
 
-def _routes_ready(runtime: WorkflowRuntime) -> bool:
-    if runtime.route_config is None:
+async def _probe_public_routes(
+    base_url: str,
+    *,
+    transport: httpx.AsyncBaseTransport | None = None,
+) -> bool:
+    """Verify the live edge method/path boundary without parsing nginx text."""
+
+    probes = (
+        ("GET", "/mediation-api/v1/view", {200, 401}),
+        ("POST", "/mediation-api/v1/turns", {401, 403, 422}),
+        ("GET", "/mediation-api/v1/turns", {404}),
+        ("POST", "/mediation-api/v1/view", {404}),
+        ("POST", "/run", {401, 403, 422}),
+        ("GET", "/run", {404}),
+        ("GET", "/v1/view", {404}),
+        ("GET", "/payment/internal", {404}),
+        ("GET", "/paid-agent/internal", {404}),
+        ("GET", "/internal/authority", {404}),
+    )
+    try:
+        async with httpx.AsyncClient(
+            base_url=base_url.rstrip("/"),
+            timeout=httpx.Timeout(2.0),
+            follow_redirects=False,
+            trust_env=False,
+            transport=transport,
+        ) as client:
+            for method, path, accepted in probes:
+                response = await client.request(method, path)
+                if response.status_code not in accepted:
+                    return False
+    except httpx.HTTPError:
+        return False
+    return True
+
+
+async def _routes_ready(runtime: WorkflowRuntime) -> bool:
+    if runtime.public_route_probe is None:
         return runtime.allow_ephemeral_test_dependencies
     try:
-        source = runtime.route_config.read_text(encoding="utf-8")
-    except OSError:
+        result = runtime.public_route_probe()
+        if inspect.isawaitable(result):
+            result = await result
+        return result is True
+    except Exception:
         return False
-    required = (
-        "location ^~ /payment/ { return 404; }",
-        "location ^~ /paid-agent/ { return 404; }",
-        "location ^~ /internal/ { return 404; }",
-        "location ^~ /v1/ { return 404; }",
-        "location /mediation-api/ {",
-        "proxy_set_header X-Verified-Identity $verified_identity;",
-    )
-    return all(item in source for item in required) and "server 127.0.0.1:8005" not in source
 
 
 def create_app(runtime: WorkflowRuntime | None = None) -> FastAPI:
@@ -190,6 +276,27 @@ def create_app(runtime: WorkflowRuntime | None = None) -> FastAPI:
     def domain_identity(value: VerifiedIdentity) -> Identity:
         return Identity(tenant_id=value.tenant_id, customer_id=value.customer_id)
 
+    def mediation_scope(value: VerifiedIdentity) -> SubjectScope:
+        digest = hashlib.sha256(
+            f"{value.tenant_id}\0{value.subject}".encode("utf-8")
+        ).hexdigest()
+        return SubjectScope(
+            subject=value.subject,
+            tenantId=value.tenant_id,
+            adkSessionId=f"public-{digest[:32]}",
+        )
+
+    def mediation_controller(
+        configured: WorkflowRuntime = Depends(configured_runtime),
+    ) -> SessionMediationController:
+        if configured.mediation_controller is None:
+            raise DomainError(
+                "SERVICE_NOT_READY",
+                "Session mediation composition is not configured.",
+                "mediation",
+            )
+        return configured.mediation_controller
+
     @app.exception_handler(DomainError)
     async def handle_domain_error(_: Request, error: DomainError) -> JSONResponse:
         return JSONResponse(status_code=error.http_status, content={"error": error.envelope()})
@@ -199,6 +306,19 @@ def create_app(runtime: WorkflowRuntime | None = None) -> FastAPI:
         # Do not disclose whether a cross-tenant opaque identifier exists.
         error = DomainError("WORKFLOW_NOT_FOUND", "Workflow was not found.", "workflow")
         return JSONResponse(status_code=404, content={"error": error.envelope()})
+
+    @app.exception_handler(MediationError)
+    async def handle_mediation_error(_: Request, error: MediationError) -> JSONResponse:
+        return JSONResponse(
+            status_code=403 if isinstance(error, SecurityBlocked) else 409,
+            content={
+                "error": {
+                    "code": error.code,
+                    "message": error.safe_message,
+                    "retryable": False,
+                }
+            },
+        )
 
     @app.get("/health")
     async def health() -> dict[str, str]:
@@ -239,7 +359,7 @@ def create_app(runtime: WorkflowRuntime | None = None) -> FastAPI:
         )
         spec_ready, spec_hashes = _spec_pins_ready(spec_path)
         key_ready = _keys_ready(configured)
-        routes_ready = _routes_ready(configured)
+        routes_ready = await _routes_ready(configured)
         try:
             profile_status = configured.controller.profile.readiness()
             profile_ready = (
@@ -252,8 +372,83 @@ def create_app(runtime: WorkflowRuntime | None = None) -> FastAPI:
         merchant_ready = bool(
             configured.merchant_probe and configured.merchant_probe()
         ) or configured.allow_ephemeral_test_dependencies
+        mediation = configured.mediation_controller
+        mediation_store = getattr(mediation, "store", None)
+        local_ephemeral_allowed = (
+            os.environ.get("APP_ENV") == "local"
+            and os.environ.get("DEV_MODE", "false").lower() == "true"
+        )
+        if (
+            mediation_store is None
+            and configured.allow_ephemeral_test_dependencies
+            and not configured.ephemeral_cloud_run_demo
+        ):
+            mediation_store_status = {
+                "mode": "test-unconfigured",
+                "durabilityProfile": "ephemeral-demo",
+                "schemaVersion": None,
+                "writable": True,
+                "decryptable": True,
+            }
+            mediation_mode_ready = True
+            mediation_profile_ready = True
+            mediation_schema_ready = True
+            mediation_probe_ready = True
+        else:
+            memory_store = isinstance(mediation_store, InMemoryMediationStore)
+            mode = "memory" if memory_store else getattr(
+                mediation_store, "kind", "unknown"
+            )
+            durability_profile = getattr(
+                mediation,
+                "durability_profile",
+                getattr(mediation_store, "durability_profile", "unknown"),
+            )
+            if memory_store:
+                # For the process-local demo store these booleans mean the
+                # in-process store is available; no encrypted durable rows exist.
+                schema_version = None
+                writable = True
+                decryptable = True
+            else:
+                try:
+                    probe_method = getattr(mediation_store, "readiness_probe")
+                    probe = probe_method()
+                    schema_version = probe.schema_version
+                    writable = probe.writable
+                    decryptable = probe.decryptable
+                    mode = probe.kind
+                except Exception:
+                    schema_version = None
+                    writable = False
+                    decryptable = False
+            mediation_store_status = {
+                "mode": mode,
+                "durabilityProfile": durability_profile,
+                "schemaVersion": schema_version,
+                "writable": writable,
+                "decryptable": decryptable,
+            }
+            test_memory = (
+                configured.allow_ephemeral_test_dependencies and memory_store
+            )
+            local_memory = local_ephemeral_allowed and memory_store
+            ephemeral_target = configured.ephemeral_cloud_run_demo
+            expected_mode = (
+                "memory"
+                if ephemeral_target or test_memory or local_memory
+                else "sqlite"
+            )
+            expected_profile = (
+                "ephemeral-demo" if expected_mode == "memory" else "local-durable"
+            )
+            expected_schema = None if expected_mode == "memory" else 4
+            mediation_mode_ready = mode == expected_mode
+            mediation_profile_ready = durability_profile == expected_profile
+            mediation_schema_ready = schema_version == expected_schema
+            mediation_probe_ready = writable is True and decryptable is True
         common_checks = {
-            "schemas": schemas == {"marketplace": 2, "merchant": 2, "evidence": 2},
+            "schemas": schemas == {"marketplace": 4, "merchant": 4, "evidence": 4},
             "outboxRecovery": outbox_ready,
             "evidenceIntents": evidence_ready,
             "roleKeys": key_ready,
@@ -262,6 +457,14 @@ def create_app(runtime: WorkflowRuntime | None = None) -> FastAPI:
             "selectedProfileOnly": profile_ready,
             "routeIsolation": routes_ready,
             "merchantA2AAndTaskStore": merchant_ready,
+            "mediationComposition": (
+                configured.mediation_controller is not None
+                or configured.allow_ephemeral_test_dependencies
+            ),
+            "mediationStoreMode": mediation_mode_ready,
+            "mediationStoreProfile": mediation_profile_ready,
+            "mediationStoreSchema": mediation_schema_ready,
+            "mediationStoreProbe": mediation_probe_ready,
         }
         if configured.ephemeral_cloud_run_demo:
             checks = {
@@ -294,6 +497,7 @@ def create_app(runtime: WorkflowRuntime | None = None) -> FastAPI:
             "trust": trust,
             "specHashes": spec_hashes,
             "profile": "x402-wire-simulation/1",
+            "mediationStore": mediation_store_status,
             "railMode": "simulated",
             "officialX402": "NOT RUN",
             "wallet": "NOT RUN",
@@ -317,6 +521,80 @@ def create_app(runtime: WorkflowRuntime | None = None) -> FastAPI:
                 }
             )
         return JSONResponse(status_code=200 if is_ready else 503, content=content)
+
+    @app.post(
+        "/v1/turns",
+        response_model=MediationTurnResponse,
+        response_model_by_alias=True,
+    )
+    async def submit_mediation_turn(
+        body: MediationTurnBody,
+        idempotency_key: Annotated[
+            str, Header(alias="Idempotency-Key", min_length=8)
+        ],
+        request_header: Annotated[
+            str | None, Header(alias="X-Request-ID", min_length=8)
+        ] = None,
+        verified: VerifiedIdentity = Depends(identity),
+        controller: SessionMediationController = Depends(mediation_controller),
+    ) -> MediationTurnResponse:
+        if body.request_id != idempotency_key or (
+            request_header is not None and request_header != body.request_id
+        ):
+            raise DomainError(
+                "IDEMPOTENCY_CONFLICT",
+                "Turn request identifiers do not match.",
+                body.request_id,
+            )
+        scope = mediation_scope(verified)
+        view = await controller.submit(
+            scope=scope,
+            parts=body.message.parts,
+            request_id=body.request_id,
+            expected_version=body.expected_version,
+        )
+        request_result = controller.completed_request_result(
+            scope=scope,
+            parts=body.message.parts,
+            request_id=body.request_id,
+            expected_version=body.expected_version,
+        )
+        if (
+            request_result is None
+            or request_result.status != "completed"
+            or request_result.mediation_session_id is None
+            or request_result.result_version != view.version
+            or request_result.view != view
+        ):
+            raise DomainError(
+                "SERVICE_NOT_READY",
+                "The mediation result was not persisted.",
+                body.request_id,
+            )
+        return MediationTurnResponse(
+            requestId=body.request_id,
+            mediationSessionId=request_result.mediation_session_id,
+            state=view.state.value,
+            version=view.version,
+            pendingAction=view.pending_action,
+            view=view,
+            trace=view.trace,
+        )
+
+    @app.get(
+        "/v1/view",
+        response_model=MediationPublicView | None,
+        response_model_by_alias=True,
+    )
+    async def active_mediation_view(
+        verified: VerifiedIdentity = Depends(identity),
+        controller: SessionMediationController = Depends(mediation_controller),
+    ) -> MediationPublicView | None:
+        scope = mediation_scope(verified)
+        session = controller.store.active_for(scope) or controller.store.latest_for(
+            scope
+        )
+        return controller.public_view(session) if session is not None else None
 
     @app.post("/v1/workflows", response_model=PublicWorkflowView, response_model_by_alias=True)
     async def create_workflow(

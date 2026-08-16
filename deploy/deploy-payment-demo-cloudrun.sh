@@ -14,7 +14,7 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.."
 readonly PROJECT_ID="gen-lang-client-0585901015"
 readonly REGION="asia-northeast1"
 readonly SERVICE_NAME="payment-user-agent-demo"
-readonly DEPLOY_ENV_VARS="EPHEMERAL_CLOUD_RUN_DEMO=true,APP_ENV=ephemeral-demo,DEV_MODE=false"
+readonly DEPLOY_ENV_VARS="EPHEMERAL_CLOUD_RUN_DEMO=true,MEDIATION_STORE_MODE=memory,APP_ENV=ephemeral-demo,DEV_MODE=false"
 readonly CANDIDATE_ARTIFACT="artifacts/cloud-run-candidate.json"
 
 if [ "${PROJECT_ID}/${REGION}/${SERVICE_NAME}" != \
@@ -31,7 +31,7 @@ if [ "${EPHEMERAL_CLOUD_RUN_DEMO:-true}" != "true" ]; then
     exit 2
 fi
 if [ "$DEPLOY_ENV_VARS" != \
-     "EPHEMERAL_CLOUD_RUN_DEMO=true,APP_ENV=ephemeral-demo,DEV_MODE=false" ]; then
+     "EPHEMERAL_CLOUD_RUN_DEMO=true,MEDIATION_STORE_MODE=memory,APP_ENV=ephemeral-demo,DEV_MODE=false" ]; then
     echo "Refusing Cloud Run deployment: deployment environment validation failed."
     exit 2
 fi

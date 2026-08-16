@@ -11,8 +11,10 @@ Artifact を TaskArtifactUpdateEvent (FilePart / FileWithBytes) として返す�
 """
 
 import importlib.util
+import hashlib
 import json
 import logging
+import os
 import sys
 import uuid
 from pathlib import Path
@@ -33,6 +35,86 @@ from a2a.utils.constants import AGENT_CARD_WELL_KNOWN_PATH
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+def _deterministic_local_mode() -> bool:
+    mode = os.environ.get("MEDIATION_LOCAL_AGENT_MODE", "legacy")
+    if mode == "legacy":
+        return False
+    if mode == "deterministic":
+        if (
+            os.environ.get("APP_ENV") != "local"
+            or os.environ.get("DEV_MODE", "false").lower() != "true"
+        ):
+            raise RuntimeError(
+                "MEDIATION_LOCAL_AGENT_MODE=deterministic is restricted to "
+                "DEV_MODE=true with APP_ENV=local"
+            )
+        return True
+    raise RuntimeError(f"unsupported MEDIATION_LOCAL_AGENT_MODE: {mode}")
+
+
+async def _deterministic_hotel_rpc(request):
+    """Return a fixed completed Task over the real local JSON-RPC endpoint."""
+
+    try:
+        body = await request.json()
+    except Exception:
+        body = None
+    if not isinstance(body, dict):
+        return JSONResponse({"error": "invalid JSON-RPC body"}, status_code=400)
+    params = body.get("params")
+    message = params.get("message") if isinstance(params, dict) else None
+    if (
+        body.get("jsonrpc") != "2.0"
+        or body.get("method") != "message/send"
+        or not isinstance(body.get("id"), str)
+        or not isinstance(message, dict)
+    ):
+        return JSONResponse({"error": "invalid JSON-RPC request"}, status_code=400)
+    operation_id = body["id"]
+    metadata = message.get("metadata")
+    metadata = metadata if isinstance(metadata, dict) else {}
+    suffix = hashlib.sha256(operation_id.encode("utf-8")).hexdigest()[:20]
+    task = {
+        "id": f"local-hotel-task-{suffix}",
+        "contextId": str(metadata.get("planId") or f"local-hotel-{suffix}"),
+        "status": {
+            "state": "completed",
+            "message": {
+                "messageId": f"local-hotel-message-{suffix}",
+                "role": "agent",
+                "parts": [
+                    {
+                        "kind": "text",
+                        "text": (
+                            '{"result":"local deterministic hotel search",'
+                            '"simulation":true,"conformance":"NOT CONFORMANT"}'
+                        ),
+                    }
+                ],
+                "metadata": {
+                    "localSimulation": True,
+                    "skillId": "hotel_search",
+                },
+            },
+        },
+        "artifacts": [
+            {
+                "artifactId": f"local-hotel-artifact-{suffix}",
+                "name": "local-hotel-search-result",
+                "parts": [
+                    {
+                        "kind": "text",
+                        "text": "Fixed local-only hotel search test result.",
+                    }
+                ],
+            }
+        ],
+    }
+    return JSONResponse(
+        {"jsonrpc": "2.0", "id": operation_id, "result": {"task": task}}
+    )
 
 
 class ADKAgentExecutor(AgentExecutor):
@@ -254,6 +336,7 @@ def create_app(host: str, port: int, agents_dir: Path) -> Starlette:
     """全エージェントを含む Starlette アプリを生成する。"""
     routes = []
     base_url = f"http://{host}:{port}"
+    deterministic_local = _deterministic_local_mode()
 
     for agent_path in sorted(agents_dir.iterdir()):
         if not agent_path.is_dir():
@@ -278,6 +361,20 @@ def create_app(host: str, port: int, agents_dir: Path) -> Starlette:
 
             card_url = f"/a2a/{agent_name}{AGENT_CARD_WELL_KNOWN_PATH}"
             routes.append(Route(card_url, agent_card_endpoint))
+
+            if deterministic_local and agent_name == "hotel_agent":
+                routes.append(
+                    Route(
+                        f"/a2a/{agent_name}",
+                        _deterministic_hotel_rpc,
+                        methods=["POST"],
+                    )
+                )
+                logger.info(
+                    "Loaded fixed local-only hotel JSON-RPC fixture at %s",
+                    f"/a2a/{agent_name}",
+                )
+                continue
 
             # エージェントモジュールを独立した名前空間でロード
             agent_py = agent_path / "agent.py"

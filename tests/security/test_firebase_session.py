@@ -79,6 +79,49 @@ def test_auth_request_reverifies_cookie_and_logout_clears_it(monkeypatch) -> Non
     assert "Max-Age=0" in logout.headers["set-cookie"]
 
 
+def test_auth_request_validates_origin_and_csrf_for_original_mutation(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(auth, "_verified_firebase_claims", lambda token: _claims())
+    monkeypatch.setattr(
+        auth,
+        "_identity_response",
+        lambda subject: Response(
+            status_code=200,
+            headers={"X-Verified-Identity": f"signed:{subject}"},
+        ),
+    )
+    with TestClient(auth.app, base_url="https://demo.example") as client:
+        csrf = client.get("/auth/csrf").json()["csrfToken"]
+        client.cookies.set(auth.SESSION_COOKIE, "server-cookie")
+        valid = client.get(
+            "/auth/verify",
+            headers={
+                "X-Original-Method": "POST",
+                "Origin": "https://demo.example",
+                "X-CSRF-Token": csrf,
+            },
+        )
+        missing = client.get(
+            "/auth/verify",
+            headers={
+                "X-Original-Method": "POST",
+                "Origin": "https://demo.example",
+            },
+        )
+        wrong_origin = client.get(
+            "/auth/verify",
+            headers={
+                "X-Original-Method": "DELETE",
+                "Origin": "https://evil.example",
+                "X-CSRF-Token": csrf,
+            },
+        )
+    assert valid.status_code == 200
+    assert valid.headers["x-csrf-validated"] == "1"
+    assert (missing.status_code, wrong_origin.status_code) == (403, 403)
+
+
 def test_firebase_verifier_binds_project_issuer_and_subject(monkeypatch) -> None:
     bad = _claims()
     bad["aud"] = "another-project"

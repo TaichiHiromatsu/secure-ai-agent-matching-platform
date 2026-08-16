@@ -1,0 +1,89 @@
+{
+  "conformanceReportDigest": null,
+  "failures": {},
+  "imageDigest": "sha256:3e4e089643564e00bd6563d08a575fcf2aa2eff94ae60fd1ca518900022a89f0",
+  "officialX402": "NOT RUN",
+  "onChainSettlement": "NOT RUN",
+  "releaseManifestDigest": "sha256:852aeaba0e024469eb35adfa45a1dd6fabd054484d68aa1b58739ddaf8457f37",
+  "schemaVersion": "ap2-x402-release-validation/2",
+  "status": "PASS",
+  "suites": {
+    "browser": {
+      "collected": 4,
+      "errors": 0,
+      "failures": 0,
+      "skippedOrXfailed": 0,
+      "status": "PASS"
+    },
+    "concurrency": {
+      "collected": 4,
+      "errors": 0,
+      "failures": 0,
+      "skippedOrXfailed": 0,
+      "status": "PASS"
+    },
+    "container": {
+      "collected": 16,
+      "errors": 0,
+      "failures": 0,
+      "skippedOrXfailed": 0,
+      "status": "PASS"
+    },
+    "contract_ap2": {
+      "collected": 17,
+      "errors": 0,
+      "failures": 0,
+      "skippedOrXfailed": 0,
+      "status": "PASS"
+    },
+    "contract_x402_simulation": {
+      "collected": 2,
+      "errors": 0,
+      "failures": 0,
+      "skippedOrXfailed": 0,
+      "status": "PASS"
+    },
+    "integration": {
+      "collected": 56,
+      "errors": 0,
+      "failures": 0,
+      "skippedOrXfailed": 0,
+      "status": "PASS"
+    },
+    "migration": {
+      "collected": 5,
+      "errors": 0,
+      "failures": 0,
+      "skippedOrXfailed": 0,
+      "status": "PASS"
+    },
+    "restart": {
+      "collected": 41,
+      "errors": 0,
+      "failures": 0,
+      "skippedOrXfailed": 0,
+      "status": "PASS"
+    },
+    "security": {
+      "collected": 84,
+      "errors": 0,
+      "failures": 0,
+      "skippedOrXfailed": 0,
+      "status": "PASS"
+    },
+    "spike": {
+      "collected": 11,
+      "errors": 0,
+      "failures": 0,
+      "skippedOrXfailed": 0,
+      "status": "PASS"
+    },
+    "unit": {
+      "collected": 11,
+      "errors": 0,
+      "failures": 0,
+      "skippedOrXfailed": 0,
+      "status": "PASS"
+    }
+  }
+}

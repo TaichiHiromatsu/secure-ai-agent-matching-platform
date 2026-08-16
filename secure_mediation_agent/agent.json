@@ -1,11 +1,13 @@
 {
   "name": "secure_mediation_workflow",
-  "description": "Internal authoritative workflow package; not an ADK-discoverable application.",
+  "description": "Internal authoritative free/paid mediation workflow; never exposed as an ADK-discoverable application. Cloud Run state is ephemeral and payment remains a NOT CONFORMANT simulation.",
   "url": "http://localhost:8000",
   "version": "2.0.0-simulation",
   "protocolVersion": "0.3.19",
   "capabilities": {
-    "durableWorkflow": true,
+    "durableWorkflow": false,
+    "deploymentDurability": "NOT PROVIDED",
+    "ephemeralCloudRunDemo": true,
     "humanPresentApprovals": 2,
     "paymentProfile": "x402-wire-simulation/1",
     "railMode": "simulated",
@@ -13,10 +15,10 @@
   },
   "skills": [
     {
-      "id": "demo-paid-booking",
-      "name": "Durable mediated demo booking",
-      "description": "One fixed demo booking through plan approval, payment approval, simulated settlement, and fulfillment.",
-      "tags": ["ap2-v0.2", "human-present", "x402-v0.1-wire-shape", "simulation", "not-conformant"]
+      "id": "secure-mediation",
+      "name": "Secure free or paid mediation",
+      "description": "Authoritative internal orchestration for plan approval, free A2A completion, paid Human Present simulation, final validation, and one basic full refund.",
+      "tags": ["mediation", "a2a", "ap2-v0.2", "human-present", "simulation", "not-conformant", "ephemeral"]
     }
   ],
   "defaultInputModes": ["text/plain"],

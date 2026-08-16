@@ -14,6 +14,15 @@ CURRENT_COMMIT = "2" * 40
 SOURCE_DIGEST = "sha256:" + "a" * 64
 
 
+def test_candidate_binds_the_exact_ephemeral_memory_store_environment() -> None:
+    assert cloud_run_candidate.DEPLOY_ENVIRONMENT == {
+        "APP_ENV": "ephemeral-demo",
+        "DEV_MODE": "false",
+        "EPHEMERAL_CLOUD_RUN_DEMO": "true",
+        "MEDIATION_STORE_MODE": "memory",
+    }
+
+
 def _source_info(**overrides: Any) -> dict[str, Any]:
     value = {
         "baseCommit": CURRENT_COMMIT,

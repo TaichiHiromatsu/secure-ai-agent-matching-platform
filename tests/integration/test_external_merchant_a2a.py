@@ -1,14 +1,17 @@
 from __future__ import annotations
 
 import time
+from datetime import UTC, datetime
 
 import pytest
 from fastapi.testclient import TestClient
 
 from secure_mediation_agent.merchant.api import MerchantRuntime, create_app
 from secure_mediation_agent.merchant.service import PaidBookingMerchant
+from secure_mediation_agent.payment_profiles.a2a import payment_message
 from secure_mediation_agent.payment_profiles.registry import ProfileRegistry
 from secure_mediation_agent.workflow.approval import AuthorizationService
+from secure_mediation_agent.workflow.canonical import canonical_digest, sha256_digest
 from secure_mediation_agent.workflow.controller import Identity, WorkflowController
 from secure_mediation_agent.workflow.models import MessagePart, WorkflowRequest
 
@@ -133,6 +136,239 @@ def test_external_a2a_rejects_activation_and_capability_before_task_store(
     assert _count_tasks(workflow_fixture) == 1
 
 
+def test_payment_required_quote_and_expiry_are_stable_and_checkout_bound(
+    workflow_fixture,
+) -> None:
+    keys = workflow_fixture["keys"]
+    profile = ProfileRegistry.load(
+        "x402-wire-simulation/1", simulation_key=keys.simulation_signer
+    )
+    authorization = AuthorizationService(keys.plan_authority)
+    service = PaidBookingMerchant(workflow_fixture["repository"], keys, profile)
+    app = create_app(
+        MerchantRuntime(
+            service=service,
+            authorization=authorization,
+            paths=workflow_fixture["paths"],
+            extension_uri=profile.extension_uri,
+        )
+    )
+    params, token = _request(authorization)
+    body = {
+        "jsonrpc": "2.0",
+        "id": "start:stable-quote",
+        "method": "message/send",
+        "params": {
+            "action": "merchant-task:start",
+            "operationId": "start:stable-quote",
+            **params,
+        },
+    }
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "X-A2A-Extensions": profile.extension_uri,
+    }
+    with TestClient(app) as client:
+        first = client.post("/a2a", json=body, headers=headers)
+        replay = client.post("/a2a", json=body, headers=headers)
+
+    assert first.status_code == 200, first.text
+    assert replay.status_code == 200, replay.text
+    assert replay.json()["result"] == first.json()["result"]
+    result = first.json()["result"]
+    metadata = result["task"]["status"]["message"]["metadata"]
+    required = metadata["x402.payment.required"]
+    project = metadata["io.github.taichihiromatsu.secure-mediation.v1"]
+    expected_quote = f"quote:{params['orderId']}"
+    expected_expiry = (
+        datetime.fromtimestamp(params["expiresAt"], UTC)
+        .isoformat()
+        .replace("+00:00", "Z")
+    )
+    assert required["orderId"] == project["orderId"] == params["orderId"]
+    assert required["quoteId"] == project["quoteId"] == expected_quote
+    assert required["expiresAt"] == project["expiresAt"] == expected_expiry
+    assert "checkoutJwt" not in result and "checkoutHash" not in result
+    private = result["privatePaymentMaterial"]
+    checkout = service.verify_checkout(
+        private["checkoutJwt"],
+        workflow_id=params["workflowId"],
+        plan_digest=params["planDigest"],
+        task_id=params["taskId"],
+    )
+    assert checkout["quoteId"] == expected_quote
+    assert checkout["exp"] == params["expiresAt"]
+
+
+def test_guaranteed_http_fulfillment_preserves_order_and_quote_on_completed_task(
+    workflow_fixture,
+) -> None:
+    keys = workflow_fixture["keys"]
+    profile = ProfileRegistry.load(
+        "x402-wire-simulation/1", simulation_key=keys.simulation_signer
+    )
+    authorization = AuthorizationService(keys.plan_authority)
+    app = create_app(
+        MerchantRuntime(
+            service=PaidBookingMerchant(
+                workflow_fixture["repository"], keys, profile
+            ),
+            authorization=authorization,
+            paths=workflow_fixture["paths"],
+            extension_uri=profile.extension_uri,
+        )
+    )
+    start_params, start_token = _request(authorization)
+    headers = {
+        "Authorization": f"Bearer {start_token}",
+        "X-A2A-Extensions": profile.extension_uri,
+    }
+    with TestClient(app) as client:
+        started = client.post(
+            "/a2a",
+            json={
+                "jsonrpc": "2.0",
+                "id": "start:http-guarantee",
+                "method": "message/send",
+                "params": {
+                    "action": "merchant-task:start",
+                    "operationId": "start:http-guarantee",
+                    **start_params,
+                },
+            },
+            headers=headers,
+        )
+        assert started.status_code == 200, started.text
+        project = started.json()["result"]["task"]["status"]["message"][
+            "metadata"
+        ]["io.github.taichihiromatsu.secure-mediation.v1"]
+        now = int(time.time())
+        guarantee = profile.issue_guarantee(
+            {
+                "guaranteeId": "guarantee:http-1",
+                "iss": "secure-mediator-payment-authority",
+                "aud": "a2a-agent:agent-005",
+                "operation": "merchant.fulfillment.guarantee",
+                "taskId": start_params["taskId"],
+                "contextId": start_params["contextId"],
+                "orderId": start_params["orderId"],
+                "quoteId": project["quoteId"],
+                "amountMinor": 1250,
+                "currency": "USD",
+                "payee": "demo-merchant",
+                "paymentMandateDigest": sha256_digest("payment-mandate:http"),
+                "authorizationEnvelopeDigest": sha256_digest(
+                    "authorization-envelope:http"
+                ),
+                "settlementCommitmentId": "settlement-commitment:http-1",
+                "jti": "guarantee:http-1",
+                "iat": now,
+                "nbf": now,
+                "exp": now + 600,
+            }
+        )
+        submission = profile.build_guarantee_submission(
+            guarantee=guarantee,
+            guarantee_digest=sha256_digest(guarantee),
+            checkout_mandate_digest=sha256_digest("checkout-mandate:http"),
+            payment_mandate_digest=sha256_digest("payment-mandate:http"),
+            authorization_envelope_digest=sha256_digest(
+                "authorization-envelope:http"
+            ),
+        )
+        guarantee_message = payment_message(
+            task_id=start_params["taskId"],
+            context_id=start_params["contextId"],
+            message_id="message:http-guarantee",
+            status="payment-submitted",
+            payload=submission,
+            project={
+                "orderId": start_params["orderId"],
+                "quoteId": project["quoteId"],
+            },
+        )
+        guarantee_params, guarantee_token = _request(
+            authorization, operation="merchant:payment-guarantee-submit"
+        )
+        guaranteed = client.post(
+            "/a2a",
+            json={
+                "jsonrpc": "2.0",
+                "id": "submit:http-guarantee",
+                "method": "message/send",
+                "params": {
+                    "action": "merchant:payment-guarantee-submit",
+                    "operationId": "submit:http-guarantee",
+                    **guarantee_params,
+                    "message": guarantee_message.model_dump(
+                        mode="json", by_alias=True, exclude_none=True
+                    ),
+                },
+            },
+            headers={
+                "Authorization": f"Bearer {guarantee_token}",
+                "X-A2A-Extensions": profile.extension_uri,
+            },
+        )
+        assert guaranteed.status_code == 200, guaranteed.text
+        receipt = profile.settle_receipt(
+            attempt_id="settlement:http-1", success=True
+        )
+        commit_message = payment_message(
+            task_id=start_params["taskId"],
+            context_id=start_params["contextId"],
+            message_id="message:http-commit",
+            status="payment-settled",
+            payload={
+                "schemaVersion": "merchant-fulfillment-commit/1",
+                "guaranteeId": "guarantee:http-1",
+                "settlementId": "settlement:http-1",
+                "settlementReceipt": receipt,
+                "settlementReceiptDigest": canonical_digest(receipt),
+            },
+            project={
+                "orderId": start_params["orderId"],
+                "quoteId": project["quoteId"],
+                "simulated": True,
+            },
+        )
+        commit_params, commit_token = _request(
+            authorization, operation="merchant:guaranteed-fulfillment-commit"
+        )
+        completed = client.post(
+            "/a2a",
+            json={
+                "jsonrpc": "2.0",
+                "id": "commit:http-guarantee",
+                "method": "message/send",
+                "params": {
+                    "action": "merchant:guaranteed-fulfillment-commit",
+                    "operationId": "commit:http-guarantee",
+                    **commit_params,
+                    "message": commit_message.model_dump(
+                        mode="json", by_alias=True, exclude_none=True
+                    ),
+                },
+            },
+            headers={
+                "Authorization": f"Bearer {commit_token}",
+                "X-A2A-Extensions": profile.extension_uri,
+            },
+        )
+
+    assert completed.status_code == 200, completed.text
+    task = completed.json()["result"]["task"]
+    assert task["id"] == start_params["taskId"]
+    assert task["contextId"] == start_params["contextId"]
+    assert task["status"]["state"] == "completed"
+    completed_project = task["status"]["message"]["metadata"][
+        "io.github.taichihiromatsu.secure-mediation.v1"
+    ]
+    assert completed_project["orderId"] == start_params["orderId"]
+    assert completed_project["quoteId"] == project["quoteId"]
+    assert completed_project["workflowId"] == start_params["workflowId"]
+
+
 @pytest.mark.parametrize(
     ("field", "replacement"),
     [
@@ -187,8 +423,10 @@ def test_external_capability_cannot_replay_across_workflow_task_or_order(
     [
         "merchant-task:start",
         "merchant:payment-submit",
+        "merchant:payment-guarantee-submit",
         "merchant:fulfillment-prepare",
         "merchant:fulfillment-commit",
+        "merchant:guaranteed-fulfillment-commit",
     ],
 )
 def test_each_private_merchant_operation_rejects_direct_unsigned_bypass(

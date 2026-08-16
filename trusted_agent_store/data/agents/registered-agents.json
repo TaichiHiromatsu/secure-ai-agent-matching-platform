@@ -42,6 +42,22 @@
       "booking",
       "lodging"
     ],
+    "protocol_version": "0.3.0",
+    "capabilities": {},
+    "skills": [
+      {
+        "id": "hotel_search",
+        "name": "Hotel Search",
+        "description": "Search for available hotels based on destination, dates, and preferences",
+        "tags": ["travel", "hotel", "accommodation", "search"]
+      },
+      {
+        "id": "hotel_booking",
+        "name": "Hotel Booking",
+        "description": "Book a hotel through the free loopback A2A fixture without a payment extension",
+        "tags": ["travel", "hotel", "booking", "free"]
+      }
+    ],
     "created_at": "2025-01-10T09:00:00Z",
     "updated_at": "2025-11-25T11:58:11.523642",
     "trust_score": 90
@@ -101,38 +117,41 @@
     "name": "paid_booking_agent",
     "provider": "Another Star Demo Marketplace",
     "agent_card_url": "http://127.0.0.1:8005/.well-known/agent-card.json",
-    "endpoint_url": "http://127.0.0.1:8005",
-    "token_hint": "signed-platform-credit",
+    "endpoint_url": "http://127.0.0.1:8005/a2a",
+    "token_hint": "signed-capability-only",
     "status": "active",
     "use_cases": [
       "paid booking",
       "payment-aware fulfillment",
-      "merchant payout status"
+      "same-task simulated payment fulfillment"
     ],
     "tags": [
       "booking",
       "payment",
       "ap2",
-      "x402",
-      "platform-credit"
+      "x402-wire-simulation",
+      "simulation",
+      "not-conformant"
     ],
     "protocol_version": "0.3.0",
     "capabilities": {
       "extensions": [
         {
-          "uri": "urn:secure-a2a:extensions:ap2-x402-marketplace:v1",
+          "uri": "urn:secure-a2a:extensions:x402-wire-simulation:v1",
           "required": true,
           "params": {
-            "profile": "urn:secure-a2a:extensions:ap2-x402-marketplace:v1",
+            "profile": "x402-wire-simulation/1",
             "simulated": true,
+            "conformance": "NOT_CONFORMANT",
             "sdkPackage": "a2a-sdk",
             "sdkVersion": "0.3.19",
             "wireProtocolVersion": "0.3.0",
             "roles": ["merchant"],
-            "merchantCredit": {
-              "schemes": ["platform-credit"],
-              "networks": ["demo:mediation-ledger"]
-            }
+            "canonicalAgentId": "agent-005",
+            "cardName": "paid-booking-agent",
+            "registrySkillId": "paid_booking",
+            "a2aSkillId": "paid-booking",
+            "identifierMappingVersion": "paid-booking-identifiers/v1"
           }
         }
       ]
@@ -141,14 +160,8 @@
       {
         "id": "paid_booking",
         "name": "Paid demo booking",
-        "description": "Fulfil a booking after mediator-signed platform credit",
-        "tags": ["booking", "payment", "platform-credit"]
-      },
-      {
-        "id": "payout_status",
-        "name": "Payout status",
-        "description": "Create a merchant-scoped payout status request",
-        "tags": ["payment", "payout", "status"]
+        "description": "Fulfil one booking after a mediator-signed simulation guarantee on the same A2A Task",
+        "tags": ["booking", "payment", "simulation", "not-conformant"]
       }
     ],
     "created_at": "2026-08-15T00:00:00Z",

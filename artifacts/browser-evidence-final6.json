@@ -1,0 +1,34 @@
+{
+  "appSelected": "payment_user_agent",
+  "browser": "chromium-cdp-real-ui",
+  "cases": [
+    "free",
+    "paid",
+    "privacy",
+    "refund"
+  ],
+  "completedAfterRefresh": true,
+  "imageDigest": "sha256:3e4e089643564e00bd6563d08a575fcf2aa2eff94ae60fd1ca518900022a89f0",
+  "interactions": [
+    "paid payment booking",
+    "\u627f\u8a8d",
+    "\u627f\u8a8d",
+    "refresh",
+    "hotel search",
+    "\u627f\u8a8d",
+    "paid refund-required booking",
+    "\u627f\u8a8d",
+    "\u627f\u8a8d",
+    "\u627f\u8a8d",
+    "paid privacy booking",
+    "\u627f\u8a8d"
+  ],
+  "listApps": [
+    "payment_user_agent"
+  ],
+  "privateMaterialExposed": false,
+  "productionEdge": "nginx-auth-csrf-adk-workflow",
+  "releaseManifestDigest": "sha256:852aeaba0e024469eb35adfa45a1dd6fabd054484d68aa1b58739ddaf8457f37",
+  "schemaVersion": "ap2-x402-browser-evidence/2",
+  "status": "PASS"
+}

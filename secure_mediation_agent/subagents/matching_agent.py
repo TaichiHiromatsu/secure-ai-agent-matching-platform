@@ -104,7 +104,12 @@ def _convert_agent_entry_to_matcher_format(agent: dict[str, Any]) -> dict[str, A
 
     return {
         "name": agent.get("name", "unknown"),
-        "url": agent.get("endpoint_url") or agent.get("agent_card_url", ""),
+        # Keep discovery and execution URLs as distinct security types.  ``url``
+        # remains for legacy callers, but the typed mediation adapter never
+        # derives one endpoint from the other.
+        "url": agent.get("endpoint_url") or "",
+        "agentCardUrl": agent.get("agent_card_url") or "",
+        "rpcEndpoint": agent.get("endpoint_url") or "",
         "description": ", ".join(use_cases) if use_cases else f"Agent: {agent.get('name', 'unknown')}",
         "skills": skills,
         "capabilities": capabilities,

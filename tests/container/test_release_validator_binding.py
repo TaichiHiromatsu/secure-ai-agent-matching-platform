@@ -35,7 +35,20 @@ def test_validator_binds_exact_image_manifest_regression_and_browser(tmp_path: P
         "browser": "chromium-cdp-real-ui",
         "listApps": ["payment_user_agent"],
         "appSelected": "payment_user_agent",
-        "interactions": ["browser booking", "承認", "承認", "refresh"],
+        "interactions": [
+            "paid payment booking",
+            "承認",
+            "承認",
+            "refresh",
+            "hotel search",
+            "承認",
+            "paid refund-required booking",
+            "承認",
+            "承認",
+            "承認",
+            "paid privacy booking",
+            "承認",
+        ],
         "completedAfterRefresh": True,
     }
     regression_path = tmp_path / "regression.json"

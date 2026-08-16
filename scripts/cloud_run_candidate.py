@@ -27,6 +27,7 @@ DEPLOY_ENVIRONMENT = {
     "APP_ENV": "ephemeral-demo",
     "DEV_MODE": "false",
     "EPHEMERAL_CLOUD_RUN_DEMO": "true",
+    "MEDIATION_STORE_MODE": "memory",
 }
 DIGEST_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
 COMMIT_PATTERN = re.compile(r"^[0-9a-f]{40}$")

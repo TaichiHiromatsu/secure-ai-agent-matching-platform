@@ -40,6 +40,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     chromium \
     curl \
+    jq \
     nginx \
     supervisor \
     && rm -rf /var/lib/apt/lists/*
@@ -79,8 +80,6 @@ COPY scripts/cloud_run_candidate.py /app/scripts/cloud_run_candidate.py
 COPY pyproject.toml /app/pyproject.toml
 COPY Dockerfile /app/Dockerfile
 COPY tests /app/tests
-COPY trusted_agent_store/evaluation-runner/tests /app/trusted_agent_store/evaluation-runner/tests
-COPY trusted_agent_store/jury-judge-worker/tests /app/trusted_agent_store/jury-judge-worker/tests
 RUN chmod +x /app/scripts/*.py /app/scripts/*.sh /app/user-agent/payment_cli.py
 
 # ============================================
@@ -91,7 +90,8 @@ COPY deploy/auth /app/auth
 COPY deploy /app/deploy
 RUN mkdir -p /app/static
 COPY deploy/auth/login.html /app/static/login.html
-RUN chmod 644 /app/static/login.html
+COPY deploy/auth/csrf-bootstrap.js /app/static/csrf-bootstrap.js
+RUN chmod 644 /app/static/login.html /app/static/csrf-bootstrap.js
 
 # firebase-admin is installed via pyproject.toml dependencies
 

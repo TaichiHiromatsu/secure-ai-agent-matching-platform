@@ -77,6 +77,110 @@ class SimulationV1Profile:
             "payload": {"simulationAuthorization": proof},
         }
 
+    def issue_guarantee(self, claims: dict[str, Any]) -> str:
+        """Issue a demo commitment without claiming debit or settlement."""
+
+        required = {
+            "guaranteeId",
+            "iss",
+            "aud",
+            "operation",
+            "taskId",
+            "contextId",
+            "orderId",
+            "quoteId",
+            "amountMinor",
+            "currency",
+            "payee",
+            "paymentMandateDigest",
+            "authorizationEnvelopeDigest",
+            "settlementCommitmentId",
+            "jti",
+            "iat",
+            "nbf",
+            "exp",
+        }
+        if set(claims) != required:
+            raise ValueError("simulation guarantee claim set mismatch")
+        if (
+            claims["iss"] != "secure-mediator-payment-authority"
+            or claims["aud"] != "a2a-agent:agent-005"
+            or claims["operation"] != "merchant.fulfillment.guarantee"
+            or claims["amountMinor"] != 1250
+            or claims["currency"] != self.asset
+            or claims["payee"] != "demo-merchant"
+            or claims["exp"] <= claims["iat"]
+            or claims["nbf"] != claims["iat"]
+        ):
+            raise ValueError("simulation guarantee policy mismatch")
+        payload = {
+            "schemaVersion": "signed-payment-guarantee/1",
+            "profileId": self.profile_id,
+            "simulated": True,
+            "state": "GUARANTEED",
+            **claims,
+        }
+        return create_jwt(
+            {"alg": "ES256", "kid": self.kid, "typ": "signed-payment-guarantee+jwt"},
+            payload,
+            self._signing_key,
+        )
+
+    def verify_guarantee(
+        self,
+        token: str,
+        public_key: JWK,
+        *,
+        expected: dict[str, Any],
+    ) -> dict[str, Any]:
+        payload = verify_jwt(token, public_key)
+        for name, value in {
+            "schemaVersion": "signed-payment-guarantee/1",
+            "profileId": self.profile_id,
+            "simulated": True,
+            "state": "GUARANTEED",
+            "iss": "secure-mediator-payment-authority",
+            "aud": "a2a-agent:agent-005",
+            "operation": "merchant.fulfillment.guarantee",
+            **expected,
+        }.items():
+            if payload.get(name) != value:
+                raise ValueError(f"simulation guarantee mismatch: {name}")
+        forbidden = {
+            "settled",
+            "debited",
+            "credited",
+            "transaction",
+            "transactionHash",
+            "onChain",
+        }
+        if forbidden.intersection(payload):
+            raise ValueError("simulation guarantee contains settlement claim")
+        if not isinstance(payload.get("iat"), int) or payload.get("exp", 0) <= payload["iat"]:
+            raise ValueError("simulation guarantee lifetime is invalid")
+        return payload
+
+    def build_guarantee_submission(
+        self,
+        *,
+        guarantee: str,
+        guarantee_digest: str,
+        checkout_mandate_digest: str,
+        payment_mandate_digest: str,
+        authorization_envelope_digest: str,
+    ) -> dict[str, Any]:
+        return {
+            "schemaVersion": "merchant-payment-guarantee-submission/1",
+            "profileId": self.profile_id,
+            "paymentGuarantee": guarantee,
+            "paymentGuaranteeDigest": guarantee_digest,
+            "ap2Evidence": {
+                "checkoutMandateDigest": checkout_mandate_digest,
+                "paymentMandateDigest": payment_mandate_digest,
+                "authorizationEnvelopeDigest": authorization_envelope_digest,
+            },
+        }
+
     def validate_activation(self, requested: set[str]) -> None:
         if requested != {self.extension_uri}:
             raise ValueError("simulation activation mismatch")

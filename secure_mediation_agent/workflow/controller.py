@@ -42,6 +42,10 @@ from .repository import WorkflowRepository
 from .views import build_view
 
 
+_OUTBOX_FAST_PATH_WAIT_SECONDS = 2.0
+_OUTBOX_FAST_PATH_POLL_SECONDS = 0.05
+
+
 def _id(prefix: str) -> str:
     return f"{prefix}:{uuid.uuid4().hex}"
 
@@ -680,17 +684,26 @@ class WorkflowController:
     def _run_outbox_operation(self, operation_id: str) -> None:
         """Use the durable worker contract even for the API fast path."""
 
-        row = self.repository.lease_outbox(
-            self.worker_id, operation_id=operation_id, lease_seconds=120
-        )
+        deadline = time.monotonic() + _OUTBOX_FAST_PATH_WAIT_SECONDS
+        row = None
+        while row is None:
+            row = self.repository.lease_outbox(
+                self.worker_id, operation_id=operation_id, lease_seconds=120
+            )
+            if row is not None:
+                break
+            existing = self.repository.outbox_row(operation_id)
+            if existing and existing["status"] == "done":
+                return
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            # A just-enqueued row can be momentarily not due if wall time moves
+            # backwards.  An active lease can also complete in another worker.
+            # Retry with a bounded sleep; lease_outbox remains the sole CAS and
+            # therefore never steals an unexpired competing lease.
+            time.sleep(min(_OUTBOX_FAST_PATH_POLL_SECONDS, remaining))
         if row is None:
-            for _ in range(600):
-                existing = self.repository.outbox_row(operation_id)
-                if existing and existing["status"] == "done":
-                    return
-                if existing and existing["status"] in {"pending", "failed"}:
-                    break
-                time.sleep(0.05)
             raise DomainError(
                 "OUTBOX_LEASE_UNAVAILABLE",
                 "Durable operation is already being recovered.",
@@ -864,7 +877,21 @@ class WorkflowController:
             )
             return
         expected_requirements = self.profile.build_required(amount=1250)
-        if result.requirements != expected_requirements:
+        observed_payment_constraints = {
+            key: result.requirements.get(key) for key in expected_requirements
+        }
+        expected_quote_id = f"quote:{start_request['orderId']}"
+        expected_expiry = (
+            datetime.fromtimestamp(int(start_request["expiresAt"]), UTC)
+            .isoformat()
+            .replace("+00:00", "Z")
+        )
+        if (
+            observed_payment_constraints != expected_requirements
+            or result.requirements.get("orderId") != start_request["orderId"]
+            or result.requirements.get("quoteId") != expected_quote_id
+            or result.requirements.get("expiresAt") != expected_expiry
+        ):
             self.repository.transition(
                 workflow["workflow_id"],
                 expected_state=WorkflowState.MERCHANT_TASK_STARTING,

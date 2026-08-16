@@ -17,6 +17,10 @@ IDENTITY_AUDIENCE = "secure-mediation-workflow-api"
 IDENTITY_ISSUER = "secure-mediation-auth"
 DEMO_TENANT_ID = "demo-tenant"
 DEMO_CUSTOMER_ID = "demo-customer"
+# Private ADK session-state key.  The authenticated edge bridge injects a
+# freshly signed assertion on every run and removes this value from responses.
+# Browser-provided values under this key are never authoritative.
+ADK_IDENTITY_STATE_KEY = "_secureVerifiedIdentityAssertion"
 
 
 @dataclass(frozen=True, slots=True)

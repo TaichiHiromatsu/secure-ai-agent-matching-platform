@@ -1,13 +1,14 @@
-"""Thin ADK UI adapter for the authoritative secure mediation workflow."""
+"""The only public payment UI agent; all work stays inside secure mediation."""
 
-from secure_mediation_agent.agent import PaymentWorkflowAdapter
+from secure_mediation_agent.mediation.adk_adapter import SecureMediationAdapter
 
 
-root_agent = PaymentWorkflowAdapter(
+root_agent = SecureMediationAdapter(
     name="payment_user_agent",
     description=(
-        "Durable AP2 v0.2 Human Present payment demo. All decisions execute in "
-        "the internal secure mediation workflow; the x402 rail is a local "
-        "wire-shape simulation (NOT CONFORMANT; no asset or on-chain transfer)."
+        "Public deterministic session router for secure A2A mediation. "
+        "The local x402 wire-shape rail is a simulation (NOT CONFORMANT)."
     ),
 )
+
+__all__ = ["root_agent"]

@@ -15,6 +15,53 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 
+_EXPECTED_SUITE_PATHS = {
+    "payment-release": "tests",
+    "evaluation-runner": "trusted_agent_store/evaluation-runner/tests",
+    "jury-worker": "trusted_agent_store/jury-judge-worker/tests",
+}
+_PACKAGED_SUITE_PATHS = {
+    "trusted_agent_store/evaluation-runner/tests": "evaluation-runner/tests",
+    "trusted_agent_store/jury-judge-worker/tests": "jury-judge-worker/tests",
+}
+
+
+def _validate_manifest_suites(suites: list[dict[str, object]]) -> None:
+    """Require every release suite exactly once with its fixed, auditable path."""
+    names = [str(suite.get("name", "")) for suite in suites]
+    if len(names) != len(set(names)):
+        raise ValueError("regression manifest contains duplicate suite names")
+    if set(names) != set(_EXPECTED_SUITE_PATHS):
+        raise ValueError("regression manifest must contain every expected suite exactly once")
+    for suite in suites:
+        name = str(suite["name"])
+        paths = suite.get("paths")
+        expected = [_EXPECTED_SUITE_PATHS[name]]
+        if paths != expected:
+            raise ValueError(f"unexpected paths for regression suite {name}: {paths!r}")
+
+
+def _resolve_suite_paths(
+    paths: list[str], root: Path, *, packaged_root: Path = Path("/app")
+) -> list[str]:
+    """Resolve only known source paths to fixed release-image locations."""
+    resolved = []
+    allowed = set(_EXPECTED_SUITE_PATHS.values())
+    for configured in paths:
+        if configured not in allowed:
+            raise ValueError(f"unexpected regression suite path: {configured!r}")
+        source_path = root / configured
+        if source_path.is_dir():
+            resolved.append(configured)
+            continue
+        packaged = _PACKAGED_SUITE_PATHS.get(configured)
+        if packaged is not None and (packaged_root / packaged).is_dir():
+            resolved.append(str(packaged_root / packaged))
+            continue
+        raise FileNotFoundError(f"regression suite path does not exist: {configured}")
+    return resolved
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -26,11 +73,13 @@ def main() -> int:
     )
     args = parser.parse_args()
     manifest = json.loads(Path(args.manifest).read_text(encoding="utf-8"))
+    _validate_manifest_suites(manifest["suites"])
     results = []
     overall = True
     with tempfile.TemporaryDirectory(prefix="regression-manifest-") as temporary:
         for suite in manifest["suites"]:
             report = Path(temporary) / f"{suite['name']}.xml"
+            suite_paths = _resolve_suite_paths(suite["paths"], Path.cwd())
             command = [
                 sys.executable,
                 "-m",
@@ -38,7 +87,7 @@ def main() -> int:
                 "-p",
                 "no:cacheprovider",
                 "-q",
-                *suite["paths"],
+                *suite_paths,
                 f"--junitxml={report}",
             ]
             environment = os.environ.copy()

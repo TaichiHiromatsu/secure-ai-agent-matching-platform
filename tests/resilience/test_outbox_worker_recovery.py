@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
+from datetime import UTC, datetime, timedelta
 import os
 from pathlib import Path
 import subprocess
 import sys
+import time
 
 import pytest
 
@@ -41,6 +44,84 @@ def _drain(repository, keys, operation_id: str):
     row = repository.lease_outbox("pytest-recovery", operation_id=operation_id)
     assert row is not None
     WorkflowController(repository, keys).process_leased_outbox(row, "pytest-recovery")
+
+
+def _defer_merchant_start(controller: WorkflowController, suffix: str):
+    view = _create(controller, suffix)
+    run_outbox_operation = controller._run_outbox_operation
+    controller._run_outbox_operation = lambda _: None
+    interrupted = _approve(controller, view.workflow_id, f"{suffix}-plan")
+    controller._run_outbox_operation = run_outbox_operation
+    return interrupted, f"start:{interrupted.task_id}"
+
+
+def _merchant_effect_counts(workflow_fixture) -> tuple[int, int, int]:
+    repository = workflow_fixture["repository"]
+    with repository._connect(workflow_fixture["paths"].merchant) as connection:
+        return tuple(
+            int(connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0])
+            for table in (
+                "merchant_tasks_v2",
+                "merchant_messages_v2",
+                "merchant_operations_v2",
+            )
+        )
+
+
+def test_api_fast_path_retries_a_just_enqueued_not_due_operation(
+    workflow_fixture,
+) -> None:
+    repository = workflow_fixture["repository"]
+    controller = WorkflowController(repository, workflow_fixture["keys"])
+    interrupted, operation_id = _defer_merchant_start(controller, "clock-skew")
+    available_at = (datetime.now(UTC) + timedelta(milliseconds=150)).isoformat().replace(
+        "+00:00", "Z"
+    )
+    with repository.transaction() as connection:
+        connection.execute(
+            "UPDATE outbox SET available_at=? WHERE operation_id=?",
+            (available_at, operation_id),
+        )
+
+    assert repository.lease_outbox("not-due-probe", operation_id=operation_id) is None
+    controller._run_outbox_operation(operation_id)
+
+    assert repository.outbox_row(operation_id)["status"] == "done"
+    assert repository.get_workflow(interrupted.workflow_id)["state"] == (
+        WorkflowState.PAYMENT_APPROVAL_REQUIRED
+    )
+    assert _merchant_effect_counts(workflow_fixture) == (1, 0, 0)
+
+
+def test_api_fast_path_waits_for_an_active_competing_lease_without_replay(
+    workflow_fixture,
+) -> None:
+    repository = workflow_fixture["repository"]
+    controller = WorkflowController(repository, workflow_fixture["keys"])
+    interrupted, operation_id = _defer_merchant_start(controller, "competing-worker")
+    leased = repository.lease_outbox(
+        "competing-worker", operation_id=operation_id, lease_seconds=120
+    )
+    assert leased is not None
+
+    def complete_in_competing_worker() -> None:
+        time.sleep(0.15)
+        WorkflowController(repository, workflow_fixture["keys"]).process_leased_outbox(
+            leased, "competing-worker"
+        )
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        completion = pool.submit(complete_in_competing_worker)
+        controller._run_outbox_operation(operation_id)
+        completion.result(timeout=2)
+
+    # A completed operation is an idempotent no-op for the fast path.
+    controller._run_outbox_operation(operation_id)
+    assert repository.outbox_row(operation_id)["status"] == "done"
+    assert repository.get_workflow(interrupted.workflow_id)["state"] == (
+        WorkflowState.PAYMENT_APPROVAL_REQUIRED
+    )
+    assert _merchant_effect_counts(workflow_fixture) == (1, 0, 0)
 
 
 def _persist_keys(directory: Path, keys) -> None:

@@ -6,6 +6,18 @@ if [ "${DEV_MODE:-false}" = "true" ] && [ "${APP_ENV:-}" != "local" ]; then
     exit 1
 fi
 
+if [ "${MEDIATION_TEST_FAULTS:-false}" = "true" ]; then
+    if [ "${APP_ENV:-}" != "local" ] || [ "${DEV_MODE:-false}" != "true" ]; then
+        echo "Refusing startup: MEDIATION_TEST_FAULTS=true is local DEV_MODE only"
+        exit 1
+    fi
+    test_fault_secret="${MEDIATION_TEST_FAULT_SECRET:-}"
+    if [ "${#test_fault_secret}" -lt 32 ]; then
+        echo "Refusing startup: MEDIATION_TEST_FAULT_SECRET must be at least 32 characters"
+        exit 1
+    fi
+fi
+
 if [ "${EPHEMERAL_CLOUD_RUN_DEMO:-false}" = "true" ]; then
     echo "Starting explicitly ephemeral Cloud Run demo services..."
     echo "EPHEMERAL DEMO: state and keys may reset on restart"

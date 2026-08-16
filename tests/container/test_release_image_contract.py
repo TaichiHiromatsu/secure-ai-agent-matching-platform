@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 import pytest
 
 import deploy.auth.verify as auth
+from secure_mediation_agent.mediation.composition import create_production_controller
 
 
 pytestmark = pytest.mark.container
@@ -52,6 +53,7 @@ def test_dedicated_cloud_run_demo_is_explicitly_ephemeral_and_single_instance(
     assert 'PROJECT_ID="gen-lang-client-0585901015"' in script
     assert 'REGION="asia-northeast1"' in script
     assert "EPHEMERAL_CLOUD_RUN_DEMO=true" in script
+    assert "MEDIATION_STORE_MODE=memory" in script
     assert "DEV_MODE=false" in script
     assert "--min-instances 1" in script
     assert "--max-instances 1" in script
@@ -187,7 +189,15 @@ def test_ephemeral_mode_warns_and_provisions_only_local_state(
     assert "EPHEMERAL DEMO: state and keys may reset on restart" in view
     assert all(word not in startup for word in ("cloudsql", "firestore", "filestore"))
 
+    monkeypatch.setenv("APP_ENV", "ephemeral-demo")
+    monkeypatch.setenv("DEV_MODE", "false")
+    monkeypatch.setenv("EPHEMERAL_CLOUD_RUN_DEMO", "true")
+    monkeypatch.setenv("MEDIATION_STORE_MODE", "memory")
     workflow_fixture["runtime"].ephemeral_cloud_run_demo = True
+    workflow_fixture["runtime"].mediation_controller = create_production_controller(
+        repository=workflow_fixture["repository"],
+        keys=workflow_fixture["keys"],
+    )
     with TestClient(workflow_fixture["app"]) as client:
         readiness = client.get("/ready")
     assert readiness.status_code == 200
@@ -201,8 +211,18 @@ def test_ephemeral_mode_warns_and_provisions_only_local_state(
     assert "evidenceDurableVolumeMarker" not in readiness_body
     assert readiness_body["checks"]["ephemeralDataPathWritable"] is True
     assert readiness_body["checks"]["ephemeralEvidencePathWritable"] is True
+    assert readiness_body["mediationStore"] == {
+        "mode": "memory",
+        "durabilityProfile": "ephemeral-demo",
+        "schemaVersion": None,
+        "writable": True,
+        "decryptable": True,
+    }
+    assert readiness_body["checks"]["mediationStoreMode"] is True
+    assert readiness_body["checks"]["mediationStoreProfile"] is True
+    assert readiness_body["checks"]["mediationStoreSchema"] is True
+    assert readiness_body["checks"]["mediationStoreProbe"] is True
 
-    monkeypatch.setenv("EPHEMERAL_CLOUD_RUN_DEMO", "true")
     with TestClient(auth.app) as client:
         deployment = client.get("/auth/deployment")
     assert deployment.status_code == 200

@@ -108,10 +108,11 @@ class HttpPaidBookingMerchant:
             activation=extension,
             capability_token=capability_token,
         )
+        private = result["privatePaymentMaterial"]
         return MerchantStartResult(
             task=Task.model_validate(result["task"]),
-            checkout_jwt=result["checkoutJwt"],
-            checkout_hash=result["checkoutHash"],
+            checkout_jwt=private["checkoutJwt"],
+            checkout_hash=private["checkoutHash"],
             requirements=result["requirements"],
             activation_echo=result["activationEcho"],
             checkout_challenge=result["checkoutChallenge"],
@@ -168,6 +169,60 @@ class HttpPaidBookingMerchant:
             activation="urn:secure-a2a:extensions:x402-wire-simulation:v1",
             capability_token=capability_token,
         )
+
+    def submit_guarantee(
+        self,
+        *,
+        operation_id: str,
+        message: Message,
+        workflow_id: str,
+        order_id: str,
+        capability_id: str,
+        capability_token: str,
+    ) -> Task:
+        result = self._call(
+            "merchant:payment-guarantee-submit",
+            operation_id,
+            {
+                "workflowId": workflow_id,
+                "taskId": message.task_id,
+                "orderId": order_id,
+                "capabilityId": capability_id,
+                "message": message.model_dump(
+                    mode="json", by_alias=True, exclude_none=True
+                ),
+            },
+            activation="urn:secure-a2a:extensions:x402-wire-simulation:v1",
+            capability_token=capability_token,
+        )
+        return Task.model_validate(result["task"])
+
+    def commit_guaranteed_fulfillment(
+        self,
+        *,
+        operation_id: str,
+        message: Message,
+        workflow_id: str,
+        order_id: str,
+        capability_id: str,
+        capability_token: str,
+    ) -> Task:
+        result = self._call(
+            "merchant:guaranteed-fulfillment-commit",
+            operation_id,
+            {
+                "workflowId": workflow_id,
+                "taskId": message.task_id,
+                "orderId": order_id,
+                "capabilityId": capability_id,
+                "message": message.model_dump(
+                    mode="json", by_alias=True, exclude_none=True
+                ),
+            },
+            activation="urn:secure-a2a:extensions:x402-wire-simulation:v1",
+            capability_token=capability_token,
+        )
+        return Task.model_validate(result["task"])
 
     def prepare(
         self,
