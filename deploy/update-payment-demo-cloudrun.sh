@@ -5,7 +5,7 @@
 set -euo pipefail
 
 if [ "$#" -ne 1 ]; then
-    echo "Usage: update-payment-demo-cloudrun.sh candidate|verify|promote|rollback|cleanup|status" >&2
+    echo "Usage: update-payment-demo-cloudrun.sh candidate|adopt|verify|promote|rollback|cleanup|status" >&2
     exit 2
 fi
 
@@ -20,7 +20,7 @@ readonly DEPLOY_ENV_VARS="EPHEMERAL_CLOUD_RUN_DEMO=true,MEDIATION_STORE_MODE=mem
 readonly MAX_SERVICE_TAG_LENGTH=46
 
 case "$ACTION" in
-    candidate|verify|promote|rollback|cleanup|status) ;;
+    candidate|adopt|verify|promote|rollback|cleanup|status) ;;
     *)
         echo "Refusing Cloud Run update: unknown action ${ACTION}." >&2
         exit 2
@@ -41,6 +41,25 @@ assert_candidate_tag() {
     service_tag="${service}-${tag}"
     [ "${#service_tag}" -le "$MAX_SERVICE_TAG_LENGTH" ] \
         || fail "service and candidate traffic tag exceed the ${MAX_SERVICE_TAG_LENGTH}-character limit."
+}
+
+assert_candidate_tag_url() {
+    local service_json="$1" tag="$2" candidate_url="$3" service_url
+    while IFS= read -r service_url; do
+        [[ "$service_url" =~ ^https://${SERVICE_NAME}-[a-z0-9-]+(\.[a-z0-9-]+)?\.run\.app$ ]] \
+            || continue
+        [ "$candidate_url" = "https://${tag}---${service_url#https://}" ] \
+            && return 0
+    done < <(
+        printf '%s' "$service_json" | jq -r '
+            [
+              .status.url?,
+              ((.metadata.annotations["run.googleapis.com/urls"]? // "[]") |
+                fromjson? // [])[]
+            ] | map(select(type == "string")) | unique[]
+        '
+    )
+    fail "candidate tag URL does not match the exact tag and an advertised Cloud Run service origin."
 }
 
 describe_service() {
@@ -71,13 +90,42 @@ assert_revision_ephemeral_profile() {
     )"
     printf '%s' "$revision_json" | jq -e '
         def env($name):
-          [.spec.containers[]?.env[]? | select(.name == $name) | .value] | unique;
+          [.spec.containers[0].env[]? | select(.name == $name) | .value] | unique;
         (.spec.containers | length) == 1 and
+        ((.spec.containers[0].env // []) | length) == 4 and
         env("EPHEMERAL_CLOUD_RUN_DEMO") == ["true"] and
         env("MEDIATION_STORE_MODE") == ["memory"] and
         env("APP_ENV") == ["ephemeral-demo"] and
         env("DEV_MODE") == ["false"]
     ' >/dev/null || fail "candidate revision is not the exact ephemeral memory-store profile."
+}
+
+assert_revision_adoptable_shape() {
+    local revision="$1" revision_json
+    revision_json="$(
+        gcloud run revisions describe "$revision" \
+            --project "$PROJECT_ID" \
+            --region "$REGION" \
+            --platform managed \
+            --format=json
+    )"
+    printf '%s' "$revision_json" | jq -e \
+        --arg revision "$revision" \
+        --arg service "$SERVICE_NAME" '
+        .metadata.name == $revision and
+        .metadata.labels["serving.knative.dev/service"] == $service and
+        [.status.conditions[]? | select(.type == "Ready") | .status] == ["True"] and
+        .spec.containerConcurrency == 1 and
+        .spec.timeoutSeconds == 3600 and
+        (.spec.containers | length) == 1 and
+        [.spec.containers[0].ports[]?.containerPort] == [8080] and
+        (.spec.containers[0].resources.limits.cpu | tostring) as $cpu |
+        ($cpu == "1" or $cpu == "1000m") and
+        .spec.containers[0].resources.limits.memory == "2Gi" and
+        .metadata.annotations["autoscaling.knative.dev/minScale"] == "1" and
+        .metadata.annotations["autoscaling.knative.dev/maxScale"] == "1"
+    ' >/dev/null || fail "candidate revision is not Ready with the exact fixed service shape."
+    assert_revision_ephemeral_profile "$revision"
 }
 
 assert_fixed_target() {
@@ -132,8 +180,14 @@ set_state_status() {
 check_default_traffic() {
     local expected_revision="$1" service_json observed count
     service_json="$(describe_service)"
-    observed="$(printf '%s' "$service_json" | jq -r '
-        [.status.traffic[]? | select((.percent // 0) == 100 and ((.tag // "") == "")) | .revisionName] | unique | .[]?
+    observed="$(printf '%s' "$service_json" | jq -r \
+        --arg expected "$expected_revision" '
+        [.status.traffic[]? |
+          select(((.tag // "") == "") or ((.percent // 0) > 0)) |
+          {revisionName:(.revisionName // ""), percent:(.percent // -1),
+           tag:(.tag // "")}] |
+        if . == [{revisionName:$expected, percent:100, tag:""}]
+        then $expected else empty end
     ')"
     count="$(printf '%s\n' "$observed" | awk 'NF { count++ } END { print count + 0 }')"
     [ "$count" = "1" ] && [ "$observed" = "$expected_revision" ]
@@ -152,7 +206,7 @@ candidate_tag_url() {
         --arg tag "$tag" \
         --arg revision "$revision" \
         '[.status.traffic[]? |
-          select(.tag == $tag and .revisionName == $revision and ((.percent // 0) == 0)) |
+          select(.tag == $tag and .revisionName == $revision and .percent == 0) |
           .url] | unique | if length == 1 then .[0] else empty end'
 }
 
@@ -255,8 +309,7 @@ create_candidate() {
     assert_revision_ephemeral_profile "$candidate_revision"
     candidate_url="$(candidate_tag_url "$candidate_tag" "$candidate_revision")"
     [ -n "$candidate_url" ] || fail "candidate tag URL was not created at zero traffic."
-    [[ "$candidate_url" =~ ^https://[a-z0-9-]+\.run\.app$ ]] \
-        || fail "candidate tag URL is not an exact Cloud Run HTTPS origin."
+    assert_candidate_tag_url "$service_json" "$candidate_tag" "$candidate_url"
     assert_default_traffic "$old_revision"
 
     temporary="$(mktemp "${UPDATE_STATE}.XXXXXX")"
@@ -269,6 +322,92 @@ create_candidate() {
     mv "$temporary" "$UPDATE_STATE"
 
     echo "CANDIDATE_CREATED revision=${candidate_revision} image=${candidate_image} url=${candidate_url}"
+    echo "Default service traffic remains on ${old_revision}."
+}
+
+adopt_candidate() {
+    local status old_revision old_image candidate_image candidate_tag expected_tag
+    local artifact_image expected_digest registry_digest service_json candidate_revision
+    local candidate_url observed_image observed_old_image adopted_at temporary
+
+    assert_fixed_target
+    require_state
+    status="$(state_value '.status')"
+    [ "$status" = "PREFLIGHT" ] \
+        || fail "candidate adoption requires PREFLIGHT state."
+    if [ "$(state_value '.candidateRevision')" != "NOT_CREATED" ] \
+        || [ "$(state_value '.candidateUrl')" != "NOT_CREATED" ] \
+        || jq -e 'has("reconciliation")' "$UPDATE_STATE" >/dev/null; then
+        fail "candidate adoption refuses a partially reconciled local state."
+    fi
+
+    old_revision="$(state_value '.oldRevision')"
+    old_image="$(state_value '.oldImage')"
+    candidate_image="$(state_value '.candidateImage')"
+    candidate_tag="$(state_value '.candidateTag')"
+    [[ "$candidate_image" =~ ^asia-northeast1-docker\.pkg\.dev/gen-lang-client-0585901015/secure-mediation-agent/payment-user-agent-demo@sha256:[0-9a-f]{64}$ ]] \
+        || fail "saved candidate is not an immutable image in the fixed repository."
+    expected_digest="${candidate_image##*@}"
+    expected_tag="pc-${expected_digest#sha256:}"
+    expected_tag="${expected_tag:0:15}"
+    [ "$candidate_tag" = "$expected_tag" ] \
+        || fail "saved candidate tag is not derived from the candidate digest."
+    assert_candidate_tag "$SERVICE_NAME" "$candidate_tag"
+
+    artifact_image="$(
+        python3 scripts/cloud_run_candidate.py verify-deploy --artifact "$CANDIDATE_ARTIFACT"
+    )"
+    [ "$artifact_image" = "$candidate_image" ] \
+        || fail "candidate artifact differs from the saved candidate image."
+    registry_digest="$(
+        gcloud artifacts docker images describe "$candidate_image" \
+            --project "$PROJECT_ID" \
+            --format='value(image_summary.digest)'
+    )"
+    [ "$registry_digest" = "$expected_digest" ] \
+        || fail "registry digest verification failed during candidate adoption."
+
+    service_json="$(describe_service)"
+    candidate_revision="$(printf '%s' "$service_json" | jq -r \
+        --arg tag "$candidate_tag" '
+        [.status.traffic[]? |
+          select(.tag == $tag and .percent == 0) |
+          .revisionName] | if length == 1 then .[0] else empty end
+    ')"
+    [ -n "$candidate_revision" ] && [ "$candidate_revision" != "$old_revision" ] \
+        || fail "exactly one distinct zero-traffic tagged candidate was not found."
+    candidate_url="$(candidate_tag_url "$candidate_tag" "$candidate_revision")"
+    [ -n "$candidate_url" ] \
+        || fail "candidate tag is not bound to the exact zero-traffic revision."
+    assert_candidate_tag_url "$service_json" "$candidate_tag" "$candidate_url"
+
+    observed_image="$(describe_revision_image "$candidate_revision")"
+    [ "$observed_image" = "$candidate_image" ] \
+        || fail "adopted candidate revision digest differs from the saved candidate."
+    assert_revision_adoptable_shape "$candidate_revision"
+    observed_old_image="$(describe_revision_image "$old_revision")"
+    [ "$observed_old_image" = "$old_image" ] \
+        || fail "saved rollback revision digest changed during candidate adoption."
+    assert_default_traffic "$old_revision"
+
+    adopted_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+    temporary="$(mktemp "${UPDATE_STATE}.XXXXXX")"
+    jq \
+        --arg revision "$candidate_revision" \
+        --arg url "$candidate_url" \
+        --arg adopted_at "$adopted_at" \
+        '.status = "CANDIDATE" |
+         .candidateRevision = $revision |
+         .candidateUrl = $url |
+         .reconciliation = {
+           mode:"READ_ONLY_ADOPTION", previousStatus:"PREFLIGHT",
+           adoptedAt:$adopted_at, cloudMutation:false
+         }' \
+        "$UPDATE_STATE" >"$temporary"
+    chmod 600 "$temporary"
+    mv "$temporary" "$UPDATE_STATE"
+
+    echo "CANDIDATE_ADOPTED revision=${candidate_revision} image=${candidate_image} url=${candidate_url}"
     echo "Default service traffic remains on ${old_revision}."
 }
 
@@ -404,12 +543,13 @@ cleanup_candidate() {
 
 case "$ACTION" in
     candidate) create_candidate ;;
+    adopt) adopt_candidate ;;
     verify) verify_candidate ;;
     promote) promote_candidate ;;
     rollback) rollback_candidate ;;
     cleanup) cleanup_candidate ;;
     status)
         require_state
-        jq '{status,project,region,service,oldRevision,oldImage,candidateRevision,candidateImage,candidateTag,candidateUrl}' "$UPDATE_STATE"
+        jq '{status,project,region,service,oldRevision,oldImage,candidateRevision,candidateImage,candidateTag,candidateUrl,reconciliation}' "$UPDATE_STATE"
         ;;
 esac

@@ -21,7 +21,8 @@ REPOSITORY = (
 IMAGE = f"{REPOSITORY}@{IMAGE_DIGEST}"
 OLD_IMAGE = f"{REPOSITORY}@{OLD_DIGEST}"
 TAG = "pc-" + "a" * 12
-TAG_URL = f"https://{TAG}-fixed.run.app"
+SERVICE_URL = "https://payment-user-agent-demo-kzeuhywicq-an.a.run.app"
+TAG_URL = f"https://{TAG}---{SERVICE_URL.removeprefix('https://')}"
 
 
 def _text(path: str) -> str:
@@ -101,7 +102,7 @@ def test_candidate_tag_accepts_maximum_service_and_fails_fast_past_it() -> None:
     assert "invalid Cloud Run format" in malformed.stderr
 
 
-def _fake_gcloud() -> str:
+def _fake_gcloud(tag_url: str = TAG_URL) -> str:
     return f"""#!/bin/bash
 set -euo pipefail
 printf '%s\n' "$*" >>"$FAKE_GCLOUD_LOG"
@@ -110,15 +111,19 @@ if [ -f "$FAKE_GCLOUD_PHASE" ]; then phase="$(cat "$FAKE_GCLOUD_PHASE")"; fi
 case "$1 $2 $3" in
   "config get-value project") printf '%s\n' gen-lang-client-0585901015 ;;
   "run services list") printf '%s\n' payment-user-agent-demo other-service ;;
-  "artifacts docker images") printf '%s\n' '{IMAGE_DIGEST}' ;;
+  "artifacts docker images") printf '%s\n' "$FAKE_REGISTRY_DIGEST" ;;
   "run revisions describe")
     if printf '%s\n' "$*" | grep -Fq -- '--format=json'; then
-      printf '{{"spec":{{"containers":[{{"env":[{{"name":"EPHEMERAL_CLOUD_RUN_DEMO","value":"%s"}},{{"name":"MEDIATION_STORE_MODE","value":"%s"}},{{"name":"APP_ENV","value":"%s"}},{{"name":"DEV_MODE","value":"%s"}}]}}]}}}}\n' \
-        "$FAKE_EPHEMERAL_CLOUD_RUN_DEMO" "$FAKE_MEDIATION_STORE_MODE" "$FAKE_APP_ENV" "$FAKE_DEV_MODE"
+      printf '{{"metadata":{{"name":"%s","labels":{{"serving.knative.dev/service":"%s"}},"annotations":{{"autoscaling.knative.dev/minScale":"%s","autoscaling.knative.dev/maxScale":"%s"}}}},"spec":{{"containerConcurrency":%s,"timeoutSeconds":%s,"containers":[{{"ports":[{{"containerPort":%s}}],"resources":{{"limits":{{"cpu":"%s","memory":"%s"}}}},"env":[{{"name":"EPHEMERAL_CLOUD_RUN_DEMO","value":"%s"}},{{"name":"MEDIATION_STORE_MODE","value":"%s"}},{{"name":"APP_ENV","value":"%s"}},{{"name":"DEV_MODE","value":"%s"}}%s]}}]}},"status":{{"conditions":[{{"type":"Ready","status":"%s"}}]}}}}\n' \
+        "$4" "$FAKE_REVISION_SERVICE" "$FAKE_MIN_SCALE" "$FAKE_MAX_SCALE" \
+        "$FAKE_CONCURRENCY" "$FAKE_TIMEOUT" "$FAKE_PORT" "$FAKE_CPU" \
+        "$FAKE_MEMORY" "$FAKE_EPHEMERAL_CLOUD_RUN_DEMO" \
+        "$FAKE_MEDIATION_STORE_MODE" "$FAKE_APP_ENV" "$FAKE_DEV_MODE" \
+        "$FAKE_EXTRA_ENV" "$FAKE_READY_STATUS"
     elif [ "$4" = "old-revision" ]; then
-      printf '%s\n' '{OLD_IMAGE}'
+      printf '%s\n' "$FAKE_OLD_IMAGE"
     else
-      printf '%s\n' '{IMAGE}'
+      printf '%s\n' "$FAKE_CANDIDATE_IMAGE"
     fi
     ;;
   "run services update")
@@ -139,19 +144,20 @@ case "$1 $2 $3" in
   "run services describe")
     case "$phase" in
       initial)
-        printf '%s\n' '{{"metadata":{{"name":"payment-user-agent-demo"}},"status":{{"latestReadyRevisionName":"old-revision","traffic":[{{"revisionName":"old-revision","percent":100}}]}}}}'
+        printf '%s\n' '{{"metadata":{{"name":"payment-user-agent-demo"}},"status":{{"url":"{SERVICE_URL}","latestReadyRevisionName":"old-revision","traffic":[{{"revisionName":"old-revision","percent":100}}]}}}}'
         ;;
       candidate)
-        printf '%s\n' '{{"metadata":{{"name":"payment-user-agent-demo"}},"status":{{"latestReadyRevisionName":"candidate-revision","traffic":[{{"revisionName":"old-revision","percent":100}},{{"revisionName":"candidate-revision","percent":0,"tag":"{TAG}","url":"{TAG_URL}"}}]}}}}'
+        printf '{{"metadata":{{"name":"payment-user-agent-demo"}},"status":{{"url":"{SERVICE_URL}","latestReadyRevisionName":"candidate-revision","traffic":[{{"revisionName":"old-revision","percent":%s}},{{"revisionName":"candidate-revision","percent":%s,"tag":"{TAG}","url":"{tag_url}"}}%s]}}}}\n' \
+          "$FAKE_OLD_PERCENT" "$FAKE_CANDIDATE_PERCENT" "$FAKE_EXTRA_TRAFFIC"
         ;;
       promoted)
-        printf '%s\n' '{{"metadata":{{"name":"payment-user-agent-demo"}},"status":{{"latestReadyRevisionName":"candidate-revision","traffic":[{{"revisionName":"candidate-revision","percent":100}},{{"revisionName":"candidate-revision","percent":0,"tag":"{TAG}","url":"{TAG_URL}"}}]}}}}'
+        printf '%s\n' '{{"metadata":{{"name":"payment-user-agent-demo"}},"status":{{"url":"{SERVICE_URL}","latestReadyRevisionName":"candidate-revision","traffic":[{{"revisionName":"candidate-revision","percent":100}},{{"revisionName":"candidate-revision","percent":0,"tag":"{TAG}","url":"{tag_url}"}}]}}}}'
         ;;
       cleaned)
-        printf '%s\n' '{{"metadata":{{"name":"payment-user-agent-demo"}},"status":{{"latestReadyRevisionName":"candidate-revision","traffic":[{{"revisionName":"candidate-revision","percent":100}}]}}}}'
+        printf '%s\n' '{{"metadata":{{"name":"payment-user-agent-demo"}},"status":{{"url":"{SERVICE_URL}","latestReadyRevisionName":"candidate-revision","traffic":[{{"revisionName":"candidate-revision","percent":100}}]}}}}'
         ;;
       rollback)
-        printf '%s\n' '{{"metadata":{{"name":"payment-user-agent-demo"}},"status":{{"latestReadyRevisionName":"candidate-revision","traffic":[{{"revisionName":"old-revision","percent":100}}]}}}}'
+        printf '%s\n' '{{"metadata":{{"name":"payment-user-agent-demo"}},"status":{{"url":"{SERVICE_URL}","latestReadyRevisionName":"candidate-revision","traffic":[{{"revisionName":"old-revision","percent":100}}]}}}}'
         ;;
     esac
     ;;
@@ -160,7 +166,9 @@ esac
 """
 
 
-def _prepare_fake_workspace(tmp_path: Path) -> tuple[Path, dict[str, str]]:
+def _prepare_fake_workspace(
+    tmp_path: Path, *, tag_url: str = TAG_URL
+) -> tuple[Path, dict[str, str]]:
     deploy = tmp_path / "deploy"
     deploy.mkdir()
     script = deploy / "update-payment-demo-cloudrun.sh"
@@ -171,7 +179,7 @@ def _prepare_fake_workspace(tmp_path: Path) -> tuple[Path, dict[str, str]]:
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
     gcloud = fake_bin / "gcloud"
-    gcloud.write_text(_fake_gcloud(), encoding="utf-8")
+    gcloud.write_text(_fake_gcloud(tag_url), encoding="utf-8")
     gcloud.chmod(0o755)
     python = fake_bin / "python3"
     python.write_text(f"#!/bin/sh\nprintf '%s\\n' '{IMAGE}'\n", encoding="utf-8")
@@ -189,6 +197,22 @@ def _prepare_fake_workspace(tmp_path: Path) -> tuple[Path, dict[str, str]]:
         "FAKE_MEDIATION_STORE_MODE": "memory",
         "FAKE_APP_ENV": "ephemeral-demo",
         "FAKE_DEV_MODE": "false",
+        "FAKE_REVISION_SERVICE": "payment-user-agent-demo",
+        "FAKE_READY_STATUS": "True",
+        "FAKE_CANDIDATE_IMAGE": IMAGE,
+        "FAKE_CANDIDATE_PERCENT": "0",
+        "FAKE_OLD_IMAGE": OLD_IMAGE,
+        "FAKE_REGISTRY_DIGEST": IMAGE_DIGEST,
+        "FAKE_OLD_PERCENT": "100",
+        "FAKE_EXTRA_TRAFFIC": "",
+        "FAKE_CONCURRENCY": "1",
+        "FAKE_TIMEOUT": "3600",
+        "FAKE_PORT": "8080",
+        "FAKE_CPU": "1",
+        "FAKE_MEMORY": "2Gi",
+        "FAKE_MIN_SCALE": "1",
+        "FAKE_MAX_SCALE": "1",
+        "FAKE_EXTRA_ENV": "",
     }
     return script, environment
 
@@ -202,6 +226,306 @@ def _run(script: Path, action: str, environment: dict[str, str]) -> subprocess.C
         capture_output=True,
         text=True,
     )
+
+
+def _write_interrupted_preflight(
+    tmp_path: Path, *, candidate_tag: str = TAG
+) -> Path:
+    (tmp_path / "artifacts").mkdir(exist_ok=True)
+    state_path = tmp_path / "artifacts/cloud-run-update-state.json"
+    state_path.write_text(
+        json.dumps(
+            {
+                "schemaVersion": "cloud-run-payment-demo-update/1",
+                "status": "PREFLIGHT",
+                "project": "gen-lang-client-0585901015",
+                "region": "asia-northeast1",
+                "service": "payment-user-agent-demo",
+                "oldRevision": "old-revision",
+                "oldImage": OLD_IMAGE,
+                "oldTraffic": [
+                    {"revisionName": "old-revision", "percent": 100}
+                ],
+                "candidateImage": IMAGE,
+                "candidateTag": candidate_tag,
+                "candidateRevision": "NOT_CREATED",
+                "candidateUrl": "NOT_CREATED",
+            }
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / "gcloud.phase").write_text("candidate", encoding="utf-8")
+    return state_path
+
+
+def test_adopt_reconciles_exact_existing_candidate_without_cloud_mutation(
+    tmp_path: Path,
+) -> None:
+    script, environment = _prepare_fake_workspace(tmp_path)
+    state_path = _write_interrupted_preflight(tmp_path)
+
+    adopted = _run(script, "adopt", environment)
+    assert adopted.returncode == 0, adopted.stderr
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    assert state["status"] == "CANDIDATE"
+    assert state["candidateRevision"] == "candidate-revision"
+    assert state["candidateImage"] == IMAGE
+    assert state["candidateTag"] == TAG
+    assert state["candidateUrl"] == TAG_URL
+    assert state["reconciliation"]["mode"] == "READ_ONLY_ADOPTION"
+    assert state["reconciliation"]["previousStatus"] == "PREFLIGHT"
+    assert state["reconciliation"]["cloudMutation"] is False
+    assert state_path.stat().st_mode & 0o777 == 0o600
+    assert re.fullmatch(
+        r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z",
+        state["reconciliation"]["adoptedAt"],
+    )
+
+    calls = (tmp_path / "gcloud.log").read_text(encoding="utf-8")
+    assert "run services update payment-user-agent-demo" not in calls
+    assert "run services update-traffic" not in calls
+    assert "run services describe" in calls
+    assert "run revisions describe" in calls
+
+    missing_evidence = _run(script, "verify", environment)
+    assert missing_evidence.returncode == 2
+    assert "tag-bound E2E evidence is missing" in missing_evidence.stderr
+    (tmp_path / "artifacts/cloud-run-tag-e2e.json").write_text(
+        json.dumps(_evidence()), encoding="utf-8"
+    )
+    verified = _run(script, "verify", environment)
+    assert verified.returncode == 0, verified.stderr
+    assert json.loads(state_path.read_text(encoding="utf-8"))["status"] == "VERIFIED"
+
+
+@pytest.mark.parametrize(
+    "state_override",
+    [
+        {"candidateRevision": "candidate-revision"},
+        {"candidateUrl": TAG_URL},
+        {
+            "reconciliation": {
+                "mode": "READ_ONLY_ADOPTION",
+                "previousStatus": "PREFLIGHT",
+                "cloudMutation": False,
+            }
+        },
+    ],
+)
+def test_adopt_rejects_partial_local_state_without_rewriting_it(
+    tmp_path: Path, state_override: dict[str, object]
+) -> None:
+    script, environment = _prepare_fake_workspace(tmp_path)
+    state_path = _write_interrupted_preflight(tmp_path)
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state.update(state_override)
+    state_path.write_text(json.dumps(state), encoding="utf-8")
+    before = state_path.read_bytes()
+
+    adopted = _run(script, "adopt", environment)
+    assert adopted.returncode == 2
+    assert "refuses a partially reconciled local state" in adopted.stderr
+    assert state_path.read_bytes() == before
+
+    calls = (tmp_path / "gcloud.log").read_text(encoding="utf-8")
+    assert "artifacts docker images" not in calls
+    assert "run revisions describe" not in calls
+    assert "run services update payment-user-agent-demo" not in calls
+    assert "run services update-traffic" not in calls
+
+
+@pytest.mark.parametrize(
+    ("environment_override", "expected_error"),
+    [
+        (
+            {"FAKE_CANDIDATE_IMAGE": OLD_IMAGE},
+            "revision digest differs from the saved candidate",
+        ),
+        (
+            {"FAKE_CANDIDATE_PERCENT": "1"},
+            "zero-traffic tagged candidate was not found",
+        ),
+        (
+            {"FAKE_CANDIDATE_PERCENT": "null"},
+            "zero-traffic tagged candidate was not found",
+        ),
+        (
+            {
+                "FAKE_EXTRA_TRAFFIC": (
+                    f',{{"revisionName":"candidate-revision","percent":0,'
+                    f'"tag":"{TAG}","url":"{TAG_URL}"}}'
+                )
+            },
+            "zero-traffic tagged candidate was not found",
+        ),
+        (
+            {
+                "FAKE_EXTRA_TRAFFIC": (
+                    ',{"revisionName":"other-revision","percent":1,'
+                    '"tag":"other"}'
+                )
+            },
+            "default traffic is not 100% on old-revision",
+        ),
+        (
+            {"FAKE_OLD_PERCENT": "99"},
+            "default traffic is not 100% on old-revision",
+        ),
+        (
+            {"FAKE_MEDIATION_STORE_MODE": "sqlite"},
+            "not the exact ephemeral memory-store profile",
+        ),
+        (
+            {
+                "FAKE_EXTRA_ENV": (
+                    ',{"name":"UNEXPECTED_SECRET","value":"present"}'
+                )
+            },
+            "not the exact ephemeral memory-store profile",
+        ),
+        (
+            {"FAKE_REVISION_SERVICE": "other-service"},
+            "not Ready with the exact fixed service shape",
+        ),
+        (
+            {"FAKE_READY_STATUS": "False"},
+            "not Ready with the exact fixed service shape",
+        ),
+        (
+            {"FAKE_CONCURRENCY": "2"},
+            "not Ready with the exact fixed service shape",
+        ),
+        (
+            {"FAKE_TIMEOUT": "300"},
+            "not Ready with the exact fixed service shape",
+        ),
+        (
+            {"FAKE_PORT": "8081"},
+            "not Ready with the exact fixed service shape",
+        ),
+        (
+            {"FAKE_CPU": "2"},
+            "not Ready with the exact fixed service shape",
+        ),
+        (
+            {"FAKE_MEMORY": "1Gi"},
+            "not Ready with the exact fixed service shape",
+        ),
+        (
+            {"FAKE_MIN_SCALE": "0"},
+            "not Ready with the exact fixed service shape",
+        ),
+        (
+            {"FAKE_MAX_SCALE": "2"},
+            "not Ready with the exact fixed service shape",
+        ),
+        (
+            {"FAKE_REGISTRY_DIGEST": OLD_DIGEST},
+            "registry digest verification failed during candidate adoption",
+        ),
+        (
+            {"FAKE_OLD_IMAGE": IMAGE},
+            "saved rollback revision digest changed during candidate adoption",
+        ),
+    ],
+)
+def test_adopt_rejects_non_exact_cloud_candidate_and_preserves_preflight(
+    tmp_path: Path,
+    environment_override: dict[str, str],
+    expected_error: str,
+) -> None:
+    script, environment = _prepare_fake_workspace(tmp_path)
+    environment.update(environment_override)
+    state_path = _write_interrupted_preflight(tmp_path)
+    before = state_path.read_bytes()
+
+    adopted = _run(script, "adopt", environment)
+    assert adopted.returncode == 2
+    assert expected_error in adopted.stderr
+    assert state_path.read_bytes() == before
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    assert state["status"] == "PREFLIGHT"
+    assert state["candidateRevision"] == "NOT_CREATED"
+    assert state["candidateUrl"] == "NOT_CREATED"
+
+    calls = (tmp_path / "gcloud.log").read_text(encoding="utf-8")
+    assert "run services update payment-user-agent-demo" not in calls
+    assert "run services update-traffic" not in calls
+
+
+def test_adopt_rejects_candidate_tag_not_derived_from_saved_digest(
+    tmp_path: Path,
+) -> None:
+    script, environment = _prepare_fake_workspace(tmp_path)
+    state_path = _write_interrupted_preflight(tmp_path, candidate_tag="pc-bbbbbbbbbbbb")
+
+    adopted = _run(script, "adopt", environment)
+    assert adopted.returncode == 2
+    assert "tag is not derived from the candidate digest" in adopted.stderr
+    assert json.loads(state_path.read_text(encoding="utf-8"))["status"] == "PREFLIGHT"
+    calls = (tmp_path / "gcloud.log").read_text(encoding="utf-8")
+    assert "run services update payment-user-agent-demo" not in calls
+    assert "run services update-traffic" not in calls
+
+
+@pytest.mark.parametrize(
+    "tag_url",
+    [
+        f"https://wrong---{SERVICE_URL.removeprefix('https://')}",
+        f"https://{TAG}---other-service-kzeuhywicq-an.a.run.app",
+        f"{TAG_URL}.example.com",
+        f"{TAG_URL}/health",
+    ],
+)
+def test_adopt_rejects_tag_url_not_bound_to_advertised_service_origin(
+    tmp_path: Path, tag_url: str
+) -> None:
+    script, environment = _prepare_fake_workspace(tmp_path, tag_url=tag_url)
+    state_path = _write_interrupted_preflight(tmp_path)
+
+    adopted = _run(script, "adopt", environment)
+    assert adopted.returncode == 2
+    assert "does not match the exact tag" in adopted.stderr
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    assert state["status"] == "PREFLIGHT"
+    assert state["candidateRevision"] == "NOT_CREATED"
+    assert state["candidateUrl"] == "NOT_CREATED"
+    calls = (tmp_path / "gcloud.log").read_text(encoding="utf-8")
+    assert "run services update payment-user-agent-demo" not in calls
+    assert "run services update-traffic" not in calls
+
+
+@pytest.mark.parametrize(
+    "tag_url",
+    [
+        f"https://wrong---{SERVICE_URL.removeprefix('https://')}",
+        f"https://{TAG}---other-service-kzeuhywicq-an.a.run.app",
+        f"{TAG_URL}.example.com",
+        f"{TAG_URL}/health",
+    ],
+)
+def test_candidate_rejects_tag_url_not_bound_to_advertised_service_origin(
+    tmp_path: Path, tag_url: str
+) -> None:
+    script, environment = _prepare_fake_workspace(tmp_path, tag_url=tag_url)
+
+    candidate = _run(script, "candidate", environment)
+    assert candidate.returncode == 2
+    assert "does not match the exact tag" in candidate.stderr
+
+    state = json.loads(
+        (tmp_path / "artifacts/cloud-run-update-state.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert state["status"] == "PREFLIGHT"
+    assert state["candidateRevision"] == "NOT_CREATED"
+    assert state["candidateUrl"] == "NOT_CREATED"
+
+    calls = (tmp_path / "gcloud.log").read_text(encoding="utf-8")
+    assert "run services update payment-user-agent-demo" in calls
+    assert "--no-traffic" in calls
+    assert "run services update-traffic" not in calls
 
 
 def _evidence() -> dict[str, object]:
