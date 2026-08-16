@@ -205,9 +205,12 @@ candidate_tag_url() {
     printf '%s' "$service_json" | jq -r \
         --arg tag "$tag" \
         --arg revision "$revision" \
-        '[.status.traffic[]? |
-          select(.tag == $tag and .revisionName == $revision and .percent == 0) |
-          .url] | unique | if length == 1 then .[0] else empty end'
+        'def zero_percent:
+           ((has("percent") | not) or .percent == 0);
+         [.status.traffic[]? | select(.tag == $tag)] |
+         if length == 1 and .[0].revisionName == $revision and
+            (.[0] | zero_percent)
+         then .[0].url else empty end'
 }
 
 assert_candidate_binding() {
@@ -370,9 +373,13 @@ adopt_candidate() {
     service_json="$(describe_service)"
     candidate_revision="$(printf '%s' "$service_json" | jq -r \
         --arg tag "$candidate_tag" '
-        [.status.traffic[]? |
-          select(.tag == $tag and .percent == 0) |
-          .revisionName] | if length == 1 then .[0] else empty end
+        def zero_percent:
+          ((has("percent") | not) or .percent == 0);
+        .status.latestReadyRevisionName as $latest |
+        [.status.traffic[]? | select(.tag == $tag)] |
+        if length == 1 and .[0].revisionName == $latest and
+           (.[0] | zero_percent)
+        then .[0].revisionName else empty end
     ')"
     [ -n "$candidate_revision" ] && [ "$candidate_revision" != "$old_revision" ] \
         || fail "exactly one distinct zero-traffic tagged candidate was not found."

@@ -133,9 +133,17 @@ case "$1 $2 $3" in
     if printf '%s\n' "$*" | grep -Fq -- '--to-revisions candidate-revision=100'; then
       printf '%s' promoted >"$FAKE_GCLOUD_PHASE"
     elif printf '%s\n' "$*" | grep -Fq -- '--to-revisions old-revision=100'; then
-      printf '%s' rollback >"$FAKE_GCLOUD_PHASE"
+      if [ "$phase" = "candidate" ]; then
+        printf '%s' rollback-tagged >"$FAKE_GCLOUD_PHASE"
+      else
+        printf '%s' rollback >"$FAKE_GCLOUD_PHASE"
+      fi
     elif printf '%s\n' "$*" | grep -Fq -- '--remove-tags {TAG}'; then
-      if [ "$phase" = "promoted" ]; then printf '%s' cleaned >"$FAKE_GCLOUD_PHASE"; fi
+      if [ "$phase" = "promoted" ]; then
+        printf '%s' cleaned >"$FAKE_GCLOUD_PHASE"
+      elif [ "$phase" = "rollback-tagged" ]; then
+        printf '%s' rollback >"$FAKE_GCLOUD_PHASE"
+      fi
     else
       printf 'unexpected traffic update: %s\n' "$*" >&2
       exit 90
@@ -147,8 +155,9 @@ case "$1 $2 $3" in
         printf '%s\n' '{{"metadata":{{"name":"payment-user-agent-demo"}},"status":{{"url":"{SERVICE_URL}","latestReadyRevisionName":"old-revision","traffic":[{{"revisionName":"old-revision","percent":100}}]}}}}'
         ;;
       candidate)
-        printf '{{"metadata":{{"name":"payment-user-agent-demo"}},"status":{{"url":"{SERVICE_URL}","latestReadyRevisionName":"candidate-revision","traffic":[{{"revisionName":"old-revision","percent":%s}},{{"revisionName":"candidate-revision","percent":%s,"tag":"{TAG}","url":"{tag_url}"}}%s]}}}}\n' \
-          "$FAKE_OLD_PERCENT" "$FAKE_CANDIDATE_PERCENT" "$FAKE_EXTRA_TRAFFIC"
+        printf '{{"metadata":{{"name":"payment-user-agent-demo"}},"status":{{"url":"{SERVICE_URL}","latestReadyRevisionName":"candidate-revision","traffic":[{{"revisionName":"old-revision"%s}},{{"revisionName":"%s"%s,"tag":"{TAG}","url":"{tag_url}"}}%s]}}}}\n' \
+          "$FAKE_OLD_PERCENT_FRAGMENT" "$FAKE_TAG_REVISION" \
+          "$FAKE_CANDIDATE_PERCENT_FRAGMENT" "$FAKE_EXTRA_TRAFFIC"
         ;;
       promoted)
         printf '%s\n' '{{"metadata":{{"name":"payment-user-agent-demo"}},"status":{{"url":"{SERVICE_URL}","latestReadyRevisionName":"candidate-revision","traffic":[{{"revisionName":"candidate-revision","percent":100}},{{"revisionName":"candidate-revision","percent":0,"tag":"{TAG}","url":"{tag_url}"}}]}}}}'
@@ -156,8 +165,11 @@ case "$1 $2 $3" in
       cleaned)
         printf '%s\n' '{{"metadata":{{"name":"payment-user-agent-demo"}},"status":{{"url":"{SERVICE_URL}","latestReadyRevisionName":"candidate-revision","traffic":[{{"revisionName":"candidate-revision","percent":100}}]}}}}'
         ;;
+      rollback-tagged)
+        printf '%s\n' '{{"metadata":{{"name":"payment-user-agent-demo"}},"status":{{"url":"{SERVICE_URL}","latestReadyRevisionName":"candidate-revision","traffic":[{{"revisionName":"old-revision","percent":100}},{{"revisionName":"candidate-revision","tag":"{TAG}","url":"{TAG_URL}"}},{{"revisionName":"other-revision","tag":"keep-tag","url":"https://keep-tag---payment-user-agent-demo-kzeuhywicq-an.a.run.app"}}]}}}}'
+        ;;
       rollback)
-        printf '%s\n' '{{"metadata":{{"name":"payment-user-agent-demo"}},"status":{{"url":"{SERVICE_URL}","latestReadyRevisionName":"candidate-revision","traffic":[{{"revisionName":"old-revision","percent":100}}]}}}}'
+        printf '%s\n' '{{"metadata":{{"name":"payment-user-agent-demo"}},"status":{{"url":"{SERVICE_URL}","latestReadyRevisionName":"candidate-revision","traffic":[{{"revisionName":"old-revision","percent":100}},{{"revisionName":"other-revision","tag":"keep-tag","url":"https://keep-tag---payment-user-agent-demo-kzeuhywicq-an.a.run.app"}}]}}}}'
         ;;
     esac
     ;;
@@ -200,10 +212,11 @@ def _prepare_fake_workspace(
         "FAKE_REVISION_SERVICE": "payment-user-agent-demo",
         "FAKE_READY_STATUS": "True",
         "FAKE_CANDIDATE_IMAGE": IMAGE,
-        "FAKE_CANDIDATE_PERCENT": "0",
+        "FAKE_TAG_REVISION": "candidate-revision",
+        "FAKE_CANDIDATE_PERCENT_FRAGMENT": "",
         "FAKE_OLD_IMAGE": OLD_IMAGE,
         "FAKE_REGISTRY_DIGEST": IMAGE_DIGEST,
-        "FAKE_OLD_PERCENT": "100",
+        "FAKE_OLD_PERCENT_FRAGMENT": ',"percent":100',
         "FAKE_EXTRA_TRAFFIC": "",
         "FAKE_CONCURRENCY": "1",
         "FAKE_TIMEOUT": "3600",
@@ -258,10 +271,12 @@ def _write_interrupted_preflight(
     return state_path
 
 
+@pytest.mark.parametrize("candidate_percent_fragment", ["", ',"percent":0'])
 def test_adopt_reconciles_exact_existing_candidate_without_cloud_mutation(
-    tmp_path: Path,
+    tmp_path: Path, candidate_percent_fragment: str
 ) -> None:
     script, environment = _prepare_fake_workspace(tmp_path)
+    environment["FAKE_CANDIDATE_PERCENT_FRAGMENT"] = candidate_percent_fragment
     state_path = _write_interrupted_preflight(tmp_path)
 
     adopted = _run(script, "adopt", environment)
@@ -342,17 +357,30 @@ def test_adopt_rejects_partial_local_state_without_rewriting_it(
             "revision digest differs from the saved candidate",
         ),
         (
-            {"FAKE_CANDIDATE_PERCENT": "1"},
+            {"FAKE_CANDIDATE_PERCENT_FRAGMENT": ',"percent":1'},
             "zero-traffic tagged candidate was not found",
         ),
         (
-            {"FAKE_CANDIDATE_PERCENT": "null"},
+            {"FAKE_CANDIDATE_PERCENT_FRAGMENT": ',"percent":null'},
+            "zero-traffic tagged candidate was not found",
+        ),
+        (
+            {"FAKE_TAG_REVISION": "other-revision"},
             "zero-traffic tagged candidate was not found",
         ),
         (
             {
                 "FAKE_EXTRA_TRAFFIC": (
-                    f',{{"revisionName":"candidate-revision","percent":0,'
+                    f',{{"revisionName":"candidate-revision",'
+                    f'"tag":"{TAG}","url":"{TAG_URL}"}}'
+                )
+            },
+            "zero-traffic tagged candidate was not found",
+        ),
+        (
+            {
+                "FAKE_EXTRA_TRAFFIC": (
+                    f',{{"revisionName":"other-revision",'
                     f'"tag":"{TAG}","url":"{TAG_URL}"}}'
                 )
             },
@@ -368,7 +396,11 @@ def test_adopt_rejects_partial_local_state_without_rewriting_it(
             "default traffic is not 100% on old-revision",
         ),
         (
-            {"FAKE_OLD_PERCENT": "99"},
+            {"FAKE_OLD_PERCENT_FRAGMENT": ',"percent":99'},
+            "default traffic is not 100% on old-revision",
+        ),
+        (
+            {"FAKE_OLD_PERCENT_FRAGMENT": ""},
             "default traffic is not 100% on old-revision",
         ),
         (
@@ -666,3 +698,31 @@ def test_revision_profile_mismatch_blocks_promotion_but_not_rollback(
     calls = (tmp_path / "gcloud.log").read_text(encoding="utf-8")
     assert "--to-revisions candidate-revision=100" not in calls
     assert "--to-revisions old-revision=100" in calls
+
+
+def test_interrupted_preflight_rolls_back_only_saved_tag_without_revision_delete(
+    tmp_path: Path,
+) -> None:
+    script, environment = _prepare_fake_workspace(tmp_path)
+    state_path = _write_interrupted_preflight(tmp_path)
+
+    rolled_back = _run(script, "rollback", environment)
+    assert rolled_back.returncode == 0, rolled_back.stderr
+
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    assert state["status"] == "ROLLED_BACK"
+    assert state["oldRevision"] == "old-revision"
+    assert state["candidateRevision"] == "NOT_CREATED"
+    assert state["candidateUrl"] == "NOT_CREATED"
+
+    calls = (tmp_path / "gcloud.log").read_text(encoding="utf-8")
+    traffic_calls = [
+        line for line in calls.splitlines() if "run services update-traffic" in line
+    ]
+    assert len(traffic_calls) == 2
+    assert "--to-revisions old-revision=100" in traffic_calls[0]
+    assert f"--remove-tags {TAG}" in traffic_calls[1]
+    assert "--remove-tags keep-tag" not in calls
+    assert "run revisions delete" not in calls
+    assert "run services delete" not in calls
+    assert (tmp_path / "gcloud.phase").read_text(encoding="utf-8") == "rollback"
