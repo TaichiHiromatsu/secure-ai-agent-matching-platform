@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 
@@ -19,7 +20,7 @@ REPOSITORY = (
 )
 IMAGE = f"{REPOSITORY}@{IMAGE_DIGEST}"
 OLD_IMAGE = f"{REPOSITORY}@{OLD_DIGEST}"
-TAG = "payment-candidate-" + "a" * 12
+TAG = "pc-" + "a" * 12
 TAG_URL = f"https://{TAG}-fixed.run.app"
 
 
@@ -52,6 +53,52 @@ def test_update_script_is_fixed_tagged_no_traffic_and_reversible() -> None:
     assert "--remove-tags \"$tag\"" in source
     assert "Cloud SQL configuration is forbidden" in source
     assert "services delete" not in source
+
+
+def _run_candidate_tag_validation(
+    service: str, tag: str
+) -> subprocess.CompletedProcess[str]:
+    source = _text("deploy/update-payment-demo-cloudrun.sh")
+    function = re.search(r"assert_candidate_tag\(\) \{.*?\n\}", source, re.DOTALL)
+    assert function is not None
+    validator = "\n".join(
+        (
+            "MAX_SERVICE_TAG_LENGTH=46",
+            'fail() { printf "%s\\n" "$*" >&2; exit 2; }',
+            function.group(0),
+            'assert_candidate_tag "$1" "$2"',
+        )
+    )
+    return subprocess.run(
+        ["bash", "-c", validator, "candidate-tag-test", service, tag],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+
+def test_candidate_tag_is_deterministic_valid_and_within_fixed_service_limit() -> None:
+    assert TAG == f"pc-{IMAGE_DIGEST.removeprefix('sha256:')[:12]}"
+    assert re.fullmatch(r"[a-z]([a-z0-9-]{0,61}[a-z0-9])?", TAG)
+    assert len(f"payment-user-agent-demo-{TAG}") == 39
+    result = _run_candidate_tag_validation("payment-user-agent-demo", TAG)
+    assert result.returncode == 0, result.stderr
+
+
+def test_candidate_tag_accepts_maximum_service_and_fails_fast_past_it() -> None:
+    maximum_service = "s" + "1" * 29
+    assert len(f"{maximum_service}-{TAG}") == 46
+    accepted = _run_candidate_tag_validation(maximum_service, TAG)
+    assert accepted.returncode == 0, accepted.stderr
+
+    too_long_service = maximum_service + "1"
+    rejected = _run_candidate_tag_validation(too_long_service, TAG)
+    assert rejected.returncode == 2
+    assert "exceed the 46-character limit" in rejected.stderr
+
+    malformed = _run_candidate_tag_validation(maximum_service, "PC_aaaaaaaaaaaa")
+    assert malformed.returncode == 2
+    assert "invalid Cloud Run format" in malformed.stderr
 
 
 def _fake_gcloud() -> str:

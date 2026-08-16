@@ -17,6 +17,7 @@ readonly CANDIDATE_ARTIFACT="artifacts/cloud-run-candidate.json"
 readonly UPDATE_STATE="artifacts/cloud-run-update-state.json"
 readonly E2E_EVIDENCE="artifacts/cloud-run-tag-e2e.json"
 readonly DEPLOY_ENV_VARS="EPHEMERAL_CLOUD_RUN_DEMO=true,MEDIATION_STORE_MODE=memory,APP_ENV=ephemeral-demo,DEV_MODE=false"
+readonly MAX_SERVICE_TAG_LENGTH=46
 
 case "$ACTION" in
     candidate|verify|promote|rollback|cleanup|status) ;;
@@ -31,6 +32,15 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.."
 fail() {
     echo "Refusing Cloud Run update: $*" >&2
     exit 2
+}
+
+assert_candidate_tag() {
+    local service="$1" tag="$2" service_tag
+    [[ "$tag" =~ ^[a-z]([a-z0-9-]{0,61}[a-z0-9])?$ ]] \
+        || fail "candidate traffic tag has an invalid Cloud Run format."
+    service_tag="${service}-${tag}"
+    [ "${#service_tag}" -le "$MAX_SERVICE_TAG_LENGTH" ] \
+        || fail "service and candidate traffic tag exceed the ${MAX_SERVICE_TAG_LENGTH}-character limit."
 }
 
 describe_service() {
@@ -194,7 +204,8 @@ create_candidate() {
     old_traffic="$(printf '%s' "$service_json" | jq -c '.status.traffic')"
 
     digest_hex="${expected_digest#sha256:}"
-    candidate_tag="payment-candidate-${digest_hex:0:12}"
+    candidate_tag="pc-${digest_hex:0:12}"
+    assert_candidate_tag "$SERVICE_NAME" "$candidate_tag"
     if printf '%s' "$service_json" | jq -e --arg tag "$candidate_tag" \
         '.status.traffic[]? | select(.tag == $tag)' >/dev/null; then
         fail "candidate traffic tag already exists."
