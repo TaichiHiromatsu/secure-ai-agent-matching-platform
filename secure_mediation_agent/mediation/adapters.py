@@ -5,6 +5,7 @@ from __future__ import annotations
 import inspect
 import json
 import base64
+import binascii
 import hashlib
 from datetime import datetime, timedelta
 from types import SimpleNamespace
@@ -719,6 +720,70 @@ class HttpxA2ATransport:
         return self._task_from_result(operation, result)
 
 
+def _artifact_has_result_material(artifact: object) -> bool:
+    if not isinstance(artifact, dict):
+        return False
+    parts = artifact.get("parts")
+    if not isinstance(parts, list) or not parts:
+        return False
+    for part in parts:
+        if not isinstance(part, dict):
+            continue
+        kind = part.get("kind")
+        if kind == "text":
+            text = part.get("text")
+            if isinstance(text, str):
+                normalized = text.strip()
+                if normalized and normalized.casefold() != "(no response)":
+                    return True
+            continue
+        if kind != "file":
+            continue
+        file_part = part.get("file")
+        if not isinstance(file_part, dict):
+            continue
+        file_bytes = file_part.get("bytes")
+        if not isinstance(file_bytes, str):
+            continue
+        try:
+            decoded = base64.b64decode(file_bytes, validate=True)
+        except (ValueError, binascii.Error):
+            continue
+        if decoded:
+            return True
+    return False
+
+
+def _apply_free_structured_fulfillment(
+    session: MediationSession,
+    result: dict[str, Any],
+    plan: dict[str, Any],
+    fulfillment: dict[str, Any],
+) -> None:
+    """Recognize only a free completed Task carrying concrete result material."""
+
+    steps = plan.get("steps")
+    plan_completed = (
+        isinstance(steps, list)
+        and bool(steps)
+        and all(
+            isinstance(step, dict) and step.get("status") == "completed"
+            for step in steps
+        )
+    )
+    if (
+        session.continuation is None
+        and plan_completed
+        and isinstance(result, dict)
+        and result.get("taskState") == "completed"
+        and _artifact_has_result_material(result.get("artifact"))
+    ):
+        # Preserve the legacy confidence and all later critical-issue mapping.
+        # This fallback changes only the binary fulfillment decision for the
+        # already-completed free A2A branch.
+        fulfillment["fulfilled"] = True
+
+
 class LegacyFinalValidationAdapter:
     """Runs the real deterministic final helper symbols and returns a stable decision."""
 
@@ -729,6 +794,7 @@ class LegacyFinalValidationAdapter:
             for step in plan.get("steps", [])
         ]
         fulfillment = json.loads(await verify_request_fulfillment(session.goal, result, plan))
+        _apply_free_structured_fulfillment(session, result, plan, fulfillment)
         history = [
             {"input": session.goal, "output": result, "step_id": session.active_step.step_id}
         ]
