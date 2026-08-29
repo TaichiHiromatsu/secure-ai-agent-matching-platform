@@ -7,6 +7,7 @@ import pytest
 
 from secure_mediation_agent.mediation.a2a_executor import A2AOperation
 from secure_mediation_agent.mediation.adapters import (
+    HttpxA2ATransport,
     LegacyCallbackHook,
     LocalDeterministicCallbackHook,
 )
@@ -20,6 +21,17 @@ from secure_mediation_agent.mediation.models import (
 
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def _load_external_a2a_server():
+    import importlib.util
+
+    server_path = ROOT / "external-agents/trusted-agents/a2a_server.py"
+    spec = importlib.util.spec_from_file_location("local_a2a_server_test", server_path)
+    assert spec is not None and spec.loader is not None
+    server = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(server)
+    return server
 
 
 def _payment_operation() -> A2AOperation:
@@ -94,13 +106,7 @@ def test_deterministic_callback_mode_is_explicit_and_local_only(monkeypatch) -> 
 
 
 def test_deterministic_hotel_agent_mode_is_explicit_and_local_only(monkeypatch) -> None:
-    import importlib.util
-
-    server_path = ROOT / "external-agents/trusted-agents/a2a_server.py"
-    spec = importlib.util.spec_from_file_location("local_a2a_server_test", server_path)
-    assert spec is not None and spec.loader is not None
-    server = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(server)
+    server = _load_external_a2a_server()
 
     monkeypatch.setenv("MEDIATION_LOCAL_AGENT_MODE", "deterministic")
     monkeypatch.setenv("DEV_MODE", "true")
@@ -110,3 +116,66 @@ def test_deterministic_hotel_agent_mode_is_explicit_and_local_only(monkeypatch) 
 
     monkeypatch.setenv("APP_ENV", "local")
     assert server._deterministic_local_mode() is True
+
+
+def test_live_external_agent_emits_strict_completed_task_with_result_artifact() -> None:
+    server = _load_external_a2a_server()
+    executor = server.ADKAgentExecutor(object(), "hotel_agent")
+    task = executor._completed_task(
+        task_id="task-live-1",
+        context_id="context-live-1",
+        final_text='{"hotels":[{"name":"Demo Hotel"}]}',
+        artifacts=[
+            {
+                "name": "hotel-result.json",
+                "parts": [
+                    {"mimeType": "application/json", "data": "e30="}
+                ],
+                "metadata": {"demo": True},
+            }
+        ],
+    )
+    task_wire = task.model_dump(mode="json", by_alias=True, exclude_none=True)
+
+    agent_wire = {
+        "canonicalAgentId": "agent-002",
+        "registryName": "hotel_agent",
+        "a2aAgentName": "hotel_agent",
+        "agentCardUrl": (
+            "http://127.0.0.1:8002/a2a/hotel_agent/.well-known/agent-card.json"
+        ),
+        "rpcEndpoint": "http://127.0.0.1:8002/a2a/hotel_agent",
+        "a2aSkillId": "hotel_search",
+        "trustScore": 90,
+        "cardDigest": canonical_digest({"card": "hotel"}),
+        "paymentExtensionUris": (),
+    }
+    agent = SelectedAgentSnapshot(
+        **agent_wire, snapshotDigest=canonical_digest(agent_wire)
+    )
+    request = {
+        "jsonrpc": "2.0",
+        "id": "operation-live-1",
+        "method": "message/send",
+        "params": {"message": {"kind": "message"}},
+    }
+    operation = A2AOperation(
+        operationId="operation-live-1",
+        kind="task-start",
+        agent=agent,
+        request=request,
+        requestDigest=canonical_digest(request),
+        idempotencyKey="operation-live-1",
+    )
+    envelope = HttpxA2ATransport._task_from_result(operation, task_wire)
+
+    assert task_wire["kind"] == "task"
+    assert task_wire["status"]["state"] == "completed"
+    assert task_wire["id"] == "task-live-1"
+    assert task_wire["contextId"] == "context-live-1"
+    assert task_wire["artifacts"][0]["name"] == "hotel_agent-result"
+    assert len(task_wire["artifacts"]) == 2
+    assert envelope.task.state == "completed"
+    assert envelope.task.task_id == "task-live-1"
+    assert envelope.task.context_id == "context-live-1"
+    assert envelope.task.payment_requirement is None

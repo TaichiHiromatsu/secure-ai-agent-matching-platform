@@ -2,7 +2,7 @@
 
 Google ADK の adk api_server --a2a の代替として動作するカスタムA2Aサーバー。
 セッションを永続化してマルチターン会話に対応し、エージェントが生成した
-Artifact を TaskArtifactUpdateEvent (FilePart / FileWithBytes) として返す。
+Artifact を completed Task の Artifact (FilePart / FileWithBytes) として返す。
 
 変更理由:
 - adk api_server --a2a は _pending_artifacts の収集機能を持たない
@@ -27,9 +27,10 @@ from starlette.responses import JSONResponse
 from a2a.server.apps.jsonrpc.starlette_app import A2AStarletteApplication
 from a2a.server.request_handlers import DefaultRequestHandler
 from a2a.server.agent_execution import AgentExecutor
+from a2a.server.tasks import InMemoryTaskStore
 from a2a.types import (
     AgentCard, Artifact, FilePart, FileWithBytes, Message, Part,
-    TaskArtifactUpdateEvent, TextPart,
+    Task, TaskState, TaskStatus, TextPart,
 )
 from a2a.utils.constants import AGENT_CARD_WELL_KNOWN_PATH
 
@@ -148,6 +149,71 @@ class ADKAgentExecutor(AgentExecutor):
             logger.info(f"InMemoryRunner created for agent: {self.agent_name}")
         return self._runner
 
+    def _completed_task(
+        self,
+        *,
+        task_id: str,
+        context_id: str,
+        final_text: str,
+        artifacts: list[dict],
+    ) -> Task:
+        """Return the live ADK result as one terminal A2A Task.
+
+        The mediator's strict transport deliberately accepts Tasks rather than
+        free-standing Messages.  Emitting the terminal Task also keeps the
+        generated result and any tool artifacts bound to the server-assigned
+        Task/context IDs in a single JSON-RPC result.
+        """
+
+        result_message = Message(
+            messageId=str(uuid.uuid4()),
+            role="agent",
+            taskId=task_id,
+            contextId=context_id,
+            parts=[Part(root=TextPart(text=final_text))],
+            metadata={"source": "live-adk-agent"},
+        )
+        task_artifacts: list[Artifact] = [
+            Artifact(
+                artifactId=str(uuid.uuid4()),
+                name=f"{self.agent_name}-result",
+                parts=[Part(root=TextPart(text=final_text))],
+                metadata={"source": "live-adk-agent"},
+            )
+        ]
+        for artifact in artifacts:
+            artifact_parts: list[Part] = []
+            for part_data in artifact.get("parts", []):
+                artifact_parts.append(
+                    Part(
+                        root=FilePart(
+                            file=FileWithBytes(
+                                bytes=part_data.get("data", ""),
+                                mime_type=part_data.get(
+                                    "mimeType", "application/octet-stream"
+                                ),
+                                name=artifact.get("name", "artifact"),
+                            )
+                        )
+                    )
+                )
+            if artifact_parts:
+                task_artifacts.append(
+                    Artifact(
+                        artifactId=str(uuid.uuid4()),
+                        name=artifact.get("name", "artifact"),
+                        parts=artifact_parts,
+                        metadata=artifact.get("metadata"),
+                    )
+                )
+
+        return Task(
+            id=task_id,
+            contextId=context_id,
+            status=TaskStatus(state=TaskState.completed, message=result_message),
+            artifacts=task_artifacts,
+        )
+
     async def execute(self, context, event_queue):
         """エージェントを実行し、レスポンスと Artifact を送信する。"""
         # ユーザーメッセージを取得
@@ -245,52 +311,26 @@ class ADKAgentExecutor(AgentExecutor):
                     f"in text response as [A2A Artifacts] section (with content preview)"
                 )
 
-            await event_queue.enqueue_event(
-                Message(message_id=str(uuid.uuid4()), role="agent", parts=[TextPart(text=final_text)])
-            )
-
-            # Phase 3: Artifact を FilePart として TaskArtifactUpdateEvent で送信
+            # Phase 3: live ADK result and artifacts are returned together as
+            # one completed Task.  A free-standing Message cannot satisfy the
+            # mediator's strict Task correlation contract.
             task_id = context.task_id
             context_id = context.context_id
-            if artifacts and task_id and context_id:
-                for art in artifacts:
-                    a2a_parts: list[Part] = []
-                    for part_data in art.get("parts", []):
-                        mime_type = part_data.get("mimeType", "application/octet-stream")
-                        data_b64 = part_data.get("data", "")
-                        file_name = art.get("name", "artifact")
-                        a2a_parts.append(
-                            Part(root=FilePart(
-                                file=FileWithBytes(
-                                    bytes=data_b64,
-                                    mime_type=mime_type,
-                                    name=file_name,
-                                )
-                            ))
-                        )
-                    a2a_artifact = Artifact(
-                        artifact_id=str(uuid.uuid4()),
-                        name=art.get("name", "artifact"),
-                        parts=a2a_parts,
-                        metadata=art.get("metadata"),
-                    )
-                    await event_queue.enqueue_event(
-                        TaskArtifactUpdateEvent(
-                            task_id=task_id,
-                            context_id=context_id,
-                            artifact=a2a_artifact,
-                            last_chunk=True,
-                        )
-                    )
-                    logger.info(
-                        f"[{self.agent_name}] Artifact sent: {art.get('name')} "
-                        f"({art.get('parts', [{}])[0].get('mimeType', '?')})"
-                    )
-            elif artifacts:
-                logger.warning(
-                    f"[{self.agent_name}] {len(artifacts)} artifacts collected but "
-                    f"task_id/context_id unavailable — skipped"
+            if not task_id or not context_id:
+                raise RuntimeError("A2A Task correlation IDs were unavailable")
+            await event_queue.enqueue_event(
+                self._completed_task(
+                    task_id=task_id,
+                    context_id=context_id,
+                    final_text=final_text,
+                    artifacts=artifacts,
                 )
+            )
+            logger.info(
+                "[%s] Completed Task emitted with %d artifact(s)",
+                self.agent_name,
+                len(artifacts) + 1,
+            )
 
         except Exception as e:
             logger.error(f"[{self.agent_name}] Error: {e}", exc_info=True)
@@ -390,7 +430,10 @@ def create_app(host: str, port: int, agents_dir: Path) -> Starlette:
 
             adk_agent = agent_module.root_agent
             executor = ADKAgentExecutor(adk_agent, agent_name, agent_module=agent_module)
-            handler = DefaultRequestHandler(agent_executor=executor, task_store=None)
+            handler = DefaultRequestHandler(
+                agent_executor=executor,
+                task_store=InMemoryTaskStore(),
+            )
             a2a_app = A2AStarletteApplication(agent_card=agent_card, http_handler=handler)
             agent_routes = a2a_app.routes(
                 rpc_url=f"/a2a/{agent_name}",
