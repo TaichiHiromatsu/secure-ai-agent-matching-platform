@@ -40,6 +40,7 @@ from secure_mediation_agent.mediation.models import (
 from secure_mediation_agent.mediation.persistence import SqliteMediationStore
 from secure_mediation_agent.mediation.store import InMemoryMediationStore
 from secure_mediation_agent.workflow.api import create_app
+from secure_mediation_agent.workflow.api import _vertex_adc_configuration_ready
 
 
 PAID_EXTENSION = "urn:secure-a2a:extensions:x402-wire-simulation:v1"
@@ -889,7 +890,13 @@ def test_sqlite_reserves_request_before_matcher_is_called(
 
 def test_ephemeral_readiness_requires_exact_memory_profile(
     workflow_fixture,
+    monkeypatch,
 ) -> None:
+    monkeypatch.setenv("GOOGLE_GENAI_USE_VERTEXAI", "true")
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "gen-lang-client-0585901015")
+    monkeypatch.setenv("GOOGLE_CLOUD_LOCATION", "global")
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     memory_controller, _ = _controller(False)
     memory_runtime = replace(
         workflow_fixture["runtime"],
@@ -912,6 +919,7 @@ def test_ephemeral_readiness_requires_exact_memory_profile(
     assert memory_wire["checks"]["mediationStoreProfile"] is True
     assert memory_wire["checks"]["mediationStoreSchema"] is True
     assert memory_wire["checks"]["mediationStoreProbe"] is True
+    assert memory_wire["checks"]["vertexAdcConfiguration"] is True
 
     sqlite_runtime, _, _ = _durable_runtime(
         workflow_fixture, False, b"f" * 32
@@ -925,3 +933,41 @@ def test_ephemeral_readiness_requires_exact_memory_profile(
     assert sqlite_checks["mediationStoreProfile"] is False
     assert sqlite_checks["mediationStoreSchema"] is False
     assert sqlite_checks["mediationStoreProbe"] is True
+
+
+@pytest.mark.parametrize(
+    ("name", "value"),
+    [
+        ("GOOGLE_GENAI_USE_VERTEXAI", "false"),
+        ("GOOGLE_CLOUD_PROJECT", "other-project"),
+        ("GOOGLE_CLOUD_LOCATION", "us-central1"),
+        ("GOOGLE_API_KEY", "forbidden"),
+        ("GEMINI_API_KEY", "forbidden"),
+    ],
+)
+def test_vertex_adc_readiness_rejects_wrong_or_api_key_configuration(
+    monkeypatch,
+    name: str,
+    value: str,
+) -> None:
+    monkeypatch.setenv("GOOGLE_GENAI_USE_VERTEXAI", "true")
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "gen-lang-client-0585901015")
+    monkeypatch.setenv("GOOGLE_CLOUD_LOCATION", "global")
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.setenv(name, value)
+
+    assert _vertex_adc_configuration_ready() is False
+
+
+def test_vertex_adc_readiness_rejects_missing_configuration(monkeypatch) -> None:
+    for name in (
+        "GOOGLE_GENAI_USE_VERTEXAI",
+        "GOOGLE_CLOUD_PROJECT",
+        "GOOGLE_CLOUD_LOCATION",
+        "GOOGLE_API_KEY",
+        "GEMINI_API_KEY",
+    ):
+        monkeypatch.delenv(name, raising=False)
+
+    assert _vertex_adc_configuration_ready() is False

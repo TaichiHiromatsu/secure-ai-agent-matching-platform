@@ -16,7 +16,7 @@ readonly SERVICE_NAME="payment-user-agent-demo"
 readonly CANDIDATE_ARTIFACT="artifacts/cloud-run-candidate.json"
 readonly UPDATE_STATE="artifacts/cloud-run-update-state.json"
 readonly E2E_EVIDENCE="artifacts/cloud-run-tag-e2e.json"
-readonly DEPLOY_ENV_VARS="EPHEMERAL_CLOUD_RUN_DEMO=true,MEDIATION_STORE_MODE=memory,APP_ENV=ephemeral-demo,DEV_MODE=false"
+readonly DEPLOY_ENV_VARS="EPHEMERAL_CLOUD_RUN_DEMO=true,MEDIATION_STORE_MODE=memory,APP_ENV=ephemeral-demo,DEV_MODE=false,GOOGLE_GENAI_USE_VERTEXAI=true,GOOGLE_CLOUD_PROJECT=gen-lang-client-0585901015,GOOGLE_CLOUD_LOCATION=global"
 readonly MAX_SERVICE_TAG_LENGTH=46
 
 case "$ACTION" in
@@ -92,11 +92,14 @@ assert_revision_ephemeral_profile() {
         def env($name):
           [.spec.containers[0].env[]? | select(.name == $name) | .value] | unique;
         (.spec.containers | length) == 1 and
-        ((.spec.containers[0].env // []) | length) == 4 and
+        ((.spec.containers[0].env // []) | length) == 7 and
         env("EPHEMERAL_CLOUD_RUN_DEMO") == ["true"] and
         env("MEDIATION_STORE_MODE") == ["memory"] and
         env("APP_ENV") == ["ephemeral-demo"] and
-        env("DEV_MODE") == ["false"]
+        env("DEV_MODE") == ["false"] and
+        env("GOOGLE_GENAI_USE_VERTEXAI") == ["true"] and
+        env("GOOGLE_CLOUD_PROJECT") == ["gen-lang-client-0585901015"] and
+        env("GOOGLE_CLOUD_LOCATION") == ["global"]
     ' >/dev/null || fail "candidate revision is not the exact ephemeral memory-store profile."
 }
 
@@ -299,7 +302,7 @@ create_candidate() {
         --max-instances 1 \
         --concurrency 1 \
         --timeout 3600s \
-        --update-env-vars "$DEPLOY_ENV_VARS" \
+        --set-env-vars "$DEPLOY_ENV_VARS" \
         --no-traffic \
         --tag "$candidate_tag"
 
@@ -456,7 +459,8 @@ verify_candidate() {
          ([.readiness.checks.mediationStoreMode,
            .readiness.checks.mediationStoreProfile,
            .readiness.checks.mediationStoreSchema,
-           .readiness.checks.mediationStoreProbe] | all(. == true)) and
+           .readiness.checks.mediationStoreProbe,
+           .readiness.checks.vertexAdcConfiguration] | all(. == true)) and
          ([.checks.readiness, .checks.modelProbe, .checks.paid, .checks.free,
            .checks.refund, .checks.browser, .checks.publicBoundary] | all(. == "PASS"))' \
         "$E2E_EVIDENCE" >/dev/null || fail "E2E evidence is incomplete or bound to another candidate."

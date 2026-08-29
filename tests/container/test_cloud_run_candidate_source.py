@@ -19,6 +19,9 @@ def test_candidate_binds_the_exact_ephemeral_memory_store_environment() -> None:
         "APP_ENV": "ephemeral-demo",
         "DEV_MODE": "false",
         "EPHEMERAL_CLOUD_RUN_DEMO": "true",
+        "GOOGLE_CLOUD_LOCATION": "global",
+        "GOOGLE_CLOUD_PROJECT": "gen-lang-client-0585901015",
+        "GOOGLE_GENAI_USE_VERTEXAI": "true",
         "MEDIATION_STORE_MODE": "memory",
     }
 

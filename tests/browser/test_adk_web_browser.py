@@ -256,9 +256,14 @@ def packaged_stack(tmp_path_factory: pytest.TempPathFactory) -> _PackagedStack:
             "MEDIATION_TEST_FAULT_SECRET": MERCHANT_TEST_FAULT_SECRET,
             "EPHEMERAL_CLOUD_RUN_DEMO": "true",
             "MEDIATION_STORE_MODE": "memory",
+            "GOOGLE_GENAI_USE_VERTEXAI": "true",
+            "GOOGLE_CLOUD_PROJECT": "gen-lang-client-0585901015",
+            "GOOGLE_CLOUD_LOCATION": "global",
             "WANDB_DISABLED": "true",
         }
     )
+    environment.pop("GOOGLE_API_KEY", None)
+    environment.pop("GEMINI_API_KEY", None)
     assert {
         key: environment[key]
         for key in (
@@ -266,12 +271,18 @@ def packaged_stack(tmp_path_factory: pytest.TempPathFactory) -> _PackagedStack:
             "DEV_MODE",
             "EPHEMERAL_CLOUD_RUN_DEMO",
             "MEDIATION_STORE_MODE",
+            "GOOGLE_GENAI_USE_VERTEXAI",
+            "GOOGLE_CLOUD_PROJECT",
+            "GOOGLE_CLOUD_LOCATION",
         )
     } == {
         "APP_ENV": "local",
         "DEV_MODE": "true",
         "EPHEMERAL_CLOUD_RUN_DEMO": "true",
         "MEDIATION_STORE_MODE": "memory",
+        "GOOGLE_GENAI_USE_VERTEXAI": "true",
+        "GOOGLE_CLOUD_PROJECT": "gen-lang-client-0585901015",
+        "GOOGLE_CLOUD_LOCATION": "global",
     }
     with log_path.open("wb") as output:
         process = subprocess.Popen(

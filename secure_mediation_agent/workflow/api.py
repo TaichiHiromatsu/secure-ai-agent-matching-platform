@@ -103,6 +103,21 @@ class WorkflowRuntime:
     mediation_controller: SessionMediationController | None = None
 
 
+VERTEX_ADC_ENVIRONMENT = {
+    "GOOGLE_GENAI_USE_VERTEXAI": "true",
+    "GOOGLE_CLOUD_PROJECT": "gen-lang-client-0585901015",
+    "GOOGLE_CLOUD_LOCATION": "global",
+}
+FORBIDDEN_VERTEX_API_KEY_ENVIRONMENT = ("GOOGLE_API_KEY", "GEMINI_API_KEY")
+
+
+def _vertex_adc_configuration_ready() -> bool:
+    return all(
+        os.environ.get(name) == value
+        for name, value in VERTEX_ADC_ENVIRONMENT.items()
+    ) and all(name not in os.environ for name in FORBIDDEN_VERTEX_API_KEY_ENVIRONMENT)
+
+
 def _default_runtime() -> WorkflowRuntime:
     paths = DatabasePaths.resolve(
         os.environ.get("PAYMENT_MARKETPLACE_DB", "/app/payment-data/marketplace.db"),
@@ -474,6 +489,7 @@ def create_app(runtime: WorkflowRuntime | None = None) -> FastAPI:
                 "ephemeralEvidencePathWritable": os.access(
                     configured.paths.evidence.parent, os.W_OK
                 ),
+                "vertexAdcConfiguration": _vertex_adc_configuration_ready(),
                 **common_checks,
             }
         else:

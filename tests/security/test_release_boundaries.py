@@ -191,7 +191,10 @@ def test_current_cloud_run_paid_deployment_is_hard_blocked() -> None:
 def test_payment_demo_deployments_pin_the_ephemeral_memory_store_profile() -> None:
     expected = (
         "EPHEMERAL_CLOUD_RUN_DEMO=true,MEDIATION_STORE_MODE=memory,"
-        "APP_ENV=ephemeral-demo,DEV_MODE=false"
+        "APP_ENV=ephemeral-demo,DEV_MODE=false,"
+        "GOOGLE_GENAI_USE_VERTEXAI=true,"
+        "GOOGLE_CLOUD_PROJECT=gen-lang-client-0585901015,"
+        "GOOGLE_CLOUD_LOCATION=global"
     )
     for path in (
         "deploy/deploy-payment-demo-cloudrun.sh",
@@ -202,8 +205,19 @@ def test_payment_demo_deployments_pin_the_ephemeral_memory_store_profile() -> No
     update = _text("deploy/update-payment-demo-cloudrun.sh")
     assert 'env("EPHEMERAL_CLOUD_RUN_DEMO") == ["true"]' in update
     assert 'env("MEDIATION_STORE_MODE") == ["memory"]' in update
+    assert 'env("GOOGLE_GENAI_USE_VERTEXAI") == ["true"]' in update
+    assert 'env("GOOGLE_CLOUD_PROJECT") == ["gen-lang-client-0585901015"]' in update
+    assert 'env("GOOGLE_CLOUD_LOCATION") == ["global"]' in update
+    assert "| length) == 7" in update
+    assert ".readiness.checks.vertexAdcConfiguration" in update
     assert '.publicDurabilityProfile == "ephemeral-demo"' in update
     assert 'mode:"memory", durabilityProfile:"ephemeral-demo"' in update
+
+
+def test_cloud_judge_uses_stable_vertex_allowlisted_model() -> None:
+    source = _text("secure_mediation_agent/security/custom_judge.py")
+    assert "model='gemini-2.5-flash'" in source
+    assert "gemini-3-flash-preview" not in source
 
 
 def test_official_x402_adapter_fails_closed() -> None:

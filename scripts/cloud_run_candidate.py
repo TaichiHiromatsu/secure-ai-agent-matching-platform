@@ -27,6 +27,9 @@ DEPLOY_ENVIRONMENT = {
     "APP_ENV": "ephemeral-demo",
     "DEV_MODE": "false",
     "EPHEMERAL_CLOUD_RUN_DEMO": "true",
+    "GOOGLE_CLOUD_LOCATION": "global",
+    "GOOGLE_CLOUD_PROJECT": PROJECT_ID,
+    "GOOGLE_GENAI_USE_VERTEXAI": "true",
     "MEDIATION_STORE_MODE": "memory",
 }
 DIGEST_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")

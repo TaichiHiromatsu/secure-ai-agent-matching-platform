@@ -38,12 +38,18 @@ def test_update_script_is_fixed_tagged_no_traffic_and_reversible() -> None:
     assert "gcloud run deploy" not in source
     assert "--no-traffic" in source
     assert "--tag \"$candidate_tag\"" in source
+    assert '--set-env-vars "$DEPLOY_ENV_VARS"' in source
+    assert "--update-env-vars" not in source
     assert "EPHEMERAL_CLOUD_RUN_DEMO=true" in source
     assert "MEDIATION_STORE_MODE=memory" in source
+    assert "GOOGLE_GENAI_USE_VERTEXAI=true" in source
+    assert "GOOGLE_CLOUD_PROJECT=gen-lang-client-0585901015" in source
+    assert "GOOGLE_CLOUD_LOCATION=global" in source
     assert "assert_revision_ephemeral_profile" in source
     assert "cloud-run-tag-e2e/1" in source
     assert '.publicDurabilityProfile == "ephemeral-demo"' in source
     assert '.readiness.mediationStore == {' in source
+    assert ".readiness.checks.vertexAdcConfiguration" in source
     assert ".checks.paid" in source
     assert ".checks.free" in source
     assert ".checks.refund" in source
@@ -114,11 +120,13 @@ case "$1 $2 $3" in
   "artifacts docker images") printf '%s\n' "$FAKE_REGISTRY_DIGEST" ;;
   "run revisions describe")
     if printf '%s\n' "$*" | grep -Fq -- '--format=json'; then
-      printf '{{"metadata":{{"name":"%s","labels":{{"serving.knative.dev/service":"%s"}},"annotations":{{"autoscaling.knative.dev/minScale":"%s","autoscaling.knative.dev/maxScale":"%s"}}}},"spec":{{"containerConcurrency":%s,"timeoutSeconds":%s,"containers":[{{"ports":[{{"containerPort":%s}}],"resources":{{"limits":{{"cpu":"%s","memory":"%s"}}}},"env":[{{"name":"EPHEMERAL_CLOUD_RUN_DEMO","value":"%s"}},{{"name":"MEDIATION_STORE_MODE","value":"%s"}},{{"name":"APP_ENV","value":"%s"}},{{"name":"DEV_MODE","value":"%s"}}%s]}}]}},"status":{{"conditions":[{{"type":"Ready","status":"%s"}}]}}}}\n' \
+      printf '{{"metadata":{{"name":"%s","labels":{{"serving.knative.dev/service":"%s"}},"annotations":{{"autoscaling.knative.dev/minScale":"%s","autoscaling.knative.dev/maxScale":"%s"}}}},"spec":{{"containerConcurrency":%s,"timeoutSeconds":%s,"containers":[{{"ports":[{{"containerPort":%s}}],"resources":{{"limits":{{"cpu":"%s","memory":"%s"}}}},"env":[{{"name":"EPHEMERAL_CLOUD_RUN_DEMO","value":"%s"}},{{"name":"MEDIATION_STORE_MODE","value":"%s"}},{{"name":"APP_ENV","value":"%s"}},{{"name":"DEV_MODE","value":"%s"}},{{"name":"GOOGLE_GENAI_USE_VERTEXAI","value":"%s"}},{{"name":"GOOGLE_CLOUD_PROJECT","value":"%s"}},{{"name":"GOOGLE_CLOUD_LOCATION","value":"%s"}}%s]}}]}},"status":{{"conditions":[{{"type":"Ready","status":"%s"}}]}}}}\n' \
         "$4" "$FAKE_REVISION_SERVICE" "$FAKE_MIN_SCALE" "$FAKE_MAX_SCALE" \
         "$FAKE_CONCURRENCY" "$FAKE_TIMEOUT" "$FAKE_PORT" "$FAKE_CPU" \
         "$FAKE_MEMORY" "$FAKE_EPHEMERAL_CLOUD_RUN_DEMO" \
         "$FAKE_MEDIATION_STORE_MODE" "$FAKE_APP_ENV" "$FAKE_DEV_MODE" \
+        "$FAKE_GOOGLE_GENAI_USE_VERTEXAI" "$FAKE_GOOGLE_CLOUD_PROJECT" \
+        "$FAKE_GOOGLE_CLOUD_LOCATION" \
         "$FAKE_EXTRA_ENV" "$FAKE_READY_STATUS"
     elif [ "$4" = "old-revision" ]; then
       printf '%s\n' "$FAKE_OLD_IMAGE"
@@ -209,6 +217,9 @@ def _prepare_fake_workspace(
         "FAKE_MEDIATION_STORE_MODE": "memory",
         "FAKE_APP_ENV": "ephemeral-demo",
         "FAKE_DEV_MODE": "false",
+        "FAKE_GOOGLE_GENAI_USE_VERTEXAI": "true",
+        "FAKE_GOOGLE_CLOUD_PROJECT": "gen-lang-client-0585901015",
+        "FAKE_GOOGLE_CLOUD_LOCATION": "global",
         "FAKE_REVISION_SERVICE": "payment-user-agent-demo",
         "FAKE_READY_STATUS": "True",
         "FAKE_CANDIDATE_IMAGE": IMAGE,
@@ -408,9 +419,21 @@ def test_adopt_rejects_partial_local_state_without_rewriting_it(
             "not the exact ephemeral memory-store profile",
         ),
         (
+            {"FAKE_GOOGLE_GENAI_USE_VERTEXAI": "false"},
+            "not the exact ephemeral memory-store profile",
+        ),
+        (
+            {"FAKE_GOOGLE_CLOUD_PROJECT": "other-project"},
+            "not the exact ephemeral memory-store profile",
+        ),
+        (
+            {"FAKE_GOOGLE_CLOUD_LOCATION": "us-central1"},
+            "not the exact ephemeral memory-store profile",
+        ),
+        (
             {
                 "FAKE_EXTRA_ENV": (
-                    ',{"name":"UNEXPECTED_SECRET","value":"present"}'
+                    ',{"name":"GOOGLE_API_KEY","value":"forbidden"}'
                 )
             },
             "not the exact ephemeral memory-store profile",
@@ -588,6 +611,7 @@ def _evidence() -> dict[str, object]:
                 "mediationStoreProfile": True,
                 "mediationStoreSchema": True,
                 "mediationStoreProbe": True,
+                "vertexAdcConfiguration": True,
             },
         },
         "checks": {

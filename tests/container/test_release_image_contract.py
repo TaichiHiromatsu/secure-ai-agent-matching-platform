@@ -55,6 +55,9 @@ def test_dedicated_cloud_run_demo_is_explicitly_ephemeral_and_single_instance(
     assert "EPHEMERAL_CLOUD_RUN_DEMO=true" in script
     assert "MEDIATION_STORE_MODE=memory" in script
     assert "DEV_MODE=false" in script
+    assert "GOOGLE_GENAI_USE_VERTEXAI=true" in script
+    assert "GOOGLE_CLOUD_PROJECT=gen-lang-client-0585901015" in script
+    assert "GOOGLE_CLOUD_LOCATION=global" in script
     assert "--min-instances 1" in script
     assert "--max-instances 1" in script
     assert "set-secrets" not in script
@@ -193,6 +196,11 @@ def test_ephemeral_mode_warns_and_provisions_only_local_state(
     monkeypatch.setenv("DEV_MODE", "false")
     monkeypatch.setenv("EPHEMERAL_CLOUD_RUN_DEMO", "true")
     monkeypatch.setenv("MEDIATION_STORE_MODE", "memory")
+    monkeypatch.setenv("GOOGLE_GENAI_USE_VERTEXAI", "true")
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "gen-lang-client-0585901015")
+    monkeypatch.setenv("GOOGLE_CLOUD_LOCATION", "global")
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     workflow_fixture["runtime"].ephemeral_cloud_run_demo = True
     workflow_fixture["runtime"].mediation_controller = create_production_controller(
         repository=workflow_fixture["repository"],
@@ -222,6 +230,7 @@ def test_ephemeral_mode_warns_and_provisions_only_local_state(
     assert readiness_body["checks"]["mediationStoreProfile"] is True
     assert readiness_body["checks"]["mediationStoreSchema"] is True
     assert readiness_body["checks"]["mediationStoreProbe"] is True
+    assert readiness_body["checks"]["vertexAdcConfiguration"] is True
 
     with TestClient(auth.app) as client:
         deployment = client.get("/auth/deployment")
