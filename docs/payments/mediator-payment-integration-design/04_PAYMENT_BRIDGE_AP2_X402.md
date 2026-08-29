@@ -289,6 +289,8 @@ Merchantはcapability、profile activation、Task相関、requirements、signed 
 - Taskが `completed` で業務Artifactが存在する、または同じTaskが `working` で後続照合が必要である
 - `POST_PAYMENT_RESULT=PASS`
 
+03 §7のtext／file artifact fallbackは、payment requirementを持たない無料の`completed` Taskだけに適用する。有料結果ではartifactが存在しても、Payment Receipt、Checkout Receipt、receipt history、profile、Task/context/order/quote相関のいずれも省略または緩和しない。
+
 `working` は支払済みでもstep完了ではなく `ResumingA2A` のままとする。同じTaskの照合を続ける。相関不一致はdomain state `Blocked`、結果不明／timeoutは `ReviewRequired` とし、新しいTaskや新しい支払を作らない。Merchantが新しいpayment requirementを返した場合はCheckout変更として旧承認を失効させる。
 
 ### Refund正常系

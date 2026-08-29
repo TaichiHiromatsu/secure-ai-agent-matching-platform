@@ -70,11 +70,13 @@ response受領後は完全なstructured Taskを上限付きで保存し、従来
 
 Release-1の正常same-Task保護は、初回応答を受けた時点でTask/contextと全structured bytesをcommitしてからUIを表示すること、同一submitで同一idempotency keyを使うことである。初回 `message/send` の応答喪失でremote Task IDが不明な場合は自動で再送せず `ReviewRequired` で停止する。remoteからの完全回復は [12 future work](12_DECISIONS_OPEN_QUESTIONS.md#future-work-register) に送る。
 
+デモ用live external A2A executorは、外部Agentごとに独立した `InMemoryTaskStore` を構成し、各Agentが返すstructured TaskをそのAgentのstoreで完了させる。store共有によるTask衝突やcross-agent参照を許さない。このstoreはlive A2A正常系を示すためのprocess-local実装であり、再起動耐久性の正本にはしない。
+
 ## 7. 無料応答の取込み
 
-`POST_A2A_RESPONSE=PASS` かつTaskが許容されたterminal successで、検証済みpayment requirementがない場合だけfree結果をstepへ取り込む。この経路では `PaymentRequirementSnapshot`、continuation、payment workflow、Payment Mandate、settlementの作成call countをすべて0とする。
+`POST_A2A_RESPONSE=PASS` かつTask stateが厳密に`completed`で、検証済みpayment requirementがなく、空でないtext partまたはfile artifactを一つ以上持つ場合だけfree結果をstepへ取り込む。textを持たず有効なfile artifactだけを返す外部Agentにはfile metadataから安全な表示用結果を構成できるが、空text、空file、未知part、`working`／`input-required`を成功へ昇格しない。この経路では `PaymentRequirementSnapshot`、continuation、payment workflow、Payment Mandate、settlementの作成call countをすべて0とする。
 
-結果取込み後、次stepがあれば§6へ進む。全step終了なら§11へ進む。freeでも従来callbackとfinal validationを省略しない。
+結果取込み後、次stepがあれば§6へ進む。全step終了なら§11へ進む。freeでも従来callbackとfinal validationを省略しない。このfree限定fallbackを有料Taskへ適用せず、有料では§8-9のpayment requirement、AP2、保証、same-Task相関を全て満たす。
 
 <a id="fig-flow-02"></a>
 

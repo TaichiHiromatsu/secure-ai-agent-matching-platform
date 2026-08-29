@@ -194,7 +194,7 @@ push scriptはlocal image ID、platform、source digest、file mode、artifact d
 
 ### デプロイ
 
-deploy scriptはbuildもpushも行わず、candidateが持つ固定repositoryのimmutable `@sha256:` referenceだけを受け付ける。現在のscriptはNEW-onlyで、同名serviceが存在する場合は拒否する。override flagはない。
+新規作成用deploy scriptはbuildもpushも行わず、candidateが持つ固定repositoryのimmutable `@sha256:` referenceだけを受け付ける。このscriptはNEW-onlyで、同名serviceが存在する場合は拒否する。既存の固定serviceは`update-payment-demo-cloudrun.sh`だけで0% tagged candidateを作成し、検証後に明示的にtrafficを切り替える。どちらにも任意serviceを指定するoverride flagはない。
 
 deploy後はready revisionのfull immutable image URIがcandidateと一致することを確認する。不一致は失敗として扱う。
 
@@ -207,15 +207,21 @@ candidateはbuild時のbase commit、release sourceのpath／mode／size／bytes
 Cloud Runでは次を必須とする。
 
 - `EPHEMERAL_CLOUD_RUN_DEMO=true`
+- `MEDIATION_STORE_MODE=memory`
 - `APP_ENV=ephemeral-demo`
 - `DEV_MODE=false`
+- `GOOGLE_GENAI_USE_VERTEXAI=true`
+- `GOOGLE_CLOUD_PROJECT=gen-lang-client-0585901015`
+- `GOOGLE_CLOUD_LOCATION=global`
 - Firebase Authentication
 - min／max instanceとconcurrencyをdemo用の固定値に制限
 - stateとkeyが失われ得る警告の表示
 
+上記7項目をuser設定envの完全なallowlistとし、更新scriptは`--set-env-vars`で全体を置換する。余分なenv、secret env、`GOOGLE_API_KEY`、`GEMINI_API_KEY`を許可しない。readinessで固定値とAPI key不在を確認し、ADC、当該service accountの呼出し権限、quota、model availabilityはtraffic切替前の一時probeで検証する。このprobeは実行可能性を示すだけで、IAMのleast-privilegeを証明しない。
+
 単一instanceでもephemeral filesystemは耐久性を提供しない。durable Cloud Run paid、production identity、KMS、公式A2A x402、実資産、on-chain settlementを主張しない。
 
-現在のURL、revision、traffic、immutable image、remote browser結果は[`artifacts/cloud-run-deployment.json`](../../artifacts/cloud-run-deployment.json)を参照する。candidateの検証結果は[`artifacts/cloud-run-candidate.json`](../../artifacts/cloud-run-candidate.json)を参照する。Markdownへ現在値を複製しない。
+現在のURL、revision、traffic、immutable image、remote browser結果は[`artifacts/cloud-run-deployment.json`](../../artifacts/cloud-run-deployment.json)とexact deployment evidenceを参照する。candidateの検証結果は[`artifacts/cloud-run-candidate.json`](../../artifacts/cloud-run-candidate.json)を参照する。Markdownへ現在値を複製しない。
 
 ## 運用上の禁止事項
 

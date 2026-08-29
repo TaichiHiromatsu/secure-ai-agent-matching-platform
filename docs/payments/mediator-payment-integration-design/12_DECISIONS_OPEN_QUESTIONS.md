@@ -129,8 +129,8 @@ Decision変更は、affected requirement IDを満たす比較証跡、affected o
 - owner: Platform／Security owner
 - reviewer: Mediation／Release owner
 - options: Developer API key、Vertex AI、環境別混在
-- decision: Cloud RunではVertex AIをApplication Default Credentialsで利用し、project `gen-lang-client-0585901015`、location `global` に固定する。component別model allowlistは、matcher／planner／orchestrator／final anomaly detector=`gemini-2.5-pro`、anomaly detector=`gemini-2.5-flash` とし、設定値による別modelへの置換を拒否する。専用Cloud Run service accountには最小のVertex AI呼出し権限だけを付与し、API keyを使わない。localは明示的なtest doubleまたはADCを使い、本番credentialを `.env` に置かない。認証済みreadinessは固定値、ADC token取得、30秒timeout設定を検証し、生成requestは送らない。IAM、model availability、quotaはCloud Run受入前のpre-traffic smokeで各modelへ副作用のない1回のprobeを送り再確認する。
-- rationale: Cloud Runの既存GCP identity境界を利用し、repository、image、command outputへのcredential露出を避ける。
+- decision: Cloud RunではVertex AIをApplication Default Credentialsで利用し、project `gen-lang-client-0585901015`、location `global` に固定する。component別model allowlistは、matcher／planner／orchestrator／final anomaly detector=`gemini-2.5-pro`、anomaly detector／Legacy callback security Judge=`gemini-2.5-flash` とし、設定値による別modelへの置換を拒否する。Cloud revisionはephemeral 4項目とVertex ADC 3項目のexact 7 non-secret envだけを許可する。目標構成では専用Cloud Run service accountへ最小のVertex AI呼出し権限だけを付与し、API keyを使わない。今回のephemeral demoは既存default Compute service accountを維持してIAMを変更せず、Vertex probe PASSをleast-privilege完了とは扱わない。専用service accountへの移行と不要権限除去は未完了security debtとしてreleaseを分ける。localは明示的なtest doubleまたはADCを使い、本番credentialを `.env` に置かない。認証済みreadinessは固定設定とAPI key不在を検証し、IAM、ADC token取得、model availability、quotaはCloud Run受入前のpre-traffic smokeで各modelへ副作用のない1回のprobeを送って確認する。
+- rationale: Cloud Runの既存GCP identity境界を利用し、repository、image、command outputへのcredential露出を避ける。認証方式の安全化とIAM最小化は別の軸であり、ADC利用だけでdefault service accountの広い権限を正当化しない。
 - affected requirement IDs: `NFR-004`、`OPS-009`、`SEC-010`、`TEST-006`、`TEST-011`、`TEST-014`
 - affected design sections: [09 Configuration](09_DEPLOYMENT_PUBLIC_BOUNDARY.md#8-configurationsecretmodel実行環境)、`03` model call points
 - verification impact: release前に固定model map、service account、IAM、quota、model availability、30秒timeoutを実環境で再確認し、pre-traffic smokeのmodel ID、結果、latency、revision digestを保存する。
@@ -302,3 +302,5 @@ final6 exact image `sha256:3e4e089643564e00bd6563d08a575fcf2aa2eff94ae60fd1ca518
 | external-effect直後crash、first-response-loss、複雑競合 | `NOT RUN`／future-work | 13件のfuture registerとtriggerを維持する |
 
 したがってtarget decisionは確定しているが、final6の判定は「local simulation candidate verified／external release gates not run」である。Cloud Run受入、公式適合、製品releaseの承認ではない。
+
+この表はfinal6時点の履歴snapshotである。後続Cloud Run正常系hotfixのFirebase／Vertex／deploy受入結果は [Test Report](../MEDIATOR_PAYMENT_INTEGRATION_TEST_REPORT.md#13-cloud-run-acceptance-addendum2026-08-30-jst) が所有する。後続結果もephemeral simulation、official x402／on-chain `NOT RUN`、Cloud refund未再実行という境界を変更しない。

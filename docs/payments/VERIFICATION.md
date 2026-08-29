@@ -34,6 +34,8 @@
 | [`artifacts/browser-evidence.json`](../../artifacts/browser-evidence.json) | 固定imageでの実Browser操作 | ローカルcandidate上のUI証跡である |
 | [`artifacts/cloud-run-candidate.json`](../../artifacts/cloud-run-candidate.json) | source、platform、image、embedded suite、artifactのbinding | build／push／deploy間で同一candidateを固定する |
 | [`artifacts/cloud-run-deployment.json`](../../artifacts/cloud-run-deployment.json) | deploy後のrevision、traffic、remote browser、ephemeral境界 | post-deploy観測。release validatorの入力ではない |
+| [`artifacts/cloud-run-deployment-399750d686a8.json`](../../artifacts/cloud-run-deployment-399750d686a8.json) | exact deployed image、revision、exact 7 env、Vertex probe、traffic、Cloud log、制約 | 対象deploymentのimmutable post-deploy観測 |
+| [`artifacts/cloud-run-browser-e2e-399750d686a8.json`](../../artifacts/cloud-run-browser-e2e-399750d686a8.json) | Firebase認証後のpaid／free／reload／logoutとcallback順序 | credential、prompt／model output、console、network、screenshotを保存しない最小証跡 |
 
 ### リリース候補とデプロイを分ける理由
 
@@ -68,6 +70,8 @@ flowchart TB
 release validatorは、status文字列だけでなく、指定されたartifactのexact byte digest、image、manifest、suite結果が一致することを確認する。古いconformance reportや別imageのbrowser resultを新candidateへ付け替えてはならない。
 
 post-deploy observationは、ready revisionのfull immutable image URIがcandidateのregistry imageと一致することを記録する。ただし、この観測JSON自体は現在のvalidatorへ組み込まれていないため、release artifactの暗号学的bindingと同じ強さだと解釈しない。
+
+Cloudブラウザ証跡では認証情報そのものを保存せず、認証結果、状態遷移、承認回数、callbackの順序、reload／logout、非保存判定だけを記録する。prompt、model output、browser console、network body、screenshotを後から証跡へ追加しない。
 
 ## 検証の層
 

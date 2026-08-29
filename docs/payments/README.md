@@ -86,12 +86,14 @@ sequenceDiagram
 
 承認メッセージは単一text partの完全一致`承認`だけを受け付ける。`はい`、`yes`、`承認します`、前後に空白がある`承認`は、認可境界では承認として扱わない。
 
+無料タスクでは計画承認だけを行い、決済承認、AP2 Mandate、仲介保証、settlementを作らない。仲介エージェントは選択した外部エージェントのA2A Taskが`completed`となり、空でないtextまたはfile artifactを返したことを検証して完了する。有料タスクではこの無料向け判定へfallbackせず、二回目の決済承認、AP2認可、仲介保証、同一Taskへの支払提出と相関検証を必須とする。
+
 ## 実装している範囲
 
 | 領域 | 現在の範囲 |
 | --- | --- |
 | AP2 | Human Presentのclosed Checkout／Payment Mandate、ロール別検証、署名済みCheckout／Payment Receipt、offline evidence verification |
-| A2A | Merchant Taskの開始、同じ`taskId`に相関した支払Message、最終Taskと業務Artifact |
+| A2A | 外部エージェントTaskの開始・完了、Merchantでは同じ`taskId`に相関した支払Message、最終Taskと業務Artifact |
 | A2A x402 | v0.1に似たdotted metadataと状態遷移をproject-local profileで検証するfixture |
 | 決済レール | `exact-simulated`／`demo:local`のローカル台帳 |
 | 耐久性 | 明示した永続volumeを使う単一host・単一container構成 |

@@ -114,7 +114,11 @@ session作成、logout、run、message／approvalはexact Origin、same-site coo
 
 ## 8. Configuration、secret、model実行環境
 
-モデル実行はVertex AI ADC、project `gen-lang-client-0585901015`、location `global` を使う。OQ-006の固定mapどおり、matcher／planner／orchestrator／final anomaly detectorは `gemini-2.5-pro`、anomaly detectorは `gemini-2.5-flash` だけを許可し、環境変数やrequestによるmodel差替えを拒否する。service accountにはモデルinvokeと必要なread権限だけを与え、静的credential JSONをimage／filesystem／environmentへ格納しない。project、location、component別model map、ADC token取得、30秒timeout設定のどれかが不正ならreadinessをfail closedにする。
+モデル実行はVertex AI ADC、project `gen-lang-client-0585901015`、location `global` を使う。OQ-006の固定mapどおり、matcher／planner／orchestrator／final anomaly detectorは `gemini-2.5-pro`、anomaly detectorとLegacy callbackのsecurity Judgeは `gemini-2.5-flash` だけを許可し、環境変数やrequestによるmodel差替えを拒否する。目標設計では専用service accountへモデルinvokeと必要なread権限だけを与え、静的credential JSONやAPI keyをimage／filesystem／environmentへ格納しない。
+
+今回検証したephemeral demo revisionは既存のdefault Compute service accountを使用し、IAM／service account bindingを変更していない。Vertex ADCと許可modelの実呼出しPASSは認証経路と当該時点の権限を示すが、least-privilege実現を示さない。専用service accountへの移行と不要権限の除去は未完了のsecurity debtであり、production化または次の権限hardening releaseで別途設計・影響確認・rollbackを伴って実施する。
+
+Cloud Run revisionのuser設定環境変数は、ephemeral profileの4項目 `EPHEMERAL_CLOUD_RUN_DEMO=true`、`MEDIATION_STORE_MODE=memory`、`APP_ENV=ephemeral-demo`、`DEV_MODE=false` と、Vertex ADCの3項目 `GOOGLE_GENAI_USE_VERTEXAI=true`、固定project、固定locationからなるexact 7項目だけを許可する。更新時はallowlist全体を置換し、余分なenv、secret env、`GOOGLE_API_KEY`、`GEMINI_API_KEY`を拒否する。
 
 設定はversion付きallowlist schemaで検証し、unknown key、空の必須値、development bypass、wildcard host、debug secret出力を拒否する。secretはSecret Manager参照またはplatform identityから得て、build argument、image layer、log、readiness responseへ出さない。
 
@@ -125,7 +129,7 @@ session作成、logout、run、message／approvalはexact Origin、same-site coo
 - workflow／store／Merchant processへのloopback到達。
 - DB schema version、writable transaction、required key material、worker heartbeat。
 - public allowlist config hashと想定値、backendがloopback bindであること。
-- Vertex AI ADC token取得と固定project／location／component別model map／30秒timeoutの設定。外部生成requestはstartup時には送らない。
+- Vertex AI ADC利用フラグと固定project／location、およびAPI key不在。IAM、ADC token取得、model availability、quotaはstartup readinessで推測せずpre-traffic probeへ分離する。
 - `EPHEMERAL_CLOUD_RUN_DEMO=true` と `durability=NOT PROVIDED`。
 
 startupはDB migration→backend→worker→auth→UI→nginxの順に進める。途中失敗ではnginxをreadyにせず、子process停止をsupervisorが検出してreadinessを落とす。

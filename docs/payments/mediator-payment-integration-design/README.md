@@ -13,6 +13,8 @@
 
 2026-08-17のcurrent implementationはfinal6 image `sha256:3e4e089643564e00bd6563d08a575fcf2aa2eff94ae60fd1ca518900022a89f0` に対応する。paid/free/refund、Trusted Surfaceの二承認、AP2 Mandate検証、仲介保証、same Task resume、single authority、v4 SQLite mediation storeは実装済み。Cloud Runは `EPHEMERAL DEMO` でdurabilityを提供せず、official x402、wallet/facilitator、on-chain、Cloud SQL、external-effect crash完全回復は将来課題である。candidate証跡は [Test Report](../MEDIATOR_PAYMENT_INTEGRATION_TEST_REPORT.md) を正本とする。
 
+その後のCloud Run正常系hotfixでは、Vertex ADCのexact 7 env、stable security Judge、live external A2Aのagent別TaskStore、無料限定のstrict `completed`＋nonempty text/file artifact検証を実装し、Firebase認証後のpaid／free／reload／logoutを確認した。可変revision、image digest、検証時刻と制約は引き続き [Test Report](../MEDIATOR_PAYMENT_INTEGRATION_TEST_REPORT.md) と機械可読なdeployment evidenceだけが所有する。
+
 ## 2. 規範入力と正本階層
 
 優先する規範入力は [HANDOFF](../MEDIATOR_PAYMENT_INTEGRATION_HANDOFF.md) と [139件の統合要件](../MEDIATOR_PAYMENT_INTEGRATION_REQUIREMENTS.md) である。両者に解釈差があれば、後からscope overrideされた統合要件の `release_scope` を優先し、それ以外はHANDOFFをrequirements ownerへ戻す。既存paymentsの非変更領域は [既存REQUIREMENTS](../REQUIREMENTS.md) を維持し、設計だけで上書きしない。

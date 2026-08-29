@@ -29,6 +29,7 @@ flowchart TB
     UI[payment_user_agent / ADK Web :8000]
     W[workflow API :8004]
     O[outbox worker]
+    X[External A2A agents]
     M[Merchant A2A :8005]
     DB1[(marketplace.db)]
     DB2[(paid-agent.db)]
@@ -45,6 +46,7 @@ flowchart TB
     O --> DB1
     O --> DB2
     O --> DB3
+    W -->|live A2A| X
     W -->|loopback A2A + capability| M
     M --> DB2
 ```
@@ -58,7 +60,10 @@ flowchart TB
 | `payment_user_agent` | 利用者の入力とworkflow viewの受け渡し | nginx経由のUI |
 | workflow API | 状態、認可、AP2処理、Merchant呼出し、公開view | 認証済み`/mediation-api/` |
 | outbox worker | lease、再試行、crash後の回復、reconciliation | 非公開 |
+| External A2A agents | 無料を含む外部Taskの実行、`completed` Taskと業務Artifactの返却 | 選択済みAgent CardのA2A endpoint |
 | Merchant A2A | Agent Card、Task、Checkout、payment Message、fulfillment | loopbackのみ |
+
+デモ用のlive外部AgentはAgentごとに独立した`InMemoryTaskStore`を持つ。Task IDの衝突や別Agentからの参照を避けるためstoreを共有しないが、このstoreはprocess再起動を越える耐久性を提供しない。
 
 ## 論理ロールと物理配置
 
@@ -132,6 +137,8 @@ AP2上のロール分離と、実際のサービス分離は同じではない�
 outbox workerはcapabilityと選択profileのactivationを付けてMerchant Taskを開始する。MerchantはCheckout、支払条件、AP2 challengeを含む`input-required` Taskを返す。
 
 workflowは、Task ID、activation、Merchant identity、商品、数量、金額、通貨、payee、期限、Checkout署名を計画と照合する。差があれば決済承認を表示せず`replan_required`へ進む。一致すれば証跡を保存し、`payment_approval_required`へ進む。
+
+無料分岐では選択した外部AgentのTaskを実行し、`completed`と空でないtextまたはfile artifactを厳格に確認する。この限定的なartifact fallbackは無料結果の表示用であり、有料分岐のpayment requirement、AP2、保証、同一Task相関の検証を代替しない。
 
 ### 4. 決済承認とAP2
 
