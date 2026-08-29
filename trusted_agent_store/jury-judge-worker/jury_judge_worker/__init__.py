@@ -5,6 +5,7 @@ from .execution_agent import dispatch_questions
 from .llm_judge import LLMJudge, LLMJudgeConfig
 from .wandb_logger import log_metrics
 from .multi_model_judge import MultiModelJudge
+from .judge_orchestrator import MCTSJudgeOrchestrator
 
 __all__ = [
     "QuestionSpec",
@@ -14,4 +15,5 @@ __all__ = [
     "LLMJudgeConfig",
     "log_metrics",
     "MultiModelJudge",
+    "MCTSJudgeOrchestrator",
 ]

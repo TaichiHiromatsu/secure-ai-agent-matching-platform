@@ -4,6 +4,16 @@
 
 set -e
 
+if [ "${DEV_MODE:-false}" = "true" ]; then
+    echo "Refusing Cloud Run deployment: DEV_MODE=true is forbidden."
+    exit 2
+fi
+
+echo "Refusing integrated paid deployment: current Cloud Run filesystem is ephemeral."
+echo "This release is approved only for an explicit durable single-host/single-container target."
+echo "Official x402, wallet/facilitator verification, and on-chain settlement remain NOT RUN."
+exit 2
+
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 # Load .env

@@ -1,0 +1,8 @@
+{
+  "version": "baseline-1",
+  "riskTier": "tier2",
+  "questionFiles": [
+    "questions/safety.general.json",
+    "questions/privacy.data_retention.json"
+  ]
+}

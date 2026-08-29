@@ -1,0 +1,27 @@
+{
+  "name": "payment_user_agent",
+  "description": "Sole authenticated ADK UI for normal mediated requests. It selects a free or paid loopback Agent, requires separate plan and payment approvals, and supports one full refund after a settled demo payment. Payment is simulated and NOT CONFORMANT; Cloud Run state is ephemeral and durability is NOT PROVIDED.",
+  "url": "http://localhost:8000",
+  "version": "3.0.0-simulation",
+  "protocolVersion": "0.3.19",
+  "capabilities": {
+    "durableWorkflow": false,
+    "deploymentDurability": "NOT PROVIDED",
+    "ephemeralCloudRunDemo": true,
+    "humanPresentApprovals": 2,
+    "paymentProfile": "x402-wire-simulation/1",
+    "railMode": "simulated",
+    "officialX402": false
+  },
+  "skills": [
+    {
+      "id": "secure-mediation",
+      "name": "Secure free or paid mediation",
+      "description": "Run a normal request through matcher, planner, explicit approval, A2A execution, and final validation; paid work uses a Human Present simulation and supports one basic full refund.",
+      "tags": ["mediation", "a2a", "ap2-v0.2", "human-present", "simulation", "not-conformant", "ephemeral"]
+    }
+  ],
+  "defaultInputModes": ["text/plain"],
+  "defaultOutputModes": ["text/plain"],
+  "supportsAuthenticatedExtendedCard": false
+}

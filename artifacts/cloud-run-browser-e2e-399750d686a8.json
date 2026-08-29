@@ -1,0 +1,63 @@
+{
+  "authentication": "Firebase reviewer login PASS; credential values omitted",
+  "browser": "fresh-headless-chromium-cdp-real-ui",
+  "checks": {
+    "free": {
+      "callbackTrace": {
+        "operations": 1,
+        "orderedStages": [
+          "legacy-callback-before",
+          "transport",
+          "response-persisted",
+          "legacy-callback-after"
+        ],
+        "reasonCodeExposed": false
+      },
+      "exactApprovals": 1,
+      "paymentApprovalPresent": false,
+      "states": [
+        "WaitingForPlanApproval",
+        "Completed"
+      ],
+      "status": "PASS"
+    },
+    "isolatedProfileCleanup": "PASS_ON_CONTAINER_EXIT",
+    "logout": "PASS",
+    "paid": {
+      "callbackTrace": {
+        "operations": 3,
+        "orderedStages": [
+          "legacy-callback-before",
+          "transport",
+          "response-persisted",
+          "legacy-callback-after"
+        ],
+        "reasonCodeExposed": false
+      },
+      "completedAfterReload": true,
+      "exactApprovals": 2,
+      "states": [
+        "WaitingForPlanApproval",
+        "WaitingForPaymentApproval",
+        "Completed"
+      ],
+      "status": "PASS"
+    }
+  },
+  "credentialMaterialStored": false,
+  "deploymentProfile": {
+    "durability": "NOT PROVIDED",
+    "officialX402": "NOT RUN",
+    "onChainSettlement": "NOT RUN",
+    "target": "ephemeral-cloud-run-demo"
+  },
+  "durationMs": 45266,
+  "finishedAtEpochMs": 1788027878139,
+  "imageDigest": "sha256:399750d686a89d26aacea9908bcb7cc6a5c213fe23ffa4817b98873e263ac50e",
+  "promptOrModelOutputStored": false,
+  "revision": "payment-user-agent-demo-44fdfd-3997",
+  "schemaVersion": "cloud-run-browser-e2e/2",
+  "serviceUrl": "https://payment-user-agent-demo-kzeuhywicq-an.a.run.app",
+  "startedAtEpochMs": 1788027832873,
+  "status": "PASS"
+}

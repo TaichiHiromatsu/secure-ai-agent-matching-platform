@@ -318,6 +318,13 @@ graph LR
 | [SECURITY_IMPLEMENTATION.md](docs/secure_mediation_agent_design/SECURITY_IMPLEMENTATION.md) | セキュア仲介エージェント セキュリティ実装詳細 |
 | [trusted_agent_store_design.md](docs/trusted_agent_store_design.md) | エージェントストア設計ドキュメント（AISEV v3.0準拠） |
 | [LOCAL_DEVELOPMENT.md](docs/LOCAL_DEVELOPMENT.md) | ローカル環境での実行手順 |
+| [決済ドキュメント](docs/payments/README.md) | AP2とA2A x402の役割、全体アーキテクチャ、要件、運用、実演、検証への入口 |
+
+### AP2 / x402 統合決済デモ
+
+AP2は「誰が、何を、いくらで支払うことを承認したか」という認可と署名済み証跡を扱い、A2A x402は支払条件・支払提出・処理結果をA2A Task上で交換する。今回の実装はAP2 v0.2 Human Present demoとproject-localなA2A x402 wire-shape fixtureを組み合わせたもので、実資産は移動せず、公式A2A x402には **NOT CONFORMANT** である。
+
+構成、二段階承認、実装範囲、詳細設計への読み順は[決済ドキュメントの概要](docs/payments/README.md)を参照する。
 
 ---
 

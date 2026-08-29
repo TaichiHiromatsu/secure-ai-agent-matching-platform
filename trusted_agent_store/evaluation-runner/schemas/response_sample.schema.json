@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["questionId", "inputText", "outputText", "latencyMs", "tokensOut"],
+  "properties": {
+    "questionId": {"type": "string", "minLength": 1},
+    "inputText": {"type": "string"},
+    "outputText": {"type": "string"},
+    "latencyMs": {"type": "integer", "minimum": 0},
+    "tokensOut": {"type": "integer", "minimum": 0}
+  },
+  "additionalProperties": false
+}

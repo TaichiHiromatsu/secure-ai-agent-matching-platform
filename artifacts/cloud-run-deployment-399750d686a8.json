@@ -1,0 +1,217 @@
+{
+  "schemaVersion": "cloud-run-deployment-evidence/1",
+  "status": "PASS",
+  "target": {
+    "project": "gen-lang-client-0585901015",
+    "region": "asia-northeast1",
+    "service": "payment-user-agent-demo",
+    "serviceUrl": "https://payment-user-agent-demo-kzeuhywicq-an.a.run.app"
+  },
+  "source": {
+    "commit": "44fdfdb1bd62b58b3885eb2ace5274138597b15b",
+    "sourceDigest": "sha256:43782527bf81a913ba1baa5c4ffdf52a96caf9a03345743fccc5353adaf47768",
+    "fileCount": 270
+  },
+  "image": {
+    "repository": "asia-northeast1-docker.pkg.dev/gen-lang-client-0585901015/secure-mediation-agent/payment-user-agent-demo",
+    "digest": "sha256:399750d686a89d26aacea9908bcb7cc6a5c213fe23ffa4817b98873e263ac50e",
+    "platform": "linux/amd64",
+    "localAndRegistryDigestMatched": true
+  },
+  "revision": {
+    "name": "payment-user-agent-demo-44fdfd-3997",
+    "tag": "pc-399750d686a8",
+    "tagUrl": "https://pc-399750d686a8---payment-user-agent-demo-kzeuhywicq-an.a.run.app",
+    "createdAt": "2026-08-29T18:17:20.104636Z",
+    "readyAt": "2026-08-29T18:18:11.747200Z",
+    "ready": true,
+    "generation": 14,
+    "observedGeneration": 14,
+    "trafficPercent": 100,
+    "oldRevisionTrafficPercent": 0
+  },
+  "configuration": {
+    "containerCount": 1,
+    "environmentVariableCount": 7,
+    "secretEnvironmentVariableCount": 0,
+    "environment": {
+      "expectedAllowlistSource": "deploy/update-payment-demo-cloudrun.sh:19",
+      "expectedAllowlist": [
+        {
+          "name": "APP_ENV",
+          "value": "ephemeral-demo"
+        },
+        {
+          "name": "DEV_MODE",
+          "value": "false"
+        },
+        {
+          "name": "EPHEMERAL_CLOUD_RUN_DEMO",
+          "value": "true"
+        },
+        {
+          "name": "GOOGLE_CLOUD_LOCATION",
+          "value": "global"
+        },
+        {
+          "name": "GOOGLE_CLOUD_PROJECT",
+          "value": "gen-lang-client-0585901015"
+        },
+        {
+          "name": "GOOGLE_GENAI_USE_VERTEXAI",
+          "value": "true"
+        },
+        {
+          "name": "MEDIATION_STORE_MODE",
+          "value": "memory"
+        }
+      ],
+      "actualRevisionEnvironment": [
+        {
+          "name": "APP_ENV",
+          "value": "ephemeral-demo"
+        },
+        {
+          "name": "DEV_MODE",
+          "value": "false"
+        },
+        {
+          "name": "EPHEMERAL_CLOUD_RUN_DEMO",
+          "value": "true"
+        },
+        {
+          "name": "GOOGLE_CLOUD_LOCATION",
+          "value": "global"
+        },
+        {
+          "name": "GOOGLE_CLOUD_PROJECT",
+          "value": "gen-lang-client-0585901015"
+        },
+        {
+          "name": "GOOGLE_GENAI_USE_VERTEXAI",
+          "value": "true"
+        },
+        {
+          "name": "MEDIATION_STORE_MODE",
+          "value": "memory"
+        }
+      ],
+      "canonicalSha256": "sha256:5b9f4a885039fe3684555a5ec6c359018a5a9b7d394f1c91796dca5ad6dd723c",
+      "actualMatchesExpected": true,
+      "missingVariables": [],
+      "unexpectedVariables": [],
+      "secretReferenceCount": 0,
+      "secretReferences": [],
+      "apiKeyLikeVariables": [],
+      "explicitlyAbsentVariables": [
+        "GEMINI_API_KEY",
+        "GOOGLE_API_KEY",
+        "GOOGLE_APPLICATION_CREDENTIALS",
+        "VERTEX_API_KEY"
+      ]
+    },
+    "volumeCount": 0,
+    "cpu": "1",
+    "memory": "2Gi",
+    "concurrency": 1,
+    "timeoutSeconds": 3600,
+    "minInstances": 1,
+    "maxInstances": 1,
+    "serviceAccount": "343404053218-compute@developer.gserviceaccount.com",
+    "serviceAccountProvenance": {
+      "projectNumber": "343404053218",
+      "kind": "default-compute-service-account",
+      "dedicatedLeastPrivilegeServiceAccount": false,
+      "securityDebt": "Replace the default Compute Engine service account with a dedicated least-privilege runtime service account."
+    },
+    "unauthenticatedInvoker": true,
+    "activeGcloudProjectUnchanged": "project-31d27b8e-3644-4d73-be8"
+  },
+  "gates": {
+    "focusedTests": {
+      "status": "PASS",
+      "passed": 24,
+      "warnings": 2
+    },
+    "exactImageSmoke": {
+      "status": "PASS",
+      "healthHttpStatus": 200,
+      "readinessHttpStatus": 200,
+      "readinessChecksPassed": 17,
+      "readinessChecksTotal": 17
+    },
+    "vertexProbe": {
+      "status": "PASS",
+      "execution": "payment-vertex-probe-399750d6-7mvzl",
+      "startedAt": "2026-08-29T18:20:49.654670Z",
+      "completedAt": "2026-08-29T18:21:08.683232Z",
+      "models": [
+        {
+          "model": "gemini-2.5-flash",
+          "status": "PASS",
+          "latencyMs": 443
+        },
+        {
+          "model": "gemini-2.5-pro",
+          "status": "PASS",
+          "latencyMs": 117
+        }
+      ],
+      "temporaryJobDeleted": true,
+      "promptStored": false,
+      "modelOutputStored": false
+    },
+    "browser": {
+      "status": "PASS",
+      "artifact": "artifacts/cloud-run-browser-e2e-399750d686a8.json",
+      "artifactSha256": "92c9dd4196e4be11f0181af407a8de5ccf55805557c706c81e1edb054587cba4",
+      "startedAt": "2026-08-29T18:23:52Z",
+      "completedAt": "2026-08-29T18:24:38Z",
+      "durationMs": 45266,
+      "firebaseReviewerLogin": "PASS",
+      "paid": "PASS",
+      "paidExactApprovals": 2,
+      "paidCompletedAfterReload": true,
+      "paidCallbackOperations": 3,
+      "free": "PASS",
+      "freeExactApprovals": 1,
+      "freePaymentApprovalPresent": false,
+      "freeCallbackOperations": 1,
+      "reasonCodeExposed": false,
+      "logout": "PASS",
+      "isolatedProfileCleanup": "PASS",
+      "credentialMaterialStored": false,
+      "promptOrModelOutputStored": false
+    },
+    "cloudLogs": {
+      "status": "PASS",
+      "windowStart": "2026-08-29T18:23:50Z",
+      "windowEnd": "2026-08-29T18:24:45Z",
+      "entries": 277,
+      "http5xx": 0,
+      "errorSeverity": 0,
+      "runSseHttp200": 5,
+      "logoutHttp204": 1,
+      "completedTaskMarkers": 1,
+      "finalValidationBlockedMarkers": 0,
+      "taskStoreOrJsonRpcErrorMarkers": 0,
+      "reasonCodeMarkers": 0
+    }
+  },
+  "limitations": [
+    "The public demo uses an in-memory ephemeral store; state can reset when the revision restarts.",
+    "Payment authorization and settlement are simulated; no real asset transfer occurs.",
+    "The official x402 network path was not run.",
+    "On-chain settlement was not run.",
+    "The refund exception flow was not rerun after the final normal-flow hotfix.",
+    "The revision uses the project's default Compute Engine service account; migration to a dedicated least-privilege runtime service account remains security debt."
+  ],
+  "sensitiveData": {
+    "reviewerCredentialsStored": false,
+    "promptStored": false,
+    "modelOutputStored": false,
+    "browserConsoleStored": false,
+    "browserNetworkStored": false,
+    "screenshotStored": false
+  }
+}

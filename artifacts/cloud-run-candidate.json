@@ -1,0 +1,119 @@
+{
+  "artifacts": {
+    "browser": {
+      "path": "artifacts/browser-evidence.json",
+      "sha256": "sha256:a4b4517036d2794025254b760126964b4ba7a484d8c51b3e8237bac8b24956f7",
+      "status": "PASS"
+    },
+    "conformance": {
+      "path": "docs/ap2_x402_conformance_report.json",
+      "sha256": "sha256:3416f1a4cabf6791b1239dcd3fed09959429f7559fc3511970419ed49f279170",
+      "status": "PASS"
+    },
+    "regression": {
+      "path": "artifacts/regression-result.json",
+      "sha256": "sha256:bfb222ee5389e5c09f0793842da3abd4c233d58e3f7e062895a7c4c01aca8784",
+      "status": "PASS"
+    },
+    "releaseValidation": {
+      "path": "artifacts/ap2-x402-release-validation.json",
+      "sha256": "sha256:10bdd63e1ee19b424a4054c835ffa562e77e61cfd8ba00666bb346020c604d76",
+      "status": "PASS"
+    }
+  },
+  "deployment": {
+    "durability": "NOT PROVIDED",
+    "environment": {
+      "APP_ENV": "ephemeral-demo",
+      "DEV_MODE": "false",
+      "EPHEMERAL_CLOUD_RUN_DEMO": "true"
+    },
+    "officialX402": "NOT RUN",
+    "onChainSettlement": "NOT RUN",
+    "project": "gen-lang-client-0585901015",
+    "region": "asia-northeast1",
+    "service": "payment-user-agent-demo"
+  },
+  "embedded": {
+    "browser": {
+      "appSelected": "payment_user_agent",
+      "completedAfterRefresh": true,
+      "engine": "chromium-cdp-real-ui",
+      "status": "PASS"
+    },
+    "markerSuites": {
+      "browser": {
+        "collected": 1,
+        "status": "PASS"
+      },
+      "concurrency": {
+        "collected": 2,
+        "status": "PASS"
+      },
+      "container": {
+        "collected": 12,
+        "status": "PASS"
+      },
+      "contract_ap2": {
+        "collected": 17,
+        "status": "PASS"
+      },
+      "contract_x402_simulation": {
+        "collected": 2,
+        "status": "PASS"
+      },
+      "integration": {
+        "collected": 45,
+        "status": "PASS"
+      },
+      "migration": {
+        "collected": 4,
+        "status": "PASS"
+      },
+      "restart": {
+        "collected": 27,
+        "status": "PASS"
+      },
+      "security": {
+        "collected": 44,
+        "status": "PASS"
+      },
+      "spike": {
+        "collected": 11,
+        "status": "PASS"
+      },
+      "unit": {
+        "collected": 11,
+        "status": "PASS"
+      }
+    },
+    "regressionSuites": {
+      "evaluation-runner": {
+        "collected": 17,
+        "status": "PASS"
+      },
+      "jury-worker": {
+        "collected": 13,
+        "status": "PASS"
+      },
+      "payment-release": {
+        "collected": 173,
+        "status": "PASS"
+      }
+    }
+  },
+  "localImageId": "sha256:a22c3e696299c3c73dcf2391cba3df16c4e95c9333e72ad3ed8c0a19851a38bc",
+  "platform": "linux/amd64",
+  "registry": {
+    "digest": "sha256:a22c3e696299c3c73dcf2391cba3df16c4e95c9333e72ad3ed8c0a19851a38bc",
+    "image": "asia-northeast1-docker.pkg.dev/gen-lang-client-0585901015/secure-mediation-agent/payment-user-agent-demo@sha256:a22c3e696299c3c73dcf2391cba3df16c4e95c9333e72ad3ed8c0a19851a38bc"
+  },
+  "schemaVersion": "cloud-run-payment-demo-candidate/1",
+  "source": {
+    "algorithm": "path-mode-size-bytes-v1",
+    "baseCommit": "dbd88afc31da9426f159efbeff08be7870dd8c65",
+    "fileCount": 233,
+    "worktreeDigest": "sha256:c42a61f72c61e357e3ff410b4026125920db305be6df163f140606047c4b741f"
+  },
+  "status": "PASS"
+}

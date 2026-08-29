@@ -120,10 +120,31 @@ async def create_structured_plan(
     """
     # This is a helper function that will be called by the agent
     # The actual plan creation logic will be done by the LLM
+    steps = []
+    for ordinal, agent in enumerate(matched_agents[:1], 1):
+        snapshot_digest = agent.get("snapshotDigest") or agent.get("snapshot_digest")
+        canonical_agent_id = agent.get("canonicalAgentId") or agent.get("agent_id")
+        skill_id = agent.get("a2aSkillId")
+        if not skill_id:
+            skills = agent.get("skills") or []
+            skill_id = skills[0].get("id") if skills else None
+        if not snapshot_digest or not canonical_agent_id or not skill_id:
+            continue
+        steps.append(
+            {
+                "stepId": f"step-{ordinal}",
+                "ordinal": ordinal,
+                "selectedAgentSnapshotDigest": snapshot_digest,
+                "canonicalAgentId": canonical_agent_id,
+                "a2aSkillId": skill_id,
+                "goal": client_request,
+            }
+        )
+
     plan = {
         "plan_id": f"plan_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
         "client_request": client_request,
-        "steps": [],
+        "steps": steps,
         "status": "draft",
         "created_at": datetime.now().isoformat(),
     }

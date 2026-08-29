@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "ap2-x402-spec-pins/1",
+  "ap2": {
+    "repository": "https://github.com/google-agentic-commerce/AP2.git",
+    "commit": "e1ea56db72a6385bce3e5c1112b3a56ce60acb43",
+    "specPath": "docs/ap2/specification.md",
+    "sha256": "32c3be5011f481d2760e56e7b9935b0842c3da0d5f7d7b8a68402a599f1e6aa3"
+  },
+  "x402": {
+    "repository": "https://github.com/google-agentic-commerce/a2a-x402.git",
+    "commit": "125db5526a965d2325459d1a9df2e274a7e42396",
+    "specPath": "spec/v0.1/spec.md",
+    "sha256": "5cdc35ed8c4d7a93bb120f1782fd06e2cc3ef19036684f772e27d0d644c66940"
+  },
+  "releaseProfile": "x402-wire-simulation/1",
+  "officialX402": "DISABLED / NOT RUN"
+}

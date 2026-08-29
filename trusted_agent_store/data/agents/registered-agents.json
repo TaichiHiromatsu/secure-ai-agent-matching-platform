@@ -42,6 +42,22 @@
       "booking",
       "lodging"
     ],
+    "protocol_version": "0.3.0",
+    "capabilities": {},
+    "skills": [
+      {
+        "id": "hotel_search",
+        "name": "Hotel Search",
+        "description": "Search for available hotels based on destination, dates, and preferences",
+        "tags": ["travel", "hotel", "accommodation", "search"]
+      },
+      {
+        "id": "hotel_booking",
+        "name": "Hotel Booking",
+        "description": "Book a hotel through the free loopback A2A fixture without a payment extension",
+        "tags": ["travel", "hotel", "booking", "free"]
+      }
+    ],
     "created_at": "2025-01-10T09:00:00Z",
     "updated_at": "2025-11-25T11:58:11.523642",
     "trust_score": 90
@@ -94,6 +110,62 @@
     ],
     "created_at": "2025-01-18T10:00:00Z",
     "updated_at": "2025-12-13T15:00:00Z",
+    "trust_score": 90
+  },
+  {
+    "id": "agent-005",
+    "name": "paid_booking_agent",
+    "provider": "Another Star Demo Marketplace",
+    "agent_card_url": "http://127.0.0.1:8005/.well-known/agent-card.json",
+    "endpoint_url": "http://127.0.0.1:8005/a2a",
+    "token_hint": "signed-capability-only",
+    "status": "active",
+    "use_cases": [
+      "paid booking",
+      "payment-aware fulfillment",
+      "same-task simulated payment fulfillment"
+    ],
+    "tags": [
+      "booking",
+      "payment",
+      "ap2",
+      "x402-wire-simulation",
+      "simulation",
+      "not-conformant"
+    ],
+    "protocol_version": "0.3.0",
+    "capabilities": {
+      "extensions": [
+        {
+          "uri": "urn:secure-a2a:extensions:x402-wire-simulation:v1",
+          "required": true,
+          "params": {
+            "profile": "x402-wire-simulation/1",
+            "simulated": true,
+            "conformance": "NOT_CONFORMANT",
+            "sdkPackage": "a2a-sdk",
+            "sdkVersion": "0.3.19",
+            "wireProtocolVersion": "0.3.0",
+            "roles": ["merchant"],
+            "canonicalAgentId": "agent-005",
+            "cardName": "paid-booking-agent",
+            "registrySkillId": "paid_booking",
+            "a2aSkillId": "paid-booking",
+            "identifierMappingVersion": "paid-booking-identifiers/v1"
+          }
+        }
+      ]
+    },
+    "skills": [
+      {
+        "id": "paid_booking",
+        "name": "Paid demo booking",
+        "description": "Fulfil one booking after a mediator-signed simulation guarantee on the same A2A Task",
+        "tags": ["booking", "payment", "simulation", "not-conformant"]
+      }
+    ],
+    "created_at": "2026-08-15T00:00:00Z",
+    "updated_at": "2026-08-15T00:00:00Z",
     "trust_score": 90
   }
 ]

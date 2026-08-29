@@ -1,0 +1,55 @@
+{
+  "schemaVersion": "ap2-x402-release-manifest/2",
+  "releaseProfile": "x402-wire-simulation/1",
+  "officialX402": "NOT RUN",
+  "onChainSettlement": "NOT RUN",
+  "adkApps": ["payment_user_agent"],
+  "supportedDeploymentModes": {
+    "singleHostDurable": true,
+    "ephemeralCloudRunDemo": "state and keys may reset on restart; no durability claim"
+  },
+  "regressionBaselines": {
+    "payment-release": 166,
+    "evaluation-runner": 16,
+    "jury-worker": 13
+  },
+  "requiredMarkers": [
+    "spike",
+    "unit",
+    "contract_ap2",
+    "contract_x402_simulation",
+    "integration",
+    "security",
+    "restart",
+    "migration",
+    "concurrency",
+    "container",
+    "browser"
+  ],
+  "browser": {
+    "engine": "chromium-cdp-real-ui",
+    "appSelected": "payment_user_agent",
+    "interactions": [
+      "paid payment booking", "承認", "承認", "refresh",
+      "hotel search", "承認",
+      "paid refund-required booking", "承認", "承認", "承認",
+      "paid privacy booking", "承認"
+    ],
+    "completedAfterRefresh": true
+  },
+  "acceptance": {
+    "ACC-001": "PASS", "ACC-002": "PASS", "ACC-003": "PASS",
+    "ACC-004": "PASS", "ACC-005": "PASS", "ACC-006": "PASS_SIMULATION",
+    "ACC-007": "PASS_SIMULATION", "ACC-008": "PASS_SIMULATION", "ACC-009": "PASS",
+    "ACC-010": "PASS_SIMULATION", "ACC-011": "PASS", "ACC-012": "PASS_SIMULATION",
+    "ACC-013": "PASS_SIMULATION", "ACC-014": "PASS_SIMULATION", "ACC-015": "PASS",
+    "ACC-016": "PASS_SIMULATION", "ACC-017": "PASS", "ACC-018": "PASS",
+    "ACC-019": "PASS", "ACC-020": "PASS", "ACC-021": "PASS_SIMULATION_AUTHORITY",
+    "ACC-022": "PASS", "ACC-023": "PASS", "ACC-024": "PASS",
+    "ACC-025": "PASS", "ACC-026": "PASS", "ACC-027": "PASS",
+    "ACC-028": "PASS_SIMULATION_SCOPE", "ACC-029": "PASS_SIMULATION_SCOPE",
+    "ACC-030": "NOT_RUN_CONDITIONAL", "ACC-031": "PASS",
+    "ACC-032": "PASS_SINGLE_HOST_DURABLE_TARGET", "ACC-033": "PASS",
+    "ACC-034": "PASS", "ACC-035": "PASS_SIMULATION_AUTHORITY"
+  }
+}

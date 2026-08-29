@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "pytest-regression-manifest/1",
+  "suites": [
+    {
+      "name": "payment-release",
+      "paths": ["tests"],
+      "minimumCollected": 166,
+      "allowedSkips": []
+    },
+    {
+      "name": "evaluation-runner",
+      "paths": ["trusted_agent_store/evaluation-runner/tests"],
+      "minimumCollected": 16,
+      "allowedSkips": []
+    },
+    {
+      "name": "jury-worker",
+      "paths": ["trusted_agent_store/jury-judge-worker/tests"],
+      "minimumCollected": 13,
+      "allowedSkips": [
+        "*with_google_adk*",
+        "*test_google_adk_integration::*"
+      ]
+    }
+  ]
+}
