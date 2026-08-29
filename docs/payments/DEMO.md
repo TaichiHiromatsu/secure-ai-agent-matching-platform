@@ -1,135 +1,73 @@
-# 決済デモの実演ガイド
+# 仲介エージェント決済デモ：これ一枚で実演
 
-- 対象読者: 実演者、評価者
-- 前提: [エージェント間決済の概要](README.md)
-- 次に読む文書: [運用ガイド](OPERATIONS.md)、[検証ガイド](VERIFICATION.md)
+## 1. 目的とデモの制約
 
-## このデモで示すこと
+このページは、公開Cloud Run環境で有料・無料の正常系を短時間で実演するための正本である。現行revision時点の入口は[決済デモ](https://payment-user-agent-demo-kzeuhywicq-an.a.run.app)。稼働revision、image、環境境界は[この受入時点のdeployment evidence](../../artifacts/cloud-run-deployment-399750d686a8.json)で確認できる。
 
-利用者が`payment_user_agent`へ有料タスクを依頼すると、内部workflowが次の二段階で同意を得る。
+- AP2は、利用者の支払意思と証跡を扱う。このデモではHuman Present（利用者が画面にいる）フローをsimulationする。
+- A2A x402は、エージェント間の支払要求交換を模したproject-local fixtureであり、公式profileには **NOT CONFORMANT**。公式x402、wallet、facilitator、on-chain処理は実行しない。
+- 実資産・実送金・法的な支払保証はない。状態はephemeral（一時的）で、revisionの再起動・置換後の保持は保証しない。
+- refundはローカル自動testの対象だが、最終hotfix後のCloud環境では **NOT RUN**。今回の実演は正常系に限定する。
+- screenshot、credential、利用者prompt、model outputは証跡に保存しない。
 
-1. どのMerchantへ何を依頼するかという計画を承認する。この時点では決済しない。
-2. Merchantが返した具体的な価格と支払条件を、別の意思表示として承認する。
+詳細仕様は[概要](README.md)、[アーキテクチャ](ARCHITECTURE.md)、[検証ガイド](VERIFICATION.md)を参照する。
 
-このデモは **AP2 v0.2 Human Present demo** である。A2A x402はproject-localなwire-shape fixtureで **NOT CONFORMANT**。実wallet、facilitator、blockchain、実資産、on-chain transactionは使用しない。
+## 2. 準備
 
-## 実演前の準備
+1. 上記の公開URLを開く。
+2. 共有済みのreviewer credentialsを、別途案内された安全な経路から取得してログインする。この文書には値を記載しない。
+3. 画面が入力待ちになったことを確認する。
 
-環境の起動とreadiness確認は[運用ガイド](OPERATIONS.md#耐久ローカル環境)に従う。実演者は次を確認する。
+入力上の注意:
 
-- `/mediation-api/ready`が対象環境に応じた正常状態である。
-- ADK Webで選択できるroot appが`payment_user_agent`だけである。
-- Firebaseを使う環境ではログインできる。
-- Cloud Runを使う場合は[deployment observation](../../artifacts/cloud-run-deployment.json)から現在のURLとephemeral境界を確認する。
+- promptは以下のcodeをそのまま使う。
+- 承認入力は単一textの完全一致 `承認` のみ。前後の空白、`承認します`、連打は避ける。
+- 各送信後はstateが変わるまで待つ。処理中に再送しない。
 
-## 5分の台本
+## 3. Paid正常系（承認2回）
 
-### 0:00–1:00 — AP2とA2A x402の役割を説明する
+| 手順 | 操作 | 画面上の期待結果 | 裏側で起きること |
+| --- | --- | --- | --- |
+| 1 | `paid payment booking` を送る | 計画と `WaitingForPlanApproval` | 仲介エージェントが外部Agent候補と依頼範囲を提示する。まだ決済しない。 |
+| 2 | 完全一致の `承認` を1回送る | `12.50 USD` と `WaitingForPaymentApproval` | 仲介が外部Agentへ同一Taskで依頼し、支払条件を受け取る。表示額はminor units `1250`、小数桁 `2` をUSD表記したもの。 |
+| 3 | 金額・条件を読み、完全一致の `承認` をもう1回送る | 最終state `Completed` と業務結果 | 決定論的routerがLLMを介さずapprove handlerを呼び、AP2 Payment Mandate（利用者の支払意思の証跡）を生成する。仲介側の決定論的payment workflow／railがsimulation authorizationとsettlementを処理し、payment authorityがsigned simulation guaranteeを発行する。外部Agentはその保証、capability、Task相関、AP2安全要約を検証し、業務を履行して同じTaskを完了する。 |
+| 4 | ブラウザをreloadする | `Completed` が復元される | 同じ稼働revision内の一時状態から復元する。耐久保存を示すものではない。 |
 
-次のように説明する。
+承認の責務はLLMにない。公開rootの決定論的routerとTrusted Surface（利用者同意を確定する信頼境界）が承認を識別し、専用handlerがMandateを作る。payment authority（仲介側の決済権限コンポーネント）だけがsimulation精算保証を作る。
 
-> AP2は、誰が何をいくらで支払うことを承認したかをMandateと署名済みReceiptで証明します。A2A x402は、支払条件と支払結果をA2A Task上で交換します。今回はAP2のHuman Presentフローを実装し、x402部分は実資産を動かさないwire-shape fixtureとして確認します。
+Paid完了を確認したらログアウトする。Freeは同じ会話を流用せず、再ログインしたfresh sessionで始める。
 
-`payment_user_agent`は画面用の薄いadapterであり、状態、認可、鍵、Merchant呼出しの正本は内部workflowにあることも伝える。
+## 4. Free正常系（承認1回）
 
-### 1:00–2:00 — 計画を承認する
+| 手順 | 操作 | 画面上の期待結果 | 裏側で起きること |
+| --- | --- | --- | --- |
+| 1 | `hotel search` を送る | 計画と `WaitingForPlanApproval` | 仲介エージェントが無料の外部Agent呼出しを計画する。 |
+| 2 | 完全一致の `承認` を1回送る | 決済承認画面を経ず、最終state `Completed` と検索結果 | 仲介が外部Agentの同一Taskを完了まで運ぶ。無料なのでPayment Mandate、simulation精算保証、決済処理は生成しない。 |
 
-次の依頼を送る。
+FreeをPaidへfallbackさせないこと、二回目の `承認` を求めないことが確認点である。
 
-> 信頼済みの予約エージェントを使い、デモ予約を1件取得してください。支払総額が12.50 USDを超える場合は止めてください。
+## 5. Paid / Freeの比較
 
-「計画の承認」画面で次を確認する。
+| 項目 | Paid | Free |
+| --- | --- | --- |
+| exact prompt | `paid payment booking` | `hotel search` |
+| 承認回数 | 2回（計画、決済） | 1回（計画） |
+| 主要state | `WaitingForPlanApproval` → `WaitingForPaymentApproval` → `Completed` | `WaitingForPlanApproval` → `Completed` |
+| AP2 Payment Mandate | あり | なし |
+| 仲介のpayment workflow／rail | simulation authorizationとsettlementを実行 | 決済処理なし |
+| 仲介のsimulation精算保証 | あり | なし |
+| 外部Agent | signed simulation guarantee、capability、Task相関、AP2安全要約を検証し、業務履行後に同一Taskを完了 | 業務履行後に同一Taskを完了 |
 
-- 選択したMerchantと商品
-- 数量と金額上限
-- 計画の有効期限
-- この承認ではまだ決済されないという注意
-- project-localなsimulation profile
+## 6. 30秒トークトラック
 
-次の一語だけを送る。
+> 利用者が支払う相手は仲介エージェントで、外部Agentは仲介からsimulation上の後日精算保証を受け取ります。有料では、まず依頼計画を承認し、12.50 USDの条件を見てもう一度承認します。二回目はLLMではなく決定論的handlerが処理し、AP2 Payment Mandateという支払意思の証跡を作ります。仲介側の決定論的workflowがsimulation authorizationとsettlementを行い、外部Agentはsigned guarantee、権限、Task相関、安全なAP2要約を検証して業務を履行します。無料では計画承認だけで、Mandateも精算保証もありません。x402部分は支払要求交換のsimulationで、公式・on-chain・実送金ではありません。
 
-> 承認
+## 7. 詰まったときの確認と終了
 
-`はい`、`yes`、`承認します`、前後空白付き`承認`は承認にならない、と説明する。
+- stateが変わらない: 数秒待ち、送信を連打しない。入力が完全一致の `承認` か確認する。
+- Paidで金額が出ない: 最初のpromptが完全一致の `paid payment booking` か、新しいsessionか確認する。
+- Freeで決済承認が出た: ログアウトし、fresh sessionで完全一致の `hotel search` からやり直す。
+- reload後に消えた: Cloud Runの状態はephemeral。revision再起動・置換をまたぐ復元は保証外である。
+- サービス異常が疑われる: [運用ガイド](OPERATIONS.md)と[検証レポート](MEDIATOR_PAYMENT_INTEGRATION_TEST_REPORT.md)でreadinessと既知の境界を確認する。
 
-### 2:00–3:30 — 決済を承認する
-
-「決済の承認」画面で次を確認する。
-
-- Merchant／payee
-- order IDとTask ID
-- 商品、数量、通貨、期限
-- 商品価格、顧客加算、collection cost、顧客総額、commission、Merchant受取額、payout cost
-- `x402-wire-simulation/1`、`exact-simulated`、`demo:local`
-- simulated／`NOT CONFORMANT`
-- この承認後にsimulation settlementが始まるという注意
-
-内容を確認し、計画承認とは別の意思表示として、再び次を送る。
-
-> 承認
-
-### 3:30–5:00 — 完了と復元を確認する
-
-完了画面で次を確認する。
-
-- `completed`
-- Merchantの業務Artifact
-- AP2 Checkout／Payment Receiptの安全なIDまたはdigest
-- simulation resultの参照
-- `AP2 v0.2 Human Present demo`
-- 実資産とon-chain transactionがないこと
-
-raw Mandate、credential、private key、raw proofが表示されないことも確認する。
-
-ブラウザを再読み込みし、同じworkflowが`completed`として復元されることを示す。Cloud Run一時デモでは、これは同じrevisionが動いている間のUI復元を示すだけで、revision置換後の耐久性を示さない。
-
-## CLIでの確認
-
-同じ二承認フローをCLIで再現する。
-
-```bash
-docker exec secure-platform /app/.venv/bin/python \
-  /app/user-agent/payment_cli.py \
-  --workflow-url http://127.0.0.1:8080/mediation-api \
-  --prompt "デモ予約を1件取得して" \
-  --plan-approval "承認" \
-  --payment-approval "承認"
-```
-
-Firebase環境では有効なsession cookieを渡す。内部portを直接呼んで認証を省略しない。
-
-## 想定Q&A
-
-### なぜ`承認`が二回必要か
-
-最初は「どのMerchantへ何を依頼するか」という計画、二回目は「この価格と支払条件で支払うか」という決済への同意だからである。二つは別のID、nonce、署名対象、監査eventとして保存する。
-
-### AP2とA2A x402はどちらか一方でよいのか
-
-扱う問題が異なる。AP2は利用者の意思と取引証跡、A2A x402はTask上の支払交換を扱う。一般にはどちらかを別方式へ置き換えられるが、この設計では責務を分離して組み合わせている。
-
-### A2A x402に準拠しているか
-
-準拠していない。v0.1のdotted metadata、Task相関、結果履歴に似た形をproject-local fixtureで検証している。canonical URI、wallet、facilitator、on-chain settlementは`NOT RUN`である。
-
-### AP2に完全準拠しているか
-
-AP2 v0.2 Human Presentのclosed MandateとReceiptを使うdemoである。AP2全体の正式なconformance、Human Not Present、production-gradeなtrust deploymentは主張しない。
-
-### 実際のお金は動くか
-
-動かない。ローカルSQLiteのsimulation balanceだけを更新し、transaction参照も`sim:`で始まる。実transaction hashや法的な支払保証は生成しない。
-
-### 各AP2ロールは別サービスか
-
-論理的には鍵、issuer、検証責務を分けるが、すべてが別サービスではない。Merchantはloopbackの別プロセスで、Trusted Surface、Credential Provider、MPPは現在のdemoでは同じdeployable内のcomponentである。
-
-### Cloud Runで再起動しても状態は残るか
-
-保証しない。一時デモはephemeral filesystemを使い、revision再起動または置換で状態とdemo keyを失い得る。耐久性の受入対象は明示した永続volumeを使うローカル構成である。
-
-## 実演後の検証
-
-主要フローの後、必要に応じて一括verifierとoffline evidence verifierを実行する。手順とartifactの読み方は[検証ガイド](VERIFICATION.md)を参照する。
-
-拒否、改ざん、replay、期限切れ、process death、migration、refund、reconciliationは自動testの対象であり、5分の台本へ詰め込まない。公式A2A x402、実資産、耐久Cloud Run、production identity／KMSは未実装境界であり、単なる追加デモ項目として扱わない。
+実演終了後は画面のログアウト操作を実行し、ログイン状態が解除されたことを確認する。
