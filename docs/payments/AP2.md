@@ -96,6 +96,8 @@ Payment Mandateは、支払額、通貨、payee、支払手段、transaction ID�
 
 Trusted SurfaceがMandateを発行できるのは、この決済承認が現在の`payment_approval_required`状態と完全に一致するときだけである。価格、payee、通貨、Task、Checkout、期限のいずれかが変われば、古い承認を再利用しない。
 
+このデモのworked exampleでは、固定シナリオ「デモ東京ベイホテル、2026年9月12日〜14日、2名」と、宿泊代を含まない予約手配サービス料`12.50 USD`、payee `demo-merchant`、versioned terms（simulation限定、実予約・実在庫hold・実課金・実送金・法的保証はすべてfalse）をCheckoutと支払表示へ含める。シナリオのcanonical digestはpayment requirementsとCheckoutの双方へ結び付け、利用者の承認はその両digestを参照する。Mandateはこの表示への認可証跡であり、部屋の確保、実予約、実hold、実送金を証明しない。
+
 ## Credential ProviderとMPP
 
 Credential Providerは次を決定論的に検証する。

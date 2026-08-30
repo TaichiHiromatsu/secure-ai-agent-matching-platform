@@ -5,6 +5,8 @@ from __future__ import annotations
 import os
 from typing import Any
 
+from secure_mediation_agent.demo_catalog import demo_scenario
+
 from .models import PlanSnapshot, PublicWorkflowView, WorkflowState
 
 
@@ -23,12 +25,14 @@ def _deployment_notice() -> str:
 
 
 def _plan_text(plan: PlanSnapshot, digest: str) -> str:
+    scenario = demo_scenario()
     return (
         _deployment_notice()
         + "計画の承認\n"
         f"workflow/plan: {plan.plan_id} / {digest}\n"
         "agent/Merchant: paid-booking-agent / Demo Merchant (demo-merchant)\n"
-        "skill/product/quantity: paid-booking / demo-paid-booking / 1\n"
+        f"service/product/quantity: {scenario['service']} / {scenario['productId']} / 1\n"
+        f"hotel/dates/guests: {scenario['hotel']} / {scenario['dates']['checkIn']}〜{scenario['dates']['checkOut']} / {scenario['guests']}\n"
         f"最大総額: {plan.maximum_customer_total} {plan.currency} (decimals={plan.decimals})\n"
         "fee policy: zero-fee-v1; expiry: " + plan.expires_at + "\n"
         "拒否する場合は「拒否」と入力してください。\n"
@@ -37,12 +41,15 @@ def _plan_text(plan: PlanSnapshot, digest: str) -> str:
 
 
 def _payment_text(workflow: dict[str, Any]) -> str:
+    scenario = demo_scenario()
     return (
         _deployment_notice()
         + "決済の承認\n"
         f"order/task: {workflow['order_id']} / {workflow['merchant_task_id']}\n"
         "Merchant/payee: Demo Merchant / demo-merchant\n"
-        "line item/quantity: demo-paid-booking / 1\n"
+        f"line item/quantity: {scenario['service']} / 1\n"
+        f"hotel/dates/guests: {scenario['hotel']} / {scenario['dates']['checkIn']}〜{scenario['dates']['checkOut']} / {scenario['guests']}\n"
+        "12.50 USDは宿泊代を含まない予約手配サービス料です。実予約ではありません。\n"
         "merchandiseAmount=1250, customerSurcharge=0, collectionRailCost=0, "
         "customerTotal=1250, providerCommission=0, merchantPayableAmount=1250, payoutRailCost=0\n"
         "currency/decimals/instrument: USD / 2 / demo-instrument-1\n"
@@ -78,7 +85,7 @@ def build_view(
             _deployment_notice()
             + "完了\n"
             f"plan/order/task: {workflow['active_plan_id']} / {workflow['order_id']} / {workflow['merchant_task_id']}\n"
-            "業務結果: Demo booking confirmed.\n"
+            "業務結果: デモ予約確認（シミュレーション）。実予約ではありません。\n"
             f"AP2 evidence: {ids}\nsettlement receipts: {refs}\n"
             f"{AP2_LABEL}\n{X402_LABEL}\n{RAIL_LABEL}"
         )

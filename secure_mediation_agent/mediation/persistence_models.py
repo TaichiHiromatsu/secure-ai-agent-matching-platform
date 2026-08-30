@@ -5,8 +5,16 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
+from secure_mediation_agent.demo_catalog import (
+    REQUIREMENT_SCHEMA_VERSION,
+    demo_scenario,
+    validate_confirmation,
+    validate_payment_requirement,
+)
+
 from .approval_targets import build_plan_approval_target
 from .canonical import safe_ref
+from .errors import MediationError
 from .models import (
     MediationPublicView,
     MediationSession,
@@ -71,6 +79,86 @@ _MESSAGES = {
 }
 
 
+def paid_payment_approval_message(requirement: object) -> str:
+    """Render only catalog-owned scenario terms; never echo remote free text."""
+
+    payment_required = requirement.payment_required
+    schema_version = payment_required.get("schemaVersion")
+    if schema_version is None:
+        return (
+            "これは計画承認とは別の支払い承認です。"
+            f"Demo paid booking / {requirement.amount_minor} minor units "
+            f"{requirement.currency} / {requirement.payee} / "
+            f"期限 {requirement.expires_at.isoformat()}。"
+            "これはupgrade前から保存されている汎用simulation条件です。"
+            "以下の承認対象を確認し、支払う場合のみメッセージ全体を"
+            "「承認」として送信してください。"
+        )
+    if schema_version != REQUIREMENT_SCHEMA_VERSION:
+        raise MediationError(
+            "MEDIATION_STORE_INTEGRITY",
+            "The payment approval requirement schema is unsupported.",
+        )
+    try:
+        validate_payment_requirement(payment_required)
+    except ValueError as error:
+        raise MediationError(
+            "MEDIATION_STORE_INTEGRITY",
+            "The payment approval scenario is invalid.",
+        ) from error
+    scenario = demo_scenario()
+    decimals = scenario["arrangementFee"]["decimals"]
+    amount = f"{requirement.amount_minor / (10**decimals):.{decimals}f}"
+    return (
+        "これは計画承認とは別の支払い承認です。"
+        f"{scenario['service']} / {scenario['hotel']} / "
+        f"{scenario['dates']['checkIn']}〜{scenario['dates']['checkOut']} / {scenario['guests']}名 / "
+        f"予約手配サービス料 {amount} {requirement.currency}（宿泊代を含まない） / "
+        f"{requirement.payee} / 期限 {requirement.expires_at.isoformat()}。"
+        "シミュレーションであり、実予約・実hold・実送金・法的保証はありません。"
+        "以下の承認対象を確認し、支払う場合のみメッセージ全体を"
+        "「承認」として送信してください。"
+    )
+
+
+def paid_completion_message(session: MediationSession) -> str | None:
+    """Project a strict catalog-only result after ACCEPT and same-Task completion."""
+
+    if (
+        session.state != MediationState.COMPLETED
+        or session.active_step.selected_agent.canonical_agent_id != "agent-005"
+        or session.continuation is None
+        or not isinstance(session.result, dict)
+        or not any(
+            event.stage == "final-validation" and event.decision == "ACCEPT"
+            for event in session.trace
+        )
+    ):
+        return None
+    artifact = session.result.get("artifact")
+    parts = artifact.get("parts") if isinstance(artifact, dict) else None
+    data = (
+        parts[0].get("data")
+        if isinstance(parts, list)
+        and len(parts) == 1
+        and isinstance(parts[0], dict)
+        and parts[0].get("kind") == "data"
+        else None
+    )
+    try:
+        validate_confirmation(
+            data, remote_task_id=session.continuation.remote_task.task_id
+        )
+    except (TypeError, ValueError):
+        return None
+    return (
+        "デモ予約確認（シミュレーション）を発行しました。"
+        f" {data['hotel']} / {data['dates']['checkIn']}〜{data['dates']['checkOut']} / "
+        f"{data['guests']}名 / 参照番号 {data['confirmationReference']}。"
+        " SIMULATED / NOT A REAL BOOKING。実予約・実送金はありません。"
+    )
+
+
 def build_local_durable_view(session: MediationSession) -> MediationPublicView:
     """Build the exact restart-safe public view without consulting mutable services."""
 
@@ -103,13 +191,10 @@ def build_local_durable_view(session: MediationSession) -> MediationPublicView:
             requirement_digest=requirement.requirement_digest,
             checkout_digest=requirement.checkout_digest,
         )
-        message = (
-            "これは計画承認とは別の支払い承認です。"
-            f"Demo paid booking / {requirement.amount_minor} {requirement.currency} / "
-            f"{requirement.payee} / 期限 {requirement.expires_at.isoformat()}。"
-            "以下の承認対象を確認し、支払う場合のみメッセージ全体を"
-            "「承認」として送信してください。"
-        )
+        message = paid_payment_approval_message(requirement)
+    completion_message = paid_completion_message(session)
+    if completion_message is not None:
+        message = completion_message
     return MediationPublicView(
         state=session.state,
         version=session.version,

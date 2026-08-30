@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from secure_mediation_agent.demo_catalog import demo_scenario, scenario_digest
 from secure_mediation_agent.payment_profiles.x402_v01 import OfficialX402V01Profile
 
 
@@ -14,6 +15,34 @@ ROOT = Path(__file__).resolve().parents[2]
 
 def _text(path: str) -> str:
     return (ROOT / path).read_text(encoding="utf-8")
+
+
+def test_release_manifest_binds_exact_paid_demo_scenario() -> None:
+    manifest = json.loads(_text("tests/release/release_manifest.json"))
+    scenario = manifest["paidScenario"]
+    catalog = demo_scenario()
+    assert scenario["scenarioVersion"] == catalog["scenarioVersion"]
+    assert scenario["scenarioId"] == catalog["scenarioId"]
+    assert scenario["scenarioDigest"] == scenario_digest()
+    assert scenario["arrangementFeeMinor"] == catalog["arrangementFee"]["amountMinor"]
+    assert scenario["lodgingExcluded"] is True
+    assert scenario["simulationOnly"] is True
+    assert scenario["realBooking"] is False
+    assert scenario["realInventoryHold"] is False
+    assert scenario["realCharge"] is False
+    assert scenario["realTransfer"] is False
+    assert scenario["legalGuarantee"] is False
+    assert {
+        key: scenario[key]
+        for key in (
+            "simulationOnly",
+            "realBooking",
+            "realInventoryHold",
+            "realCharge",
+            "realTransfer",
+            "legalGuarantee",
+        )
+    } == catalog["terms"]
 
 
 def test_llm_facing_payment_app_is_thin_keyless_and_repository_free() -> None:
@@ -154,6 +183,15 @@ def test_public_app_metadata_and_registry_match_release_runtime() -> None:
     assert extension["params"]["cardName"] == "paid-booking-agent"
     assert extension["params"]["identifierMappingVersion"] == "paid-booking-identifiers/v1"
     assert {skill["id"] for skill in paid["skills"]} == {"paid_booking"}
+    assert paid["use_cases"] == [
+        "Tokyo business-trip hotel arrangement simulation",
+        "12.50 USD arrangement-fee simulation excluding lodging",
+        "same-Task simulated confirmation issuance with no real booking",
+    ]
+    assert paid["skills"][0]["name"] == (
+        "Tokyo business hotel arrangement simulation"
+    )
+    assert "12.50 USD" in paid["skills"][0]["description"]
 
 
 def test_login_uses_server_owned_session_and_payment_root_redirect() -> None:

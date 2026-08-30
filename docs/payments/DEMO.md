@@ -16,13 +16,15 @@
 ### Paid（有料）
 
 ```text
-paid payment booking
+有料の外部エージェントに、デモ予約商品を1件シミュレーション購入し、デモの予約確認を発行するよう依頼してください。
 ```
+
+このシナリオでは、外部Booking Agentが東京出張向けの架空商品「デモ東京ベイホテル」（2026年9月12日〜14日、2名）の予約手配simulationを行う。`12.50 USD`は宿泊代ではなく、デモホテル予約手配サービス料である。
 
 ### Free（無料）
 
 ```text
-hotel search
+東京で2026年9月12日から9月14日まで、2名で宿泊できるホテル候補を検索してください。
 ```
 
 | ケース | 承認回数 | 画面上の期待state | 金額表示 | session |
@@ -48,7 +50,8 @@ hotel search
    - 外部Agentが同一Taskを`input-required`として返したpayment request（支払要求）を表示している。
 3. 金額・通貨・受取人・条件を読み、完全一致の `承認` をもう一度送る。
    - 期待表示: `Completed` と業務結果。
-   - 決定論的handlerがAP2 Payment Mandateを作り、仲介のpayment authorityがsimulation保証を発行する。Merchantが保証等を検証して`working`を返し、仲介のrailが同期simulationを記録する。そのreceiptをMerchantが検証し、同じTaskで業務を完了する。
+   - 条件にはホテル、日程、人数、予約手配サービス料、宿泊代を含まないこと、実予約ではないことが含まれる。決定論的handlerがAP2 Payment Mandateを作り、仲介のpayment authorityがsimulation保証を発行する。Merchantが保証等を検証して`working`を返し、仲介のrailが同期simulationを記録する。そのreceiptをMerchantが検証し、同じTaskで業務を完了する。
+   - 完了結果は、固定シナリオと同一Taskに結び付いた「デモ予約確認（シミュレーション）」である。`SIMULATED / NOT A REAL BOOKING`とデモ参照番号を表示し、実際の宿泊には使えない。
 4. 必要ならreloadし、同じ稼働revision内で`Completed`が復元されることを確認する。これは耐久保存の証明ではない。
 5. Paid完了後にログアウトする。Freeは同じ会話を流用せず、再ログインしてfresh sessionを作る。
 
@@ -70,7 +73,9 @@ hotel search
 | AP2 | 利用者が支払条件を承認した事実と、決定論的handlerが作るPayment Mandateを認可証跡として扱う。LLMは承認やMandateを作成・変更できない。 |
 | A2A x402 | 仲介とMerchantがsimulation保証とsettlement receiptを同一Task上で交換するproject-local simulation。公式profileには **NOT CONFORMANT**。 |
 
-仲介はworkflow、payment authority、SQLite simulation railのownerだが、payeeではない。railは`demo-customer`から`demo-merchant`への同期simulationを記録するだけで、実hold、実送金、後日精算、法的保証はない。
+仲介はworkflow、payment authority、SQLite simulation railのownerだが、payeeではない。railは`demo-customer`から`demo-merchant`への同期simulationを記録するだけで、承認画面にも固定条件として示すとおり、実予約、実在庫hold、実課金、実送金、後日精算、法的保証はない。
+
+Free検索とPaid手配は説明上の連続した物語だが、現行デモでは別sessionであり、検索結果を自動で引き継がない。Paidは固定シナリオを改めて指定して実行する。将来はBooking Agentの固定fixtureを実在庫APIへ差し替えられるが、在庫・価格の再確認、実決済、取消、個人情報、法令対応は本デモの範囲外である。
 
 > 利用者は仲介画面で計画と支払条件を別々に承認します。AP2はその意思をMandateという証跡にし、仲介は外部Merchantへsimulation保証を渡します。Merchantが保証を検証した後、仲介railが実資産を動かさない同期simulationを記録し、Merchantはreceiptを確認して業務を完了します。無料では計画承認だけで、Mandateも保証もありません。
 

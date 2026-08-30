@@ -5,6 +5,8 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from a2a.types import Message, Part, Role, Task, TaskState, TaskStatus, TextPart
 
+from secure_mediation_agent.ap2.verification import b64url_sha256
+from secure_mediation_agent.demo_catalog import project_payment_requirement
 from secure_mediation_agent.merchant.service import PaidBookingMerchant
 from secure_mediation_agent.payment_bridge import (
     BridgeState,
@@ -17,7 +19,6 @@ from secure_mediation_agent.payment_profiles.a2a import (
     payment_required_task,
 )
 from secure_mediation_agent.payment_profiles.registry import ProfileRegistry
-from secure_mediation_agent.ap2.verification import b64url_sha256
 from secure_mediation_agent.workflow.canonical import canonical_digest, sha256_digest
 from secure_mediation_agent.workflow.errors import DomainError
 
@@ -288,7 +289,7 @@ def test_merchant_verifies_guarantee_before_fulfillment(workflow_fixture) -> Non
     )
     merchant = PaidBookingMerchant(repository, keys, profile)
     required = {
-        **profile.build_required(amount=1250),
+        **project_payment_requirement(profile.build_required(amount=1250)),
         "orderId": "merchant-order-1",
         "quoteId": "merchant-quote-1",
         "expiresAt": (datetime.now(UTC) + timedelta(minutes=10))

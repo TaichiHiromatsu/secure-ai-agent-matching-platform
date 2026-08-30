@@ -30,12 +30,26 @@
     "engine": "chromium-cdp-real-ui",
     "appSelected": "payment_user_agent",
     "interactions": [
-      "paid payment booking", "承認", "承認", "refresh",
-      "hotel search", "承認",
+      "有料の外部エージェントに、デモ予約商品を1件シミュレーション購入し、デモの予約確認を発行するよう依頼してください。", "承認", "承認", "refresh",
+      "東京で2026年9月12日から9月14日まで、2名で宿泊できるホテル候補を検索してください。", "承認",
       "paid refund-required booking", "承認", "承認", "承認",
       "paid privacy booking", "承認"
     ],
     "completedAfterRefresh": true
+  },
+  "paidScenario": {
+    "scenarioVersion": "demo-booking-scenario/1",
+    "scenarioId": "tokyo-business-hotel-arrangement-20260912-v1",
+    "scenarioDigest": "sha256:d55b7df24c68ca4eaa1424371457f04ea70d9696a6f60e3f7d141e3387ad83f7",
+    "arrangementFeeMinor": 1250,
+    "currency": "USD",
+    "lodgingExcluded": true,
+    "simulationOnly": true,
+    "realBooking": false,
+    "realInventoryHold": false,
+    "realCharge": false,
+    "realTransfer": false,
+    "legalGuarantee": false
   },
   "acceptance": {
     "ACC-001": "PASS", "ACC-002": "PASS", "ACC-003": "PASS",

@@ -29,11 +29,11 @@ MERCHANT_TEST_FAULT_URL = (
 )
 MERCHANT_TEST_FAULT_SECRET = "browser-e2e-merchant-fault-key-20260817"
 EVIDENCE_INTERACTIONS = [
-    "paid payment booking",
+    "有料の外部エージェントに、デモ予約商品を1件シミュレーション購入し、デモの予約確認を発行するよう依頼してください。",
     "承認",
     "承認",
     "refresh",
-    "hotel search",
+    "東京で2026年9月12日から9月14日まで、2名で宿泊できるホテル候補を検索してください。",
     "承認",
     "paid refund-required booking",
     "承認",
@@ -602,7 +602,7 @@ def test_01_paid_two_exact_approvals_and_refresh(
     browser_session: _BrowserSession,
 ) -> None:
     chrome = browser_session.chrome
-    planned = _submit_and_wait(chrome, "paid payment booking", "WaitingForPlanApproval")
+    planned = _submit_and_wait(chrome, "有料の外部エージェントに、デモ予約商品を1件シミュレーション購入し、デモの予約確認を発行するよう依頼してください。", "WaitingForPlanApproval")
     _assert_plan_target(planned)
 
     payment = _submit_and_wait(chrome, "承認", "WaitingForPaymentApproval")
@@ -632,7 +632,7 @@ def test_02_free_plan_approval_completes_without_payment_target(
     browser_session: _BrowserSession,
 ) -> None:
     chrome = browser_session.chrome
-    planned = _submit_and_wait(chrome, "hotel search", "WaitingForPlanApproval")
+    planned = _submit_and_wait(chrome, "東京で2026年9月12日から9月14日まで、2名で宿泊できるホテル候補を検索してください。", "WaitingForPlanApproval")
     _assert_plan_target(planned)
     assert '"canonicalAgentId":"agent-002"' in planned
 

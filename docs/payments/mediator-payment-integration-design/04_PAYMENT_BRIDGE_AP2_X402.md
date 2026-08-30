@@ -291,14 +291,16 @@ sequenceDiagram
 
 Merchantはcapability、profile activation、Task相関、requirements、signed guaranteeのissuer/scope/amount/currency/payee/expiry、safe AP2 digest要約を**fulfillmentより前**に検証する。一つでも失敗すれば状態変更と業務副作用を0件のまま構造化errorを返す。MerchantはこのA2A operationでsimulation決済やsettlementを実行しない。
 
-actor順の正本は、Human approval → Trusted SurfaceによるAP2 Mandate／内部envelope → mediator payment authorityによるguarantee → guarantee submission → Merchant検証／same-Task `working` → 仲介SQLite railの同期simulation → settlement receipt付きcommit → Merchantのreceipt検証／業務履行／same-Task completionである。real rail holdは未実装で、simulation guaranteeは法的保証でもsettled証明でもない。
+actor順の正本は、Human approval → Trusted SurfaceによるAP2 Mandate／内部envelope → mediator payment authorityによるguarantee → guarantee submission → Merchant検証／same-Task `working` → 仲介SQLite railの同期simulation → settlement receipt付きcommit → Merchantのreceipt検証／業務履行／same-Task completionである。承認対象へ拘束するversioned scenario digestはsimulation限定、実予約・実在庫hold・実課金・実送金・法的保証なしを含む。real rail holdは未実装で、simulation guaranteeは法的保証でもsettled証明でもない。
+
+Release-1の有料demoは`demo-payment-requirement/2`を必須とし、固定catalogのシナリオ全体と`scenarioDigest`をrequirementsのcanonical bytes、Merchant Checkout、project metadataへ結び付ける。新しいremote responseでv2 fieldの欠落、未知version、catalog不一致、digest改変を受理しない。upgrade前から永続化済みのv1 requirementだけは明示legacy provenanceとして元digestを維持して再表示できるが、新規v1へのdowngrade fallbackには使わない。
 
 結果取込みは次の全てを満たす場合だけ成功する。
 
 - responseが同じcontext／task／order／quote、canonical Agent、profileを指す
 - receipt historyがappend-onlyで、送信したattemptを一意に含む
 - AP2 Payment ReceiptとCheckout Receiptが対応Mandateを参照し署名検証に成功する
-- Taskが `completed` で業務Artifactが存在する、または同じTaskが `working` で後続照合が必要である
+- Taskが `completed` で、同じTask IDから決定した参照番号と固定catalogに完全一致する`demo-booking-confirmation/1` DataPart Artifactが存在する、または同じTaskが `working` で後続照合が必要である
 - `POST_PAYMENT_RESULT=PASS`
 
 03 §7のtext／file artifact fallbackは、payment requirementを持たない無料の`completed` Taskだけに適用する。有料結果ではartifactが存在しても、Payment Receipt、Checkout Receipt、receipt history、profile、Task/context/order/quote相関のいずれも省略または緩和しない。

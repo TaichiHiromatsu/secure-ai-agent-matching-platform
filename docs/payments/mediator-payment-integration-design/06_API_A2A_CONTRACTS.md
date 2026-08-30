@@ -449,18 +449,28 @@ payment resultが `working` の場合だけ、`tasks/get`を`taskId`、read capa
       "metadata": {
         "x402.payment.status": "payment-required",
         "x402.payment.required": {
+          "schemaVersion": "demo-payment-requirement/2",
           "x402Version": 1,
+          "scenarioDigest": "sha256:...",
+          "demoScenario": {
+            "scenarioVersion": "demo-booking-scenario/1",
+            "scenarioId": "tokyo-business-hotel-arrangement-20260912-v1",
+            "productId": "demo-paid-booking",
+            "service": "デモホテル予約手配サービス",
+            "hotel": "デモ東京ベイホテル",
+            "destination": "東京",
+            "dates": {"checkIn": "2026-09-12", "checkOut": "2026-09-14"},
+            "guests": 2,
+            "arrangementFee": {"amountMinor": 1250, "currency": "USD", "decimals": 2, "lodgingExcluded": true, "payee": "demo-merchant"},
+            "terms": {"simulationOnly": true, "realBooking": false, "realInventoryHold": false, "realCharge": false, "realTransfer": false, "legalGuarantee": false}
+          },
           "accepts": [
             {
               "scheme": "exact-simulated",
               "network": "demo:local",
-              "asset": "JPY",
+              "asset": "USD",
               "payTo": "merchant:demo-merchant",
-              "maxAmountRequired": "1250",
-              "resource": "demo-paid-booking",
-              "description": "Paid booking demo",
-              "maxTimeoutSeconds": 600,
-              "extra": {"profileId": "x402-wire-simulation/1", "simulated": true}
+              "maxAmountRequired": "1250"
             }
           ]
         },
@@ -474,8 +484,9 @@ payment resultが `working` の場合だけ、`tasks/get`を`taskId`、read capa
           "orderId": "018f3202-...",
           "quoteId": "quote-123",
           "profileId": "x402-wire-simulation/1",
-          "currency": "JPY",
-          "decimals": 0,
+          "scenarioDigest": "sha256:...",
+          "currency": "USD",
+          "decimals": 2,
           "expiresAt": "2026-08-16T10:20:00Z",
           "paymentRequirementDigest": "sha256:...",
           "checkoutArtifactId": "artifact-checkout-1",

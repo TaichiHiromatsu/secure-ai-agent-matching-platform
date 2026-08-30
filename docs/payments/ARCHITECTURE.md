@@ -29,6 +29,8 @@
 | 外部Agent／Merchant（payee=`demo-merchant`） | 保証、capability、Task相関、安全なAP2 digest、receiptを検証し、業務を履行して同一Taskを完了する | raw Mandateを受け取らず、決済／settlementを実行しない |
 | LLM／orchestrator | 計画・業務実行を補助し、認可済みartifactを決定論的処理へ渡す | approval、Mandate、保証、ledger mutation、refundを発行・実行しない |
 
+有料デモの業務は、固定された東京出張向けホテル予約手配simulationである。外部Booking Agentは、シナリオdigestと同一Taskへ相関したpayment requirementを提示し、receipt検証後に厳格なデモ予約確認Artifactを返す。`12.50 USD`は宿泊代ではなく予約手配サービス料である。versioned scenario termsはsimulation限定をtrue、実在庫hold・実予約・実課金・実送金・法的保証をfalseとしてdigestへ含める。
+
 Human approval（画面上の意思表示）、AP2 Mandate（署名対象となる認可証跡）、pre-payment authorization envelope（仲介内部の決済前binding）は別物である。
 
 real rail hold（実決済レールの資金引当）は現在未実装である。詳細なwireと処理順は[Payment Bridge設計](mediator-payment-integration-design/04_PAYMENT_BRIDGE_AP2_X402.md)を正本とする。

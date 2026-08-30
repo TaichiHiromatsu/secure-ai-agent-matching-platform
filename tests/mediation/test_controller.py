@@ -14,7 +14,9 @@ from secure_mediation_agent.mediation.a2a_executor import (
 )
 from secure_mediation_agent.mediation.canonical import canonical_digest
 from secure_mediation_agent.mediation.controller import MediationController
-from secure_mediation_agent.mediation.errors import SecurityBlocked
+from secure_mediation_agent.mediation.errors import MediationError, SecurityBlocked
+from secure_mediation_agent.mediation.persistence import _session_projection
+from secure_mediation_agent.mediation.persistence_models import paid_completion_message
 from secure_mediation_agent.mediation.models import (
     A2AResponseEnvelope,
     BridgeApprovalResult,
@@ -33,6 +35,12 @@ from secure_mediation_agent.mediation.models import (
     SelectedAgentSnapshot,
     SubjectScope,
     utc_now,
+)
+from secure_mediation_agent.demo_catalog import (
+    confirmation_reference,
+    project_confirmation,
+    project_payment_requirement,
+    scenario_digest,
 )
 from secure_mediation_agent.mediation.store import InMemoryMediationStore
 
@@ -228,6 +236,7 @@ class FakeBridge:
             remoteTask=remote,
             result={
                 "taskState": "completed",
+                "artifact": remote.artifact,
                 "refundEligible": False,
                 "simulation": True,
             },
@@ -270,7 +279,7 @@ def _paid_envelopes() -> list[A2AResponseEnvelope]:
     checkout_hash = base64.urlsafe_b64encode(
         hashlib.sha256(checkout_jwt.encode()).digest()
     ).rstrip(b"=").decode()
-    required = {
+    required = project_payment_requirement({
         "x402Version": 1,
         "accepts": [
             {
@@ -281,7 +290,7 @@ def _paid_envelopes() -> list[A2AResponseEnvelope]:
                 "maxAmountRequired": "1250",
             }
         ],
-    }
+    })
     requirement = PaymentRequirementSnapshot(
         taskState="input-required",
         paymentStatus="payment-required",
@@ -317,7 +326,18 @@ def _paid_envelopes() -> list[A2AResponseEnvelope]:
         taskDigest=canonical_digest({"task": "paid-completed"}),
         orderId="order-1",
         quoteId="quote-1",
-        artifact={"booking": "confirmed"},
+        artifact={
+            "artifactId": "artifact:paid-task-1",
+            "name": "デモ予約確認（シミュレーション）",
+            "parts": [{"kind": "data", "data": project_confirmation("paid-task-1")}],
+            "metadata": {
+                "schemaVersion": "demo-booking-confirmation/1",
+                "scenarioDigest": scenario_digest(),
+                "confirmationReference": confirmation_reference("paid-task-1"),
+                "simulated": True,
+                "externalCommit": False,
+            },
+        },
     )
     return [
         A2AResponseEnvelope(
@@ -387,6 +407,36 @@ def test_free_path_requires_exact_plan_approval_and_never_calls_payment_bridge()
     assert completed.trace[-1].decision == "ACCEPT"
 
 
+def test_fresh_paid_requirement_rejects_v1_downgrade() -> None:
+    controller, _, _, transport, _ = _controller(paid=True)
+    initial = transport.responses[0]
+    requirement = initial.task.payment_requirement
+    assert requirement is not None
+    stripped = {
+        key: value
+        for key, value in requirement.payment_required.items()
+        if key not in {"schemaVersion", "demoScenario", "scenarioDigest"}
+    }
+    downgraded = requirement.model_copy(
+        update={
+            "payment_required": stripped,
+            "requirement_digest": canonical_digest(stripped),
+        }
+    )
+    transport.responses[0] = initial.model_copy(
+        update={
+            "task": initial.task.model_copy(
+                update={"payment_requirement": downgraded}
+            )
+        }
+    )
+    scope = SubjectScope(subject="alice", tenantId="tenant-a", adkSessionId="s-v2")
+    _submit(controller, scope, "有料予約", "v2-1")
+    blocked = _submit(controller, scope, "承認", "v2-2")
+    assert blocked.state == MediationState.BLOCKED
+    assert "DEMO-TYO-0912-2P-" not in blocked.message
+
+
 def test_paid_path_uses_same_executor_and_second_exact_approval():
     controller, hook, gates, transport, bridge = _controller(paid=True)
     scope = SubjectScope(subject="alice", tenantId="tenant-a", adkSessionId="s-2")
@@ -408,12 +458,18 @@ def test_paid_path_uses_same_executor_and_second_exact_approval():
     waiting = _submit(controller, scope, "承認", "paid-2")
     assert waiting.state == MediationState.WAITING_FOR_PAYMENT_APPROVAL
     assert bridge.attach_calls == 1
-    assert "1250 USD" in waiting.message
+    assert "12.50 USD" in waiting.message
+    assert "デモ東京ベイホテル" in waiting.message
+    assert "宿泊代を含まない" in waiting.message
+    assert "実送金・法的保証はありません" in waiting.message
+    assert "DEMO-TYO-0912-2P-" not in waiting.message
     assert "計画承認とは別" in waiting.message
     assert waiting.approval_target is not None
     assert waiting.approval_target.approval_kind == "payment"
     assert waiting.approval_target.distinct_from_plan_approval is True
-    assert waiting.approval_target.product == "Demo paid booking"
+    assert waiting.approval_target.product == (
+        "デモホテル予約手配サービス（宿泊代を含まないシミュレーション）"
+    )
     assert waiting.approval_target.payment_method == (
         "signed-simulated-payment-guarantee"
     )
@@ -437,6 +493,9 @@ def test_paid_path_uses_same_executor_and_second_exact_approval():
 
     completed = _submit(controller, scope, "承認", "paid-4")
     assert completed.state == MediationState.COMPLETED
+    assert "デモ予約確認（シミュレーション）" in completed.message
+    assert "DEMO-TYO-0912-2P-" in completed.message
+    assert "NOT A REAL BOOKING" in completed.message
     assert bridge.approve_calls == bridge.execute_calls == 1
     assert [operation.kind for operation in transport.calls] == [
         "task-start",
@@ -475,6 +534,46 @@ def test_paid_path_uses_same_executor_and_second_exact_approval():
         "POST_PAYMENT_RESULT",
         "payment-result-bound",
     ]
+
+    completed_session = controller.store.latest_for(scope)
+    assert completed_session is not None
+    for mutation in ("wrong-task", "unknown", "text", "schema", "digest", "ref"):
+        invalid = completed_session.model_copy(deep=True)
+        artifact = invalid.result["artifact"]
+        if mutation == "wrong-task":
+            artifact["artifactId"] = "artifact:another-task"
+        elif mutation == "unknown":
+            artifact["unknown"] = True
+        elif mutation == "text":
+            artifact["parts"].append({"kind": "text", "text": "injected"})
+        elif mutation == "schema":
+            artifact["parts"][0]["data"]["schemaVersion"] = "unknown/9"
+        elif mutation == "digest":
+            artifact["metadata"]["scenarioDigest"] = "sha256:" + "0" * 64
+        else:
+            artifact["parts"][0]["data"]["confirmationReference"] = "DEMO-TAMPERED"
+        invalid.continuation = invalid.continuation.model_copy(
+            update={
+                "remote_task": invalid.continuation.remote_task.model_copy(
+                    update={"artifact": artifact}
+                )
+            }
+        )
+        with pytest.raises(MediationError, match="paid .* artifact"):
+            _session_projection(invalid)
+
+    rejected = completed_session.model_copy(deep=True)
+    rejected.trace = [
+        *rejected.trace[:-1],
+        rejected.trace[-1].model_copy(update={"decision": "REJECT"}),
+    ]
+    assert paid_completion_message(rejected) is None
+    rejected_projection = _session_projection(rejected)
+    assert "artifact" not in rejected_projection["result"]
+    remote_projection = rejected_projection["continuation"]["remoteTask"]
+    assert "artifact" not in remote_projection or set(remote_projection["artifact"]) == {
+        "artifactDigest"
+    }
 
 
 def test_changed_plan_invalidates_displayed_approval_before_remote_side_effects():

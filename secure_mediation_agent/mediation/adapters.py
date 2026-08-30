@@ -15,6 +15,8 @@ from uuid import uuid4
 
 import httpx
 
+from secure_mediation_agent.demo_catalog import scenario_digest
+
 from secure_mediation_agent.subagents.final_anomaly_detection_agent import (
     calculate_overall_safety_score,
     detect_hallucination_chain,
@@ -568,6 +570,11 @@ class HttpxA2ATransport:
                     "PAYMENT_REQUIRED_INVALID", "The payment mandate challenges were invalid."
                 )
             profile_id = project.get("profile")
+            if project.get("scenarioDigest") != scenario_digest():
+                raise SecurityBlocked(
+                    "PAYMENT_SCENARIO_METADATA_MISMATCH",
+                    "The payment scenario metadata did not match the catalog.",
+                )
             expires_value = project.get("expiresAt") or required.get("expiresAt")
             if isinstance(expires_value, str):
                 try:
