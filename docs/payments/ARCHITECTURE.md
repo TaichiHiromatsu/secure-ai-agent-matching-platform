@@ -127,6 +127,8 @@ AP2上のロール分離と、実際のサービス分離は同じではない�
 
 ## 正常系
 
+利用者の依頼からPaid／Freeの分岐、二段階承認、保証、内部simulation settlement、同一Task完了までを一枚で確認する場合は、[完全な正常系sequence（FIG-FLOW-01）](mediator-payment-integration-design/03_MEDIATION_FLOW.md#fig-flow-01)を参照する。
+
 ### 1. 依頼と計画
 
 1. 認証済みidentityと依頼を厳格なmodelへ変換する。

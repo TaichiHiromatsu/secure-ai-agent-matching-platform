@@ -113,45 +113,95 @@ payment-required受領turnでは、controllerが`payment_bridge.attach`を直接
 
 次turnの単一text完全一致`承認`だけをdeterministic session routerがrouteし、controllerが`payment_bridge.approve`、続いて`execute_approved_payment`を呼ぶ。approveでTrusted SurfaceがPayment Mandateを生成し、executeでpre-payment authorization envelopeの保存、非法的・未settledのsigned simulation guarantee発行、guarantee submit、Merchant `working`、仲介railの同期simulation settlement、receipt付きcommit、Merchantの業務履行／同一Task完了を順に進める。orchestrator／LLMはattach、approve、execute、Mandate、guarantee、ledger、refundの主体ではない。
 
-Merchant結果は保存後、従来callback（after）、`POST_PAYMENT_RESULT` を通す。PASSかつtask/context/order/quote/step/workflow一致の場合だけ `ResumingA2A -> StepCompleted` とする。timeoutやack喪失は新Task／新idempotency keyを作らずreconciliationへ渡し、解決不能はReviewRequiredとする。
+各operationのMerchant結果はPaymentBridgeが保存後、従来callback（after）、`POST_PAYMENT_RESULT` を通す。operation 1のPASS後だけ仲介railの同期simulation settlementへ進み、operation 2のPASSかつtask/context/order/quote/step/workflow一致の場合だけ `ResumingA2A -> StepCompleted` とする。timeoutやack喪失は新Task／新idempotency keyを作らずreconciliationへ渡し、解決不能はReviewRequiredとする。
 
 支払完了後の正常refundは、同じsession routerがownerとoriginal receiptを解決し、RefundRequestの表示、明示承認、CAS、同じoriginal Task/context/order/paymentに対するrefund submit、RefundResult取込みの順とする。詳細semanticsは [04 §10](04_PAYMENT_BRIDGE_AP2_X402.md#10-支払提出と結果取込みの意味論)、wireは [06 §12](06_API_A2A_CONTRACTS.md#12-resultartifacterror-contract) が所有する。
 
 <a id="fig-flow-01"></a>
 
-**FIG-FLOW-01 有料正常系**
+**FIG-FLOW-01 Paid／Free正常系の完全sequence**
 
 ```mermaid
 sequenceDiagram
-  actor U as User
-  participant C as MediationController
-  participant M as Matcher/Planner
+  actor U as 利用者
+  participant UA as 公開User Agent／決定論router
+  participant C as Mediator Controller
   participant O as Orchestrator
-  participant G as Callback/Stable gates
-  participant A as Merchant A2A
-  participant P as PaymentBridge
+  participant G as Security callback／stable gates
+  participant P as PaymentBridge／Trusted Surface／payment authority
+  participant R as 仲介内部SQLite simulation rail
+  participant A as 外部Agent（paid Merchant／free Agent）
   participant F as Final validator
-  U->>C: natural-language request
-  C->>M: discover and plan
-  M-->>C: typed plan snapshot
-  C-->>U: plan approval view
-  U->>C: exact 承認
+
+  U->>UA: 自然文request
+  UA->>C: 認証済みturn
+  C-->>UA: WaitingForPlanApproval＋plan card
+  UA-->>U: 計画を表示
+  U->>UA: 完全一致「承認」（計画）
+  UA->>C: 決定論的plan approval
   C->>O: approved step
-  O->>G: callback + PRE_A2A_START
-  O->>A: initial message/send
-  A-->>O: input-required + payment-required
-  O->>G: callback + POST_A2A_RESPONSE + POST_PAYMENT_REQUIREMENT
-  O->>P: attach same Task continuation
-  P-->>U: closed Checkout view
-  U->>P: exact 承認
-  P->>G: callback + PRE_PAYMENT_SUBMIT
-  P->>A: follow-up message/send on same Task
-  A-->>P: completed Task and result
-  P->>G: callback + POST_PAYMENT_RESULT
-  P-->>O: correlated resume result
-  O-->>C: same step completed
-  C->>F: all evidence
-  F-->>C: ACCEPT
+  O->>G: callback（before）＋PRE_A2A_START
+  G-->>O: PASS
+
+  alt Paid Agent
+    O->>A: initial message/send（same Task）
+    A-->>O: input-required＋payment-required
+    O->>O: structured responseを保存
+    O->>G: callback（after）＋POST_A2A_RESPONSE
+    G-->>O: PASS
+    O->>G: POST_PAYMENT_REQUIREMENT
+    G-->>O: PASS
+    O-->>C: 検証済みTask／payment requirement
+    C->>P: payment_bridge.attach(Task／requirement)
+    P-->>C: continuation＋WaitingForPaymentApproval
+    C-->>UA: payment card（12.50 USD）
+    UA-->>U: 支払条件を表示
+    U->>UA: 完全一致「承認」（決済）
+    UA->>C: 決定論的payment approval route
+    C->>P: payment_bridge.approve
+    C->>P: execute_approved_payment
+    P->>P: closed Mandates／内部envelopeを生成・検証
+    P->>P: signed simulation guaranteeを発行
+    P->>G: callback（before）＋PRE_PAYMENT_SUBMIT（operation 1）
+    G-->>P: PASS
+    P->>A: operation 1 保証＋capability＋Task相関＋安全なAP2 digest
+    A-->>P: 保証等を検証しsame Task working
+    P->>P: structured responseを保存
+    P->>G: callback（after）＋POST_PAYMENT_RESULT（operation 1）
+    G-->>P: PASS
+    P->>R: 同期simulation settlement（no hold）
+    Note over P,R: demo-customer → demo-merchant
+    R-->>P: settlement receipt
+    P->>G: callback（before）＋PRE_PAYMENT_SUBMIT（operation 2）
+    G-->>P: PASS
+    P->>A: operation 2 receipt-backed fulfillment commit
+    A-->>P: receipt検証＋業務履行＋same Task completed
+    P->>P: structured responseを保存
+    P->>G: callback（after）＋POST_PAYMENT_RESULT（operation 2）
+    G-->>P: PASS
+    P-->>C: correlated completed Task
+    C->>F: full mediation evidence（final validation gate）
+    F-->>C: ACCEPT
+    C-->>UA: Completed＋業務Artifact
+    UA-->>U: 完了結果を表示
+  else Free Agent
+    O->>A: message/send（same Task）
+    A-->>O: same Task completed＋nonempty Artifact
+    O->>O: structured responseを保存
+    O->>G: callback（after）＋POST_A2A_RESPONSE
+    G-->>O: PASS
+    O-->>C: 検証済みfree result
+    Note over C,A: payment approval／Mandate／保証／settlementは0件
+    C->>F: full mediation evidence（final validation gate）
+    F-->>C: ACCEPT
+    C-->>UA: Completed＋業務Artifact
+    UA-->>U: 完了結果を表示
+  end
+
+  Note over C,P: 仲介はworkflow ownerだがpayeeではない
+  Note over P,R: 実資産移転・実hold・法的保証はない
+  Note over UA,P: LLMはapproval／Mandate／保証／ledger／refundを変更できない
+  Note over G,F: Security Judgeはblock可能だがpayment stateを変更できない
 ```
 
 ## 10. Anomaly gateと従来callbackの実行点
@@ -170,15 +220,21 @@ flowchart LR
   G2 -->|free PASS| I1["result intake"]
   G2 -->|paid candidate| G3["POST_PAYMENT_REQUIREMENT"]
   G3 -->|PASS| W["continuation + approval view"]
-  W --> C3["legacy callback before"]
+  W --> C3["operation 1 callback before"]
   C3 --> G4["PRE_PAYMENT_SUBMIT"]
-  G4 -->|PASS| S2["payment follow-up"]
-  S2 --> C4["legacy callback after"]
+  G4 -->|PASS| S2["guarantee submit"]
+  S2 --> C4["operation 1 callback after"]
   C4 --> G5["POST_PAYMENT_RESULT"]
-  G5 -->|PASS| I2["same-step intake"]
+  G5 -->|PASS| R["sync simulation settlement"]
+  R --> C5["operation 2 callback before"]
+  C5 --> G6["PRE_PAYMENT_SUBMIT"]
+  G6 -->|PASS| S3["receipt-backed commit"]
+  S3 --> C6["operation 2 callback after"]
+  C6 --> G7["POST_PAYMENT_RESULT"]
+  G7 -->|PASS| I2["same-step intake"]
 ```
 
-各deterministic gate/callbackは `(gate_id, operation_id, input_digest)` でexactly-once logical decisionを持つ。retryは保存済みdecisionを再利用するか同じattempt recordへ追記し、別layerを代用しない。paid単一stepでA2A callback before/afterと決済deterministic validatorが図の順で必須、free単一stepではA2A callback before/afterが必須である。anomaly subagentの呼出し回数は固定せず、`semantic-review-requested` の時だけ別eventで証明する。判定semanticsは05を参照する。
+各deterministic gate/callbackは `(gate_id, operation_id, input_digest)` でexactly-once logical decisionを持つ。retryは保存済みdecisionを再利用するか同じattempt recordへ追記し、別layerを代用しない。paid単一stepでは初回A2Aのcallback before/afterに加え、PaymentBridgeがoperation 1と2の各境界で決済callback before/afterとdeterministic validatorを図の順で実行する。free単一stepでは初回A2A callback before/afterが必須である。anomaly subagentの呼出し回数は固定せず、`semantic-review-requested` の時だけ別eventで証明する。判定semanticsは05を参照する。
 
 ## 11. Final validation
 
