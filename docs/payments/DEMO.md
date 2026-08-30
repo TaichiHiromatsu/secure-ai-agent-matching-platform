@@ -1,73 +1,83 @@
 # 仲介エージェント決済デモ：これ一枚で実演
 
-## 1. 目的とデモの制約
+## 1. 目的と制約
 
-このページは、公開Cloud Run環境で有料・無料の正常系を短時間で実演するための正本である。現行revision時点の入口は[決済デモ](https://payment-user-agent-demo-kzeuhywicq-an.a.run.app)。稼働revision、image、環境境界は[この受入時点のdeployment evidence](../../artifacts/cloud-run-deployment-399750d686a8.json)で確認できる。
+このページは、公開Cloud Run環境で有料・無料の正常系を短時間で実演するための正本である。入口は[決済デモ](https://payment-user-agent-demo-kzeuhywicq-an.a.run.app)。稼働revision、image、環境境界は[deployment evidence](../../artifacts/cloud-run-deployment-399750d686a8.json)で確認できる。
 
-- AP2は、利用者の支払意思と証跡を扱う。このデモではHuman Present（利用者が画面にいる）フローをsimulationする。
-- A2A x402は、エージェント間の支払要求交換を模したproject-local fixtureであり、公式profileには **NOT CONFORMANT**。公式x402、wallet、facilitator、on-chain処理は実行しない。
-- 実資産・実送金・法的な支払保証はない。状態はephemeral（一時的）で、revisionの再起動・置換後の保持は保証しない。
-- refundはローカル自動testの対象だが、最終hotfix後のCloud環境では **NOT RUN**。今回の実演は正常系に限定する。
+- 公式x402、wallet、facilitator、on-chain処理、実資産の移動は実行しない。A2A x402部分はproject-local simulationで、公式profileには **NOT CONFORMANT**。
+- 状態はephemeral（一時的）で、revisionの再起動・置換後の保持は保証しない。
+- refundはローカル自動testの対象だが、最終hotfix後のCloud環境では **NOT RUN**。この実演は正常系に限定する。
 - screenshot、credential、利用者prompt、model outputは証跡に保存しない。
 
-詳細仕様は[概要](README.md)、[アーキテクチャ](ARCHITECTURE.md)、[検証ガイド](VERIFICATION.md)を参照する。
+詳細仕様は[概要](README.md)、[完全sequence](mediator-payment-integration-design/03_MEDIATION_FLOW.md#fig-flow-01)、[検証ガイド](VERIFICATION.md)を参照する。
 
-## 2. 準備
+## 2. まず貼り付けるプロンプト
+
+### Paid（有料）
+
+```text
+paid payment booking
+```
+
+### Free（無料）
+
+```text
+hotel search
+```
+
+| ケース | 承認回数 | 画面上の期待state | 金額表示 | session |
+| --- | ---: | --- | --- | --- |
+| Paid | 2回（計画、決済） | `WaitingForPlanApproval` → `WaitingForPaymentApproval` → `Completed` | `12.50 USD` | 最初のfresh session |
+| Free | 1回（計画） | `WaitingForPlanApproval` → `Completed` | なし | Paid後にログアウトし、再ログインしたfresh session |
+
+承認入力は単一textの完全一致 `承認` だけを使う。前後の空白、`承認します`、連打は避け、各送信後はstateが変わるまで待つ。
+
+## 3. 準備
 
 1. 上記の公開URLを開く。
-2. 共有済みのreviewer credentialsを、別途案内された安全な経路から取得してログインする。この文書には値を記載しない。
-3. 画面が入力待ちになったことを確認する。
+2. 共有済みreviewer credentialsを、別途案内された安全な経路から取得してログインする。この文書には値を記載しない。
+3. `payment_user_agent` とメッセージ入力欄が表示されたことを確認する。
 
-入力上の注意:
+## 4. Paid正常系
 
-- promptは以下のcodeをそのまま使う。
-- 承認入力は単一textの完全一致 `承認` のみ。前後の空白、`承認します`、連打は避ける。
-- 各送信後はstateが変わるまで待つ。処理中に再送しない。
+1. §2のPaidプロンプトを入力して送る。
+   - 期待表示: 計画と `WaitingForPlanApproval`。
+   - この時点では決済処理を開始しない。
+2. 計画を読み、完全一致の `承認` を送る。
+   - 期待表示: `12.50 USD` と `WaitingForPaymentApproval`。
+   - 外部Agentが同一Taskを`input-required`として返したpayment request（支払要求）を表示している。
+3. 金額・通貨・受取人・条件を読み、完全一致の `承認` をもう一度送る。
+   - 期待表示: `Completed` と業務結果。
+   - 決定論的handlerがAP2 Payment Mandateを作り、仲介のpayment authorityがsimulation保証を発行する。Merchantが保証等を検証して`working`を返し、仲介のrailが同期simulationを記録する。そのreceiptをMerchantが検証し、同じTaskで業務を完了する。
+4. 必要ならreloadし、同じ稼働revision内で`Completed`が復元されることを確認する。これは耐久保存の証明ではない。
+5. Paid完了後にログアウトする。Freeは同じ会話を流用せず、再ログインしてfresh sessionを作る。
 
-## 3. Paid正常系（承認2回）
+## 5. Free正常系
 
-| 手順 | 操作 | 画面上の期待結果 | 裏側で起きること |
-| --- | --- | --- | --- |
-| 1 | `paid payment booking` を送る | 計画と `WaitingForPlanApproval` | 仲介エージェントが外部Agent候補と依頼範囲を提示する。まだ決済しない。 |
-| 2 | 完全一致の `承認` を1回送る | `12.50 USD` と `WaitingForPaymentApproval` | 仲介が外部Agentへ同一Taskで依頼し、支払条件を受け取る。表示額はminor units `1250`、小数桁 `2` をUSD表記したもの。 |
-| 3 | 金額・条件を読み、完全一致の `承認` をもう1回送る | 最終state `Completed` と業務結果 | 決定論的handlerがAP2 Payment Mandateを生成し、仲介authorityがsimulation保証を発行する。外部Agentが保証、capability、Task相関、安全なAP2要約を検証して`working`を返した後、仲介railが同期simulationを処理する。外部Agentはreceiptを検証し、決済せず業務を履行して同じTaskを完了する。 |
-| 4 | ブラウザをreloadする | `Completed` が復元される | 同じ稼働revision内の一時状態から復元する。耐久保存を示すものではない。 |
+1. §2のFreeプロンプトを入力して送る。
+   - 期待表示: 計画と `WaitingForPlanApproval`。
+2. 計画を読み、完全一致の `承認` を1回だけ送る。
+   - 期待表示: 決済承認画面を経ず、`Completed`と検索結果。
+   - Payment Mandate、simulation保証、settlementは生成しない。二回目の承認も求めない。
+3. 完了を確認したらログアウトする。
 
-承認の責務はLLMにない。公開rootの決定論的routerとTrusted Surface（利用者同意を確定する信頼境界）が承認を識別し、専用handlerがMandateを作る。payment authority（仲介側の決済権限コンポーネント）だけが非法的・未settledのsimulation保証を作る。
+## 6. 30秒で説明する仕組み
 
-Paid完了を確認したらログアウトする。Freeは同じ会話を流用せず、再ログインしたfresh sessionで始める。
+| 用語 | このデモでの意味 |
+| --- | --- |
+| Merchant | 有料の業務を履行する外部Agentで、payee（受取人）は`demo-merchant`。Merchant自身は決済やsettlementを行わない。 |
+| payment request | Merchantが同一Taskを`input-required`にして返す支払要求。`amount`、`currency`、`payee`、`terms`を含み、利用者の決済承認前に画面へ表示する。 |
+| AP2 | 利用者が支払条件を承認した事実と、決定論的handlerが作るPayment Mandateを認可証跡として扱う。LLMは承認やMandateを作成・変更できない。 |
+| A2A x402 | 仲介とMerchantがsimulation保証とsettlement receiptを同一Task上で交換するproject-local simulation。公式profileには **NOT CONFORMANT**。 |
 
-## 4. Free正常系（承認1回）
+仲介はworkflow、payment authority、SQLite simulation railのownerだが、payeeではない。railは`demo-customer`から`demo-merchant`への同期simulationを記録するだけで、実hold、実送金、後日精算、法的保証はない。
 
-| 手順 | 操作 | 画面上の期待結果 | 裏側で起きること |
-| --- | --- | --- | --- |
-| 1 | `hotel search` を送る | 計画と `WaitingForPlanApproval` | 仲介エージェントが無料の外部Agent呼出しを計画する。 |
-| 2 | 完全一致の `承認` を1回送る | 決済承認画面を経ず、最終state `Completed` と検索結果 | 仲介が外部Agentの同一Taskを完了まで運ぶ。無料なのでPayment Mandate、simulation精算保証、決済処理は生成しない。 |
+> 利用者は仲介画面で計画と支払条件を別々に承認します。AP2はその意思をMandateという証跡にし、仲介は外部Merchantへsimulation保証を渡します。Merchantが保証を検証した後、仲介railが実資産を動かさない同期simulationを記録し、Merchantはreceiptを確認して業務を完了します。無料では計画承認だけで、Mandateも保証もありません。
 
-FreeをPaidへfallbackさせないこと、二回目の `承認` を求めないことが確認点である。
+## 7. 詰まったときの確認
 
-## 5. Paid / Freeの比較
-
-| 項目 | Paid | Free |
-| --- | --- | --- |
-| exact prompt | `paid payment booking` | `hotel search` |
-| 承認回数 | 2回（計画、決済） | 1回（計画） |
-| 主要state | `WaitingForPlanApproval` → `WaitingForPaymentApproval` → `Completed` | `WaitingForPlanApproval` → `Completed` |
-| AP2 Payment Mandate | あり | なし |
-| 仲介のpayment workflow／rail | envelopeを証跡として保持し、実holdなしの同期simulation settlementだけを記録 | 決済処理なし |
-| 仲介のsimulation保証 | あり（非法的・未settled） | なし |
-| 外部Agent | signed simulation guarantee、capability、Task相関、AP2安全要約を検証し、業務履行後に同一Taskを完了 | 業務履行後に同一Taskを完了 |
-
-## 6. 30秒トークトラック
-
-> 利用者は仲介画面で支払意思を確定しますが、仲介は受取人ではありません。payeeはdemo-merchantです。有料では計画と12.50 USDの条件を別々に承認します。二回目はLLMでなく決定論的handlerがAP2 Payment Mandateを作り、仲介authorityが非法的・未settledのsimulation保証を発行します。外部Agentが保証等を検証した後、仲介railが実holdなしの同期simulationを行い、外部Agentはreceiptを検証して業務を履行します。外部Agent自身は決済しません。無料では計画承認だけでMandateも保証もありません。x402部分は公式・on-chain・実送金ではありません。
-
-## 7. 詰まったときの確認と終了
-
-- stateが変わらない: 数秒待ち、送信を連打しない。入力が完全一致の `承認` か確認する。
-- Paidで金額が出ない: 最初のpromptが完全一致の `paid payment booking` か、新しいsessionか確認する。
-- Freeで決済承認が出た: ログアウトし、fresh sessionで完全一致の `hotel search` からやり直す。
-- reload後に消えた: Cloud Runの状態はephemeral。revision再起動・置換をまたぐ復元は保証外である。
+- stateが変わらない: 数秒待ち、送信を連打しない。承認入力が完全一致か確認する。
+- Paidで金額が出ない: §2のPaidプロンプトを使ったか、fresh sessionか確認する。
+- Freeで決済承認が出た: ログアウトして再ログインし、fresh sessionで§2のFreeプロンプトからやり直す。
+- reload後に消えた: Cloud Runの状態はephemeralで、revision再起動・置換をまたぐ復元は保証外。
 - サービス異常が疑われる: [運用ガイド](OPERATIONS.md)と[検証レポート](MEDIATOR_PAYMENT_INTEGRATION_TEST_REPORT.md)でreadinessと既知の境界を確認する。
-
-実演終了後は画面のログアウト操作を実行し、ログイン状態が解除されたことを確認する。
