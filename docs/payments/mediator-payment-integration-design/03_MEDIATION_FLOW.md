@@ -109,7 +109,9 @@ continuation作成とpayment workflow attachはidempotent commandである。UI�
 
 ## 9. 支払後の同一step再開
 
-決済承認CASを勝ったcommandだけがAP2 evidence生成とsubmit outboxを予約できる。次turnをdeterministic session routerがrouteし、non-agentic Trusted Surfaceがclosed Checkout/paymentを表示して明示同意とuser signatureを得る。Shopping Agent/orchestratorはこの認可artifactを入力にdeterministic payment toolを進行できるが、LLM出力を承認としない。toolはPayment Mandateを検証／処理し、mediator payment authorityがデモ独自のsigned simulation guaranteeを発行し、local ledgerを `GUARANTEED` にする。workerは従来callback（before payment operation）、決定論的 `PRE_PAYMENT_SUBMIT`、capability／profile／guarantee verificationを通し、同じtask/contextへguaranteeと安全なAP2要約を送る。
+payment-required受領turnでは、controllerが`payment_bridge.attach`を直接呼び、continuationを`WaitingForPaymentApproval`として保存してcardを返す。この時点でpayment artifactは0件である。
+
+次turnの単一text完全一致`承認`だけをdeterministic session routerがrouteし、controllerが`payment_bridge.approve`、続いて`execute_approved_payment`を呼ぶ。approveでTrusted SurfaceがPayment Mandateを生成し、executeでpre-payment authorization envelopeの保存、非法的・未settledのsigned simulation guarantee発行、guarantee submit、Merchant `working`、仲介railの同期simulation settlement、receipt付きcommit、Merchantの業務履行／同一Task完了を順に進める。orchestrator／LLMはattach、approve、execute、Mandate、guarantee、ledger、refundの主体ではない。
 
 Merchant結果は保存後、従来callback（after）、`POST_PAYMENT_RESULT` を通す。PASSかつtask/context/order/quote/step/workflow一致の場合だけ `ResumingA2A -> StepCompleted` とする。timeoutやack喪失は新Task／新idempotency keyを作らずreconciliationへ渡し、解決不能はReviewRequiredとする。
 

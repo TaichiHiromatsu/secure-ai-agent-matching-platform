@@ -48,7 +48,7 @@
 ### 3.1 対象範囲
 
 - `payment_user_agent` を唯一の公開アプリとするUI入口
-- `secure_mediator` の `matcher`、`planner`、`orchestrator`、`anomaly_detector`、`final_anomaly_detector` の実行経路
+- `secure_mediator` の `matcher`、`planner`、`orchestrator`、security callback／Judge、決定論的policy、final validationの実行経路
 - 仲介計画承認と決済承認の二段階のHuman Present認可
 - A2A応答に基づく無料／有料の実行時分岐
 - 仲介step、remote A2A Task、AP2証跡、支払workflowの相関と継続
@@ -85,6 +85,9 @@
 | continuation | 停止した仲介step、remote Task、支払workflow、主体を結び、後続ターンで同じ処理を再開する記録 |
 | closed Checkout | 商品、金額、通貨、payee、期限、quote、支払方式が確定し、変更検知可能な支払条件 |
 | AP2 evidence | Intent、Checkout、Payment Mandate、Credential、Receiptおよびそれらの署名・相関証跡 |
+| Human approval | 画面に提示した計画または支払条件への利用者の完全一致`承認`。AP2 Mandateそのものではない |
+| pre-payment authorization envelope | 承認、Mandate digest、terms、Task相関を束ねる仲介内部artifact。外部Agentへ送らない |
+| real rail hold | 実決済レールによる資金引当。現在のSQLite simulationには実装しない |
 | 公式profile | リポジトリが固定したversionについて、Agent Cardとruntimeが必要条件を満たし、wallet等を検証できる支払profile |
 | `x402-wire-simulation/1` | このデモMerchant限定のローカルsimulation。公式x402準拠または実資産決済ではない |
 | anomaly gate | 実行の特定境界で、構造化入力に対し `PASS`、`BLOCK`、`REVIEW` を強制する検査 |
@@ -113,7 +116,7 @@
 
 ### FR-001 従来の仲介ルート
 
-公開UIからの通常依頼は、実行時に `secure_mediator`、`matcher`、`planner`、計画承認gate、`orchestrator`、必要な各 `anomaly_detector`、`final_anomaly_detector` を通らなければならない。決済workflowが仲介全体を置き換えてはならず、各通過は同一相関系列のtraceで証明できなければならない。
+公開UIからの通常依頼は、実行時に `secure_mediator`、`matcher`、`planner`、計画承認gate、`orchestrator`、A2A前後のsecurity callback／決定論的policy、final validationを通らなければならない。semantic anomaly sub-agentは不確定な高risk結果を`REVIEW`へescalateする補助であり、各境界での明示呼出しを必須enforcementと誤記しない。決済workflowが仲介全体を置き換えてはならず、各通過は同一相関系列のtraceで証明できなければならない。
 
 ### FR-002 単一の公開アプリ
 
@@ -186,7 +189,7 @@ orchestrator開始前に、対象plan ID、version、digestに結び付く第一
 
 ### FR-011 最終異常検知
 
-有料・無料を問わず、全step終了後に、元依頼、承認済み計画、全A2A履歴、決済要約、仲介結果を入力として `final_anomaly_detector` を実行しなければならない。判定が `ACCEPT` になる前に利用者へ最終成功を返してはならず、`REJECT` と `REVIEW` を成功へ変換してはならない。
+有料・無料を問わず、全step終了後に、元依頼、承認済み計画、全A2A履歴、決済要約、仲介結果を入力としてfinal validationを実行しなければならない。実装はcallback hook／Judgeと決定論的validatorを組み合わせ、特定名のsub-agent明示呼出しを要件にしない。判定が`ACCEPT`になる前に利用者へ最終成功を返さず、`REJECT`と`REVIEW`を成功へ変換しない。
 
 ### FR-012 無料経路
 
@@ -288,7 +291,16 @@ AP2のIntent、closed Checkout、Payment Mandate、Credential、Receiptについ
 
 ### SEC-015 Merchantの支払認可検証
 
-Merchantは、支払提出messageの処理、rail呼出し、settlement、fulfillmentその他の副作用より前に、signed capabilityと交渉済みprofileの必須extension header／metadataを検証しなければならない。署名、issuer、audience、plan、step、canonical Agent、operation、remote task／context、expiry、profile versionまたはmetadataの欠落・不一致・改ざん・期限切れを、状態変更と外部副作用なしで拒否し、その理由を安全な構造化errorとして返さなければならない。
+本要件は二つのA2A operationを区別する。従来一文だったSEC-015を、実装済み二段階contractへ追跡可能に分割する。
+
+- `SEC-015-A` guarantee submission受理前: Merchantはsigned simulation guarantee、signed capability、remote Task／context／order／quote相関、安全なAP2 digest要約、交渉済みprofile metadataを検証する。成功時は同一Taskを`working`で返すだけで、fulfillmentをcommitしない。
+- `SEC-015-B` fulfillment commit前: Merchantは、同一Taskで受理済みの保証、仲介railが発行したsettlement receiptとdigest、settlement／guarantee／order相関を検証する。成功後だけ業務を履行して同一Taskを`completed`にする。
+
+どちらも欠落・不一致・改ざん・期限切れを状態変更と業務副作用なしで拒否する。Merchantはraw Mandateを受け取らず、決済処理やsettlementを実行しない。
+
+pre-payment authorization envelopeは仲介内部の証跡に限る。
+
+simulation railは実hold／authorizeなしの同期settlementだけを記録する。
 
 ### SEC-016 従来security callbackの維持
 
@@ -527,7 +539,7 @@ subject／session分離、signed capabilityのscope、SSRF、redirect、Card／e
 
 ### TEST-008 integration: HTTP相関
 
-matcherのAgent ID、Card digest、RPC endpoint、skill、trustがplan stepと一致し、そのRPC endpointへの初回Task requestが一回だけで、支払後は同一 `contextId`、`taskId`、`orderId`、`quoteId` の後続messageであることを機械的にassertしなければならない。実HTTP wireに、plan、step、canonical Agent、operation、remote task／context、expiryへ限定された有効なsigned capabilityと、交渉済みprofileの必須extension header／metadataが存在しscopeと一致することをassertする。capabilityまたは必須extensionの欠落、署名／issuer／audience／scope／operation／expiry／task binding／profile metadataの改ざんまたは不一致ごとに、Merchantが状態変更、rail呼出し、settlement、fulfillmentを0件のまま拒否することをassertしなければならない。
+matcherのAgent ID、Card digest、RPC endpoint、skill、trustがplan stepと一致し、そのRPC endpointへの初回Task requestが一回だけで、支払後は同一 `contextId`、`taskId`、`orderId`、`quoteId` の後続messageであることを機械的にassertしなければならない。実HTTP wireに、scope限定signed capability、signed simulation guarantee、Task相関、安全なAP2 digest要約とprofile metadataが存在することをassertする。欠落・改ざん・不一致ごとにMerchantのTask状態変更とfulfillmentが0件であること、Merchant側のrail呼出し／settlement実装が存在しないことをassertする。仲介側simulation railの副作用counterは別に検証する。
 
 ### TEST-009 integration: 異常と障害
 
@@ -578,7 +590,7 @@ restart testは次のcheckpoint別caseを分け、各caseで初期record、再�
 
 ### AC-001 有料タスクの正常系
 
-自然文依頼から `secure_mediator -> matcher -> planner -> 計画承認gate -> orchestrator` が同一traceで実行され、承認前のMerchant callが0件であること。第一の完全一致 `承認` 後に、選定結果と一致するRPC endpointへTask開始requestが1件だけ送られること。従来security callbackが各A2A operationの前後で実行され、`PRE_A2A_START`、`POST_A2A_RESPONSE`、`POST_PAYMENT_REQUIREMENT`、`PRE_PAYMENT_SUBMIT`、`POST_PAYMENT_RESULT` が記載順に各1回 `PASS` し、各gate前の禁止副作用が0件であること。検証済み `payment-required` で同じstepが待機し、第二の完全一致 `承認` 前の支払副作用が0件であること。承認後はFR-008の全fieldを持つAP2 evidenceをoffline検証し、simulationの場合は `simulation` と `NOT CONFORMANT` を表示すること。支払wireにscope一致のsigned capabilityと交渉済みprofileの必須extension header／metadataが存在し、Merchant検証成功後だけ、同一 `contextId`、`taskId`、`orderId`、`quoteId` への後続messageで支払い、同じ `legacy_step_id` を再開すること。支払結果後のgateとfinal validationを通り、相関IDと安全性評価を表示すること。capabilityまたは必須extensionの欠落・改ざんcaseでは副作用が0件であること。
+自然文依頼から `secure_mediator -> matcher -> planner -> 計画承認gate -> orchestrator` が同一traceで実行され、承認前のMerchant callが0件であること。第一の完全一致 `承認` 後にTask開始requestを一回送り、第二の完全一致 `承認` 前の支払副作用を0件とする。承認後、決定論的workflowがAP2 evidenceとpre-payment envelopeを内部生成・検証し、仲介payment authorityがsigned simulation guaranteeを発行する。同一Taskへの後続messageはraw Mandateでなく保証、scope限定capability、Task相関、安全なAP2 digest要約を運ぶ。Merchantが検証して`working`を返した後、仲介railが実holdなしのsimulationを処理し、settlement receipt付きcommitを送る。Merchantはreceiptを検証して業務を履行し、決済／settlementを行わず同一Taskを完了する。security callbackとstable gateを定めた順に通し、final validation後だけ結果を表示する。
 
 ### AC-002 無料タスク
 
@@ -610,7 +622,7 @@ timeout、接続断、応答喪失時に新規Taskまたは二重支払を作ら
 
 ### AC-009 最終異常検知
 
-有料・無料の双方で `final_anomaly_detector` を未実行、失敗、timeout、`REJECT`、`REVIEW` にすると、最終成功を返さないこと。
+有料・無料の双方でfinal validationを未実行、失敗、timeout、`REJECT`、`REVIEW`にすると、最終成功を返さないこと。semantic anomaly sub-agentの明示呼出し有無ではなく、実callback／Judge／決定論的validatorの判定と順序を検証する。
 
 ### AC-010 UI階層と認証
 

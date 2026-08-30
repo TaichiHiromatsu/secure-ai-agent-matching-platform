@@ -30,7 +30,9 @@ JSON field、HTTP header、A2A Message／Taskのserialized shapeは [06](06_API_
 - 支払提出、結果取込み、同一step再開の意味上の成功条件
 - UI、証跡、PR、conformance reportで許されるclaim境界
 
-final6 implementationはHuman Present Trusted Surfaceでclosed plan/payment targetを表示し、別々のexact approvalをserver-side versionに結ぶ。payment toolはCheckout/Payment Mandate、authorization envelope、scope-bound capabilityをdeterministic codeで検証し、デモ独自の `signed-payment-guarantee/1` をMerchantへ渡す。Merchantは保証検証後だけ同一 `taskId/contextId/orderId/quoteId` の履行をcommitし、settlement/refund結果も同じcorrelation chainへ返す。これは `x402-wire-simulation/1` でありofficial x402やon-chain適合を主張しない。
+final6 implementationは、payment-required受領turnでcontrollerが`payment_bridge.attach`を呼び、`WaitingForPaymentApproval`とcardを返す。この時点のpayment artifactは0件である。
+
+次turnのexact approval後、controllerが`payment_bridge.approve`、続いて`execute_approved_payment`を呼び、Mandate／内部envelope／guarantee／settlement／commitを決定論的に進める。仲介railは実holdなしの同期SQLite simulation settlementだけを記録する。Merchantは保証、capability、Task相関、安全なAP2 digest要約、receiptの検証後だけ同一Taskの業務履行をcommitし、決済／settlementは実行しない。これは`x402-wire-simulation/1`でありofficial x402やon-chain適合を主張しない。
 
 対象外:
 
@@ -46,7 +48,7 @@ final6 implementationはHuman Present Trusted Surfaceでclosed plan/payment targ
 
 <a id="art-payment-bridge-01"></a>
 
-Payment bridgeは仲介全体のcontrollerではなく、`orchestrator`が検証済みの支払要求を受領したstepだけにcontinuationをattachする内部portである。Shopping Agent/orchestratorは支払要求検出、continuation、status、認可済み支払tool、same-Task resumeを進行できる。Human Presentの明示同意とuser signatureはnon-agentic Trusted Surface、validation/実処理はdeterministic payment toolの責務であり、LLM出力自体を承認や署名としない。
+Payment bridgeは仲介全体のcontrollerではない。検証済みpayment-requiredを受領したcontrollerだけが`payment_bridge.attach`を呼び、continuationと`WaitingForPaymentApproval`を作る。次turnの完全一致承認後もcontrollerだけが`payment_bridge.approve`と`execute_approved_payment`を順に呼ぶ。orchestrator／LLMはattach、approve、executeの主体ではなく、承認、署名、Mandate、保証、台帳効果を生成しない。
 
 attach入力は、次のimmutable referenceがすべて同じcorrelation chainを指す場合だけ受理する。
 
@@ -161,9 +163,9 @@ flowchart TD
 | --- | --- | --- | --- | --- |
 | 計画承認／Intent evidence | project-local | mediation authority | 利用者が承認したplan／上限／Agent | AP2 Mandateと呼ばない |
 | Merchant Checkout JWT | project-local commerce object | Merchant | closed Checkoutの署名済み正本 | AP2 Mandateがhash参照する |
-| closed Checkout Mandate | AP2 | Trusted Surface／Merchant | Checkout完了のHuman Present認可 | pinned AP2 `vct`へ完全一致 |
+| closed Checkout Mandate | AP2 | Trusted Surface | Checkout完了のHuman Present認可 | 仲介内部で検証しraw bytesをMerchantへ送らない |
 | closed Payment Mandate | AP2 | Trusted Surface／CP／MPP | Checkoutに対する支払認可 | pinned AP2 `vct`へ完全一致 |
-| signed simulation guarantee | project-local | mediator payment authority | 後日精算のcommitment。引当／debit／settlement完了ではない | AP2 Credential/Receiptとは主張しない |
+| signed simulation guarantee | project-local | mediator payment authority | 業務履行を許可する非法的・未settledのsimulation commitment | AP2 Credential/Receipt、実hold、後日精算契約とは主張しない |
 | Payment／Checkout Receipt | AP2 | MPP／Merchant | accept／rejectと処理結果 | 対応Mandate digestを参照する |
 | `x402.payment.receipts` | x402またはsimulation profile | Merchant | Task上のguarantee acceptance／fulfillment履歴 | settlement receiptやAP2 Receiptと同一視しない |
 | authorization envelope | project-local | evidence authority | 仲介認可とpre-payment artifact digestの結合 | AP2 objectへ独自fieldを挿入しない |
@@ -194,7 +196,7 @@ AP2 artifactは各roleが、issuer、audience／subject、`vct`、nonce、issued
 
 authorization/completionのevidence rootは、artifact descriptorをkind、ID、digestの決定順に並べたcanonical bytesから作る。domain snapshotのcanonicalization algorithm自体は [02](02_DOMAIN_DATA_STATE.md)、両schemaのserialized field／required／unknown reject／generation orderは [06](06_API_A2A_CONTRACTS.md) が所有する。
 
-offline verifierへ渡すbundleは、authorization envelope、completion manifest、全参照artifactのimmutable bytes、公開JWK snapshot、profile descriptor、verification policy versionを含む。外部DBの暗黙知なしに署名連鎖と全必須correlationを判定できなければならない。秘密鍵、raw wallet secret、Firebase tokenはbundleに含めない。Merchantへはこのbundleやraw authorization envelopeを送らず、不透明なcorrelation binding、Task/context/order/quote/terms、Merchantが検証するMandate/proof/capability/profileのみを送る。
+offline verifierへ渡すbundleは、authorization envelope、completion manifest、全参照artifactのimmutable bytes、公開JWK snapshot、profile descriptor、verification policy versionを含む。外部DBの暗黙知なしに署名連鎖と全必須correlationを判定できなければならない。秘密鍵、raw wallet secret、Firebase tokenはbundleに含めない。Merchantへはbundle、raw authorization envelope、raw Mandate、credential、proofを送らず、signed simulation guarantee、scope限定capability、Task/context/order/quote/terms、safe AP2 digest要約、profileだけを送る。
 
 ## 8. Payment profile選択
 
@@ -251,35 +253,45 @@ simulationもTask、requirements、nonce、payload、receipt history、idempoten
 
 ```mermaid
 sequenceDiagram
-  participant O as Orchestrator
+  participant C as Controller
   participant B as Payment bridge
   participant TS as Trusted Surface
   participant PA as Mediator payment authority
+  participant R as SQLite simulation rail
   participant M as Merchant A2A
-  O->>B: attach approved plan/step + input-required Task
-  B-->>O: continuation + WaitingForPaymentApproval
-  B->>TS: routed exact approval (outside LLM/orchestrator tools)
-  TS-->>B: signed payment approval + closed Mandates
-  B->>PA: Payment Mandate + authorization envelope
+  C->>B: attach approved plan/step + input-required Task
+  B-->>C: continuation + WaitingForPaymentApproval
+  C->>B: payment_bridge.approve(exact second approval)
+  B->>TS: display-bound approval
+  TS-->>B: closed Mandates + evidence-only envelope
+  C->>B: execute_approved_payment
+  B->>PA: verified Mandate/envelope digests
   PA-->>B: signed simulation guarantee (GUARANTEED)
   B->>B: PRE_PAYMENT_SUBMIT must PASS
-  B->>M: guarantee + safe AP2 summary on same task/context
-  M-->>B: same Task + fulfillment result + Artifact
+  B->>M: operation 1 guarantee + capability + Task + safe AP2 digests
+  M-->>B: verified same Task working
+  B->>R: synchronous simulation settlement (no authorize/hold)
+  R-->>B: settlement receipt
+  B->>M: operation 2 receipt-backed fulfillment commit
+  M-->>B: receipt verified + same Task completed + Artifact
   B->>B: POST_PAYMENT_RESULT must PASS
-  B-->>O: resume result for same legacy step
+  B-->>C: resume result for same legacy step
 ```
 
 支払提出を許可する必要十分条件は次の全てである。
 
 - current continuationが同一subject tupleで `PaymentSubmitting` にある
 - plan approvalとpayment approvalが有効で、対象digestが変化していない
-- closed Checkout／Payment Mandate、authorization envelope、signed simulation guaranteeのoffline相当検証が成功する
+- closed Checkout／Payment Mandateとauthorization envelopeのoffline相当検証が成功する
+- signed simulation guaranteeのoffline相当検証が成功する
 - selected profileのruntime readinessとwire生成が成功する
 - `PRE_PAYMENT_SUBMIT=PASS`
 - payment submit capabilityがplan／step／Agent／operation／task／context／expiryへ限定される
 - 同じidempotency keyに別request digestが存在しない
 
 Merchantはcapability、profile activation、Task相関、requirements、signed guaranteeのissuer/scope/amount/currency/payee/expiry、safe AP2 digest要約を**fulfillmentより前**に検証する。一つでも失敗すれば状態変更と業務副作用を0件のまま構造化errorを返す。MerchantはこのA2A operationでsimulation決済やsettlementを実行しない。
+
+actor順の正本は、Human approval → Trusted SurfaceによるAP2 Mandate／内部envelope → mediator payment authorityによるguarantee → guarantee submission → Merchant検証／same-Task `working` → 仲介SQLite railの同期simulation → settlement receipt付きcommit → Merchantのreceipt検証／業務履行／same-Task completionである。real rail holdは未実装で、simulation guaranteeは法的保証でもsettled証明でもない。
 
 結果取込みは次の全てを満たす場合だけ成功する。
 

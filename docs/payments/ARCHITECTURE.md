@@ -19,6 +19,20 @@
 
 外部副作用はworkflow stateだけから直接実行せず、状態遷移と同じtransactionで記録したoutbox intentから実行する。再送時には安定したIDと冪等性キーを使い、同じ要求は同じ結果を返し、異なる要求によるキー再利用は拒否する。
 
+### Actorと責務の正本
+
+| Actor | 現在の責務 | 行わないこと |
+| --- | --- | --- |
+| 利用者／利用者Agent | 計画を承認し、有料時は表示された支払条件への意思を二回目の`承認`で確定する | Mandate、保証、台帳効果を生成しない |
+| 決定論的workflow／Trusted Surface | 承認を状態とdigestへ結合し、AP2 Mandateとpre-payment authorization envelopeを生成・検証する | LLM出力を承認として扱わない |
+| 仲介payment authority／simulation rail | authorityが署名付きsimulation保証を発行し、railはSQLite台帳で`demo-customer`から`demo-merchant`への同期simulation settlementだけを記録する | payeeにならない。資金のauthorize、実hold、実送金、法的保証を行わない |
+| 外部Agent／Merchant（payee=`demo-merchant`） | 保証、capability、Task相関、安全なAP2 digest、receiptを検証し、業務を履行して同一Taskを完了する | raw Mandateを受け取らず、決済／settlementを実行しない |
+| LLM／orchestrator | 計画・業務実行を補助し、認可済みartifactを決定論的処理へ渡す | approval、Mandate、保証、ledger mutation、refundを発行・実行しない |
+
+Human approval（画面上の意思表示）、AP2 Mandate（署名対象となる認可証跡）、pre-payment authorization envelope（仲介内部の決済前binding）は別物である。
+
+real rail hold（実決済レールの資金引当）は現在未実装である。詳細なwireと処理順は[Payment Bridge設計](mediator-payment-integration-design/04_PAYMENT_BRIDGE_AP2_X402.md)を正本とする。
+
 ## 配置
 
 ```mermaid
@@ -75,7 +89,7 @@ AP2上のロール分離と、実際のサービス分離は同じではない�
 | Trusted Surface | 決済表示に結び付いたMandateの発行 | workflow controller内のmodule |
 | Credential Provider | Payment Mandateの検証とcredential発行 | workflow controller内のmodule |
 | Merchant Payment Processor | credential、proof、requirementsの照合 | workflow controller内のmodule |
-| Merchant | Checkout、Task、fulfillment、Receipt | loopback HTTPの別プロセス |
+| Merchant | Checkout、Task、保証等の検証、fulfillment、Receipt | loopback HTTPの別プロセス |
 | simulation signer／rail | synthetic proofとローカル残高処理 | workflow側のmoduleとSQLite transaction |
 
 各ロールは異なるkey ID、issuer、audience、検証関数を使い、同じprocess内でも署名とbindingの検証を省略しない。一方、demoのkey setは複数ロールを同じdeployableが読み込み、Trusted Surface／Credential Provider／MPPは独立サービスではない。この構成をproduction-gradeの物理的trust separationとして扱わない。
@@ -91,7 +105,7 @@ AP2上のロール分離と、実際のサービス分離は同じではない�
 | Public View | 秘密値を除いた決定論的な表示 | `workflow/views.py` |
 | AP2 components | Mandate、credential、MPP検証、Receipt、offline verification | `secure_mediation_agent/ap2/` |
 | Payment Profile | A2A metadata、simulation proof、結果履歴 | `payment_profiles/` |
-| Merchant | A2A Task、Checkout、fulfillment | `merchant/api.py`、`merchant/service.py` |
+| Merchant | A2A Task、Checkout、保証等の検証、fulfillment | `merchant/api.py`、`merchant/service.py` |
 | Worker | outboxのlease、実行、retry、回復 | `workflow/worker.py` |
 
 ## 権威ある状態モデル
@@ -146,9 +160,11 @@ workflowは、Task ID、activation、Merchant identity、商品、数量、金�
 
 ### 5. A2A支払提出とsimulation
 
-元TaskのIDを持つpayment MessageをMerchantへ送る。MerchantはCheckout MandateとTask相関を再検証し、fulfillmentをreversibleな状態へprepareする。
+payment-required受領時、controllerは`payment_bridge.attach`を直接呼び、`WaitingForPaymentApproval`とcardを作る。この時点のpayment artifactは0件である。
 
-workflowは安定したattempt IDと冪等性キーでローカル台帳を更新する。成功後にAP2 Payment Receiptを作り、fulfillmentをcommitし、AP2 Checkout Receiptと最終Taskを保存して`completed`へ進む。
+次turnの完全一致承認後、controllerが`payment_bridge.approve`と`execute_approved_payment`を順に呼ぶ。そこでraw Mandateを外へ出さず、署名付きsimulation保証、scope限定capability、Task相関、安全なAP2 digest要約を元TaskのMessageとしてMerchantへ送る。Merchantはこれらを検証し、同一Taskを`working`で返す。
+
+そのack後、仲介simulation railは安定したattempt IDと冪等性キーで、SQLite台帳の`demo-customer`からpayee `demo-merchant`への同期simulation settlementだけを記録する。railによるauthorizeや実holdはない。仲介がsettlement receipt付きcommit Messageを送り、Merchantはreceiptと相関を検証して業務を履行し同一Taskを完了する。Merchant自身は決済／settlementを行わない。workflowはAP2 Payment Receiptと最終Taskを保存して`completed`へ進む。
 
 ## データの正本
 

@@ -219,7 +219,7 @@ Decision変更は、affected requirement IDを満たす比較証跡、affected o
 
 ### ADR-013 AP2 actor and demo guarantee
 
-`ACCEPTED`。AP2 v0.2はShopping Agentをagenticと想定しpayment tool進行を禁じない。Human Presentのinformed consent/user signatureはMUST non-agentic Trusted Surface、roleのvalidation/processingはdeterministic codeで行う。LLM出力を承認／署名としないのは本projectの安全設計である。`signed simulation guarantee` はAP2標準artifactではなくデモ独自。根拠: https://ap2-protocol.org/ap2/specification/ のRoles、Agentic vs Non-Agentic、Mandates、Direct、Verification。現行即時debit/credit simulationは `GUARANTEED -> 後段settlement` へ置換する。
+`ACCEPTED`。AP2 v0.2はShopping Agentをagenticと想定しpayment tool進行を禁じない。Human Presentのinformed consent/user signatureはMUST non-agentic Trusted Surface、roleのvalidation/processingはdeterministic codeで行う。LLM出力を承認／署名としないのは本projectの安全設計である。pre-payment authorization envelopeは仲介内部の証跡で、資金のauthorizeやholdを起こさない。`signed simulation guarantee`はAP2標準artifactでなく、法的保証やsettled証明ではない。現行railは実holdなしの同期simulation settlementだけを記録する。後段の後日精算モデルは本書のPROPOSED節へ隔離する。
 
 ### ADR-014 Refund normal path
 
@@ -234,6 +234,13 @@ Decision変更は、affected requirement IDを満たす比較証跡、affected o
 ### Future work register
 
 `FR-017`, `STATE-008`, `OPS-004`, `OPS-005`, `TEST-009`, `TEST-013`, `TEST-017`, `TEST-018`, `AC-005`, `AC-007`, `AC-008`, `AC-011`, `AC-015` の13件は `future-work`。高度restart/first-response-loss完全回復、external effect直後のcrashと複雑retry/concurrency、DNS rebinding、全malicious/price-expiry matrix、Cloud SQL/複数instance共有状態を含む。トリガはRelease-1正常系完了後の別ADRと脅威／運用test基盤の準備である。
+
+### Proposed: 仲介をpayeeとする後日精算モデル
+
+- status: `PROPOSED`／`NOT IMPLEMENTED`
+- 現行仕様では仲介はworkflow／payment authority ownerであってpayeeではない。payeeは`demo-merchant`で、SQLite simulation ledgerが`demo-customer`から`demo-merchant`への効果を同一同期フローで記録する。
+- 仲介をpayeeにして外部Agentへ後日精算する二段階債務モデルは、法的保証、債権、資金保全、reconciliation、failure ownershipを別途設計・承認するまで、現行本文・UI・証跡の説明に使用しない。
+- trigger: 実決済レール、契約主体、会計／法務要件を含む別ADRの承認。
 
 | ID | Assumption | 検証gate | 失敗時 |
 | --- | --- | --- | --- |

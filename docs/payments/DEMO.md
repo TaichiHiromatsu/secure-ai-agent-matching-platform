@@ -30,10 +30,10 @@
 | --- | --- | --- | --- |
 | 1 | `paid payment booking` を送る | 計画と `WaitingForPlanApproval` | 仲介エージェントが外部Agent候補と依頼範囲を提示する。まだ決済しない。 |
 | 2 | 完全一致の `承認` を1回送る | `12.50 USD` と `WaitingForPaymentApproval` | 仲介が外部Agentへ同一Taskで依頼し、支払条件を受け取る。表示額はminor units `1250`、小数桁 `2` をUSD表記したもの。 |
-| 3 | 金額・条件を読み、完全一致の `承認` をもう1回送る | 最終state `Completed` と業務結果 | 決定論的routerがLLMを介さずapprove handlerを呼び、AP2 Payment Mandate（利用者の支払意思の証跡）を生成する。仲介側の決定論的payment workflow／railがsimulation authorizationとsettlementを処理し、payment authorityがsigned simulation guaranteeを発行する。外部Agentはその保証、capability、Task相関、AP2安全要約を検証し、業務を履行して同じTaskを完了する。 |
+| 3 | 金額・条件を読み、完全一致の `承認` をもう1回送る | 最終state `Completed` と業務結果 | 決定論的handlerがAP2 Payment Mandateを生成し、仲介authorityがsimulation保証を発行する。外部Agentが保証、capability、Task相関、安全なAP2要約を検証して`working`を返した後、仲介railが同期simulationを処理する。外部Agentはreceiptを検証し、決済せず業務を履行して同じTaskを完了する。 |
 | 4 | ブラウザをreloadする | `Completed` が復元される | 同じ稼働revision内の一時状態から復元する。耐久保存を示すものではない。 |
 
-承認の責務はLLMにない。公開rootの決定論的routerとTrusted Surface（利用者同意を確定する信頼境界）が承認を識別し、専用handlerがMandateを作る。payment authority（仲介側の決済権限コンポーネント）だけがsimulation精算保証を作る。
+承認の責務はLLMにない。公開rootの決定論的routerとTrusted Surface（利用者同意を確定する信頼境界）が承認を識別し、専用handlerがMandateを作る。payment authority（仲介側の決済権限コンポーネント）だけが非法的・未settledのsimulation保証を作る。
 
 Paid完了を確認したらログアウトする。Freeは同じ会話を流用せず、再ログインしたfresh sessionで始める。
 
@@ -54,13 +54,13 @@ FreeをPaidへfallbackさせないこと、二回目の `承認` を求めない
 | 承認回数 | 2回（計画、決済） | 1回（計画） |
 | 主要state | `WaitingForPlanApproval` → `WaitingForPaymentApproval` → `Completed` | `WaitingForPlanApproval` → `Completed` |
 | AP2 Payment Mandate | あり | なし |
-| 仲介のpayment workflow／rail | simulation authorizationとsettlementを実行 | 決済処理なし |
-| 仲介のsimulation精算保証 | あり | なし |
+| 仲介のpayment workflow／rail | envelopeを証跡として保持し、実holdなしの同期simulation settlementだけを記録 | 決済処理なし |
+| 仲介のsimulation保証 | あり（非法的・未settled） | なし |
 | 外部Agent | signed simulation guarantee、capability、Task相関、AP2安全要約を検証し、業務履行後に同一Taskを完了 | 業務履行後に同一Taskを完了 |
 
 ## 6. 30秒トークトラック
 
-> 利用者が支払う相手は仲介エージェントで、外部Agentは仲介からsimulation上の後日精算保証を受け取ります。有料では、まず依頼計画を承認し、12.50 USDの条件を見てもう一度承認します。二回目はLLMではなく決定論的handlerが処理し、AP2 Payment Mandateという支払意思の証跡を作ります。仲介側の決定論的workflowがsimulation authorizationとsettlementを行い、外部Agentはsigned guarantee、権限、Task相関、安全なAP2要約を検証して業務を履行します。無料では計画承認だけで、Mandateも精算保証もありません。x402部分は支払要求交換のsimulationで、公式・on-chain・実送金ではありません。
+> 利用者は仲介画面で支払意思を確定しますが、仲介は受取人ではありません。payeeはdemo-merchantです。有料では計画と12.50 USDの条件を別々に承認します。二回目はLLMでなく決定論的handlerがAP2 Payment Mandateを作り、仲介authorityが非法的・未settledのsimulation保証を発行します。外部Agentが保証等を検証した後、仲介railが実holdなしの同期simulationを行い、外部Agentはreceiptを検証して業務を履行します。外部Agent自身は決済しません。無料では計画承認だけでMandateも保証もありません。x402部分は公式・on-chain・実送金ではありません。
 
 ## 7. 詰まったときの確認と終了
 

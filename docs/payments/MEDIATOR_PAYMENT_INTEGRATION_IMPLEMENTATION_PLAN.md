@@ -1,5 +1,8 @@
 # 仲介エージェント決済統合：final6実装・完了計画
 
+> [!WARNING]
+> この文書は作成時点の実装計画snapshotであり、現在仕様の正本ではない。現行責務は[アーキテクチャ](ARCHITECTURE.md#actorと責務の正本)と[Payment Bridge設計](mediator-payment-integration-design/04_PAYMENT_BRIDGE_AP2_X402.md)を参照する。本文は履歴証跡として変更しない。
+
 - status: **local final6 implementation complete / external release gates not run**
 - updated: 2026-08-17（Asia/Tokyo）
 - exact image: `sha256:3e4e089643564e00bd6563d08a575fcf2aa2eff94ae60fd1ca518900022a89f0`

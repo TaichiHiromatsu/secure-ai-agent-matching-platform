@@ -34,7 +34,7 @@ AP2だけでA2A通信や決済レールが決まるわけではない。本プ�
 | --- | --- | --- |
 | 利用者 | 計画と決済内容を確認し、それぞれに同意または拒否する | ADK WebまたはCLI |
 | Shopping Agent | 利用者の依頼、計画、Merchant Task、AP2証跡を相関する | `secure_mediation_agent`のworkflow |
-| Merchant | Checkoutを提示し、Checkout Mandateを照合し、業務を完了する | loopback HTTPの別プロセス |
+| Merchant | Checkoutを提示し、仲介の署名付き保証、capability、Task相関、安全なAP2 digest要約を照合して業務を完了する | loopback HTTPの別プロセス |
 | Trusted Surface | 決済内容を利用者へ表示し、同意後にclosed Mandateを発行する | workflow内の決定論的コンポーネント |
 | Credential Provider | Payment Mandateを検証し、取引限定credentialを発行する | workflow内の決定論的コンポーネント |
 | Merchant Payment Processor | credential、proof、支払条件の結び付きを検証する | workflow内の決定論的コンポーネント |
@@ -74,7 +74,7 @@ AP2のartifactとproject-local artifactを混同しない。
 
 ### Checkout Mandate
 
-Trusted SurfaceはMerchantが署名したCheckoutを表示対象として受け取り、Checkoutのexact bytesまたはdigestをclosed Checkout Mandateへ結び付ける。Merchantは支払提出時に、Mandateが参照するCheckoutと現在のCheckoutが同一であることを検証する。
+Trusted SurfaceはMerchantが署名したCheckoutを表示対象として受け取り、Checkoutのexact bytesまたはdigestをclosed Checkout Mandateへ結び付ける。raw Mandateは仲介の信頼境界内で検証し、Merchantへ送らない。Merchantは支払提出時に、署名付きsimulation保証に含まれる安全なMandate digest要約と、保存済みCheckout／Task相関を照合する。
 
 主な検証対象:
 
@@ -109,6 +109,8 @@ Credential Providerは次を決定論的に検証する。
 検証後に発行するcredentialは、対象取引、使用先、使用操作、期限、proof digestへ限定する。
 
 Merchant Payment Processorは、credentialとproofを再検証し、支払条件、Mandate、settlement attemptが同じ取引を指すことを確認する。ロールが同じdeployable内にあることを理由に、この検証を省略しない。
+
+Human approval、AP2 Mandate、pre-payment authorization envelopeは別artifactである。いずれも実決済レールのholdではない。現在のsimulationにreal rail holdは実装されていない。Mandate、envelope、保証、台帳効果をLLM／orchestratorや外部Merchantに生成させない。
 
 ## Receipt
 

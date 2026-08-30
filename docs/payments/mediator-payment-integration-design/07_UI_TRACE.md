@@ -67,7 +67,9 @@ UIはlocal booleanや会話文から現在actionを推測せず、認証済みsa
 
 ## 6. 決済承認view
 
-決済承認cardは保存済みclosed Checkoutとpayment requirementから商品、数量、Merchant／payee、金額、通貨、fee、期限、profile、step／Task短縮IDを表示する。計画承認とは別の行為で、non-agentic Trusted Surfaceが明示同意とuser signatureを得る。Shopping Agent/orchestratorはその認可済みartifactを入力にdeterministic payment toolを進行できる。simulationはこの時点で `GUARANTEED`でありsettled/debitedではない。
+決済承認cardは保存済みclosed Checkoutとpayment requirementから商品、数量、Merchant／payee、金額、通貨、fee、期限、profile、step／Task短縮IDを表示する。card表示時点は`payment-required`かつunsettledであり、Payment Mandateとpre-payment authorization envelopeはまだ生成しない。
+
+signed simulation guaranteeとsettlementもcard表示時点では0件である。`attach`はcard表示前のpayment-required受領turnですでに完了している。次turnで計画承認とは別の単一text完全一致`承認`を受けた後だけ、controllerが`payment_bridge.approve`、続いて`execute_approved_payment`を呼ぶ。LLM／orchestratorはattach、approve、execute、Mandate、envelope、guarantee、ledger、refundの主体ではない。
 
 `x402-wire-simulation/1` の場合はcard上部、処理中、完了、errorの全状態で `simulation` と `NOT CONFORMANT` を同時に表示し、実資産、wallet署名、facilitator、on-chain transactionがないことを隠さない。
 

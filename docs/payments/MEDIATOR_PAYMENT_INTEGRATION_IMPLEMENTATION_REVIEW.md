@@ -1,5 +1,8 @@
 # Mediator Payment Integration — Implementation Review
 
+> [!WARNING]
+> この文書は作成時点の引継ぎ／レビューsnapshotであり、現在仕様の正本ではない。現行責務は[アーキテクチャ](ARCHITECTURE.md#actorと責務の正本)と[Payment Bridge設計](mediator-payment-integration-design/04_PAYMENT_BRIDGE_AP2_X402.md)を参照する。本文は履歴証跡として変更しない。
+
 ## 1. Review status
 
 - Review date: 2026-08-16 (Asia/Tokyo)

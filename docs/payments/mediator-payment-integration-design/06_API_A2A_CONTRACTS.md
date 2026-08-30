@@ -533,87 +533,100 @@ body:
 
 ```json
 {
-  "jsonrpc": "2.0",
-  "id": "018f3300-...",
-  "method": "message/send",
-  "params": {
-    "message": {
-      "kind": "message",
-      "messageId": "018f3301-...",
-      "taskId": "task-123",
-      "contextId": "ctx-123",
-      "role": "user",
-      "parts": [
-        {"kind": "text", "text": "Payment authorization submitted."},
-        {
-          "kind": "data",
-          "data": {
-            "schemaVersion": "merchant-payment-guarantee-submission/1",
-            "orderId": "018f3202-...",
-            "quoteId": "quote-123",
-            "terms": {"amountMinor": 3000, "currency": "JPY", "payee": "demo-merchant"},
-            "opaqueCorrelationBinding": "hmac-sha256:...",
-            "paymentGuarantee": "<signed-payment-guarantee>",
-            "ap2SafeSummary": {
-              "checkoutMandateDigest": "sha256:...",
-              "paymentMandateDigest": "sha256:...",
-              "authorizationEnvelopeDigest": "sha256:..."
-            },
-            "digests": {
-              "terms": "sha256:...",
-              "paymentGuarantee": "sha256:...",
-              "request": "sha256:..."
-            }
-          }
-        }
-      ],
-      "metadata": {
-        "x402.payment.status": "payment-submitted",
-        "x402.payment.payload": {
-          "x402Version": 1,
-          "network": "demo:local",
-          "scheme": "exact-simulated",
-          "payload": {"simulationAuthorization": "<signed-project-local-proof>"}
-        },
-        "io.github.taichihiromatsu.secure-mediation.v1": {
-          "schemaVersion": "secure-mediation-payment-submitted-context/1",
-          "canonicalAgentId": "agent-005",
-          "planId": "018f3010-...",
-          "planVersion": 1,
-          "planDigest": "sha256:...",
-          "stepId": "018f3011-...",
-          "orderId": "018f3202-...",
-          "quoteId": "quote-123",
-          "continuationId": "018f3101-...",
-          "paymentWorkflowId": "018f3102-...",
-          "paymentApprovalId": "018f3302-...",
-          "capabilityId": "018f3303-...",
-          "profileId": "x402-wire-simulation/1",
-          "paymentRequirementDigest": "sha256:...",
-          "authorizationEnvelopeDigest": "sha256:...",
-          "paymentGuaranteeDigest": "sha256:...",
-          "idempotencyKey": "payment-submit:018f3101-...:1"
-        }
+  "kind": "message",
+  "messageId": "message:payment-submit:<opaque-id>:1",
+  "taskId": "task-123",
+  "contextId": "ctx-123",
+  "role": "user",
+  "parts": [
+    {"kind": "text", "text": "Payment authorization submitted."}
+  ],
+  "metadata": {
+    "x402.payment.status": "payment-submitted",
+    "x402.payment.payload": {
+      "schemaVersion": "merchant-payment-guarantee-submission/1",
+      "profileId": "x402-wire-simulation/1",
+      "paymentGuarantee": "<signed-payment-guarantee>",
+      "paymentGuaranteeDigest": "sha256:...",
+      "ap2Evidence": {
+        "checkoutMandateDigest": "sha256:...",
+        "paymentMandateDigest": "sha256:...",
+        "authorizationEnvelopeDigest": "sha256:..."
       }
+    },
+    "io.github.taichihiromatsu.secure-mediation.v1": {
+      "canonicalAgentId": "agent-005",
+      "orderId": "018f3202-...",
+      "quoteId": "quote-123",
+      "profileId": "x402-wire-simulation/1",
+      "paymentGuaranteeDigest": "sha256:...",
+      "simulated": true
     }
   }
 }
 ```
 
-Merchantへは最小のguarantee submissionだけを送る。Firebase subject/tenant/session、continuation/workflow内部ID、raw Checkout JWT/Mandate/Credential、authorization envelope、completion manifest、offline bundleは送らない。official profileでは `x402.payment.payload` をpinned profileのSigning Service／wallet outputへ置換し、simulation fieldを混在させない。
+これは`payment_bridge.py`のguarantee payload生成、`payment_profiles/a2a.py:payment_message`、`simulation_v1.py:build_guarantee_submission`が実際にserializeするMessageである。partsはTextPart一つだけで、内部continuation／workflow／payment approval／idempotency key、raw Checkout JWT／Mandate／Credential／envelopeを外wireへ出さない。
 
-simulationのactor順は固定する。deterministic session routerが承認turnを唯一のpending paymentへrouteし、non-agentic Trusted Surfaceがclosed Checkout/paymentを表示してinformed consentとuser signatureを得る。Shopping Agent/orchestratorはその認可済みartifactに基づきdeterministic payment toolを進行できる。toolは署名、terms、bindingを検証して実処理し、mediator payment authorityがデモ独自の `signed-payment-guarantee/1` を発行する。bridgeはguaranteeと安全なAP2 digest要約を同じTaskでMerchantへ送る。Merchantはguarantee検証後に業務履行し、settlementは後段とする。local ledgerは `GUARANTEED` を記録する。
+operation 2のreceipt-backed fulfillment commitは別Messageである。
 
-Merchantはbodyをparseした後、fulfillment前に次を全て検証する。
+```json
+{
+  "kind": "message",
+  "messageId": "message:fulfillment-commit:<opaque-id>:1",
+  "taskId": "task-123",
+  "contextId": "ctx-123",
+  "role": "user",
+  "parts": [
+    {"kind": "text", "text": "Payment authorization submitted."}
+  ],
+  "metadata": {
+    "x402.payment.status": "payment-settled",
+    "x402.payment.payload": {
+      "schemaVersion": "merchant-fulfillment-commit/1",
+      "guaranteeId": "payment-guarantee:<opaque-id>",
+      "settlementId": "settlement:<opaque-id>",
+      "settlementReceipt": {
+        "success": true,
+        "network": "demo:local",
+        "transaction": "sim:settlement:<opaque-id>",
+        "simulated": true
+      },
+      "settlementReceiptDigest": "sha256:..."
+    },
+    "io.github.taichihiromatsu.secure-mediation.v1": {
+      "orderId": "018f3202-...",
+      "quoteId": "quote-123",
+      "simulated": true
+    }
+  }
+}
+```
 
-1. extension echo、Content-Type、capability署名／scope、idempotencyを検証する。
-2. `taskId`／`contextId`から保存済みTaskとoriginal requirementsをloadする。
-3. order／quote／Taskと保存済みrequirementsのamount/currency/payee/expiryを一致させる。
-4. signed payment guaranteeのissuer／audience／scope／amount／currency／payee／expiry／Task/context/order/quote／Mandate digestを検証する。
-5. payloadのx402Version／scheme／networkとselected requirementsを一致させ、opaque correlation bindingとsafe AP2 summaryのrequest digestを検証する。
-6. capabilityとrequest digestをconsumeまたは同一digest replayとして処理する。
+operation 2も`payment_bridge.py`の`commit_message`と同じfieldだけを持つ。Merchantは受理済みguarantee、settlement receiptとdigest、Task／context／order／quoteを照合してから業務を履行し、同一Taskを`completed`で返す。
 
-欠落・改ざん・不一致ではA2A Task state、fulfillment、guarantee consumption、receipt appendを変更しない。MerchantのsettlementはこのA2A requestの副作用ではない。
+actor順は固定する。payment-required受領turnでcontrollerが`payment_bridge.attach`を呼び、`WaitingForPaymentApproval`とcardを返す。この時点のpayment artifactは0件である。
+
+次turnの完全一致承認後だけcontrollerが`payment_bridge.approve`、続いて`execute_approved_payment`を呼ぶ。Mandate／envelope／guarantee／settlement／commitをこの系列で進める。orchestrator／LLMはattach、approve、executeやmutationの主体ではない。
+
+Merchant検証は実装どおり二つのoperationを分ける。
+
+operation 1（guarantee submission）:
+
+1. MessageのTask／context、`status=payment-submitted`、payloadのclosed set `{schemaVersion, profileId, paymentGuarantee, paymentGuaranteeDigest, ap2Evidence}`を検証する。project metadataはdictであることを確認し、`orderId`を保存済みMerchant Taskへ一致させ、`quoteId`をguarantee claimsの期待値に使う。project全keyのclosed-set rejectionは行わない。
+2. `schemaVersion=merchant-payment-guarantee-submission/1`、選択済み`profileId`、guarantee本体のSHA-256 digest、`ap2Evidence`のclosed set `{checkoutMandateDigest, paymentMandateDigest, authorizationEnvelopeDigest}`を検証する。
+3. capabilityの署名／scopeと、保存済みTask／context／order／quoteへの相関を検証する。
+4. guarantee署名とclaimsのissuer／audience／operation／Task／context／order／quote／amount／currency／payee／Payment Mandate digest／envelope digest／`guaranteeId=jti`／settlement commitment／nbf／expを検証する。
+5. 成功時だけaccepted guaranteeを保存し、同一Taskを`working`で返す。fulfillmentとsettlementは行わない。
+
+operation 2（receipt-backed fulfillment commit）:
+
+1. MessageのTask／context、`status=payment-settled`、payloadのclosed set `{schemaVersion, guaranteeId, settlementId, settlementReceipt, settlementReceiptDigest}`を検証する。project metadataはdictとして扱い、必要な`orderId`／`quoteId`を保存済みaccepted guaranteeへ一致させる。project全keyのclosed-set rejectionは行わない。
+2. `schemaVersion=merchant-fulfillment-commit/1`とreceiptの`success=true`、`simulated=true`、`network=demo:local`、canonical digestを検証する。project metadataの`simulated`はserializerが送る事実だが、Merchantの受理条件にはしない。
+3. accepted guaranteeのID／Task／context／order／quoteを照合する。初回commitでは受信した`settlementId`とreceipt digestを履行結果とともに保存する。すでにfulfilledの同一Taskをreplayするときだけ、保存済み`settlementId`／receipt digestとの完全一致を要求する。
+4. 成功時だけ業務を履行し、同一Taskを`completed`で返す。Merchant自身はsettlementを行わない。
+
+欠落・改ざん・不一致ではA2A Task state、fulfillment、guarantee consumption、receipt appendを変更しない。Merchantにはsettlement機能自体を置かず、仲介railの結果をMerchant副作用として扱わない。
 
 ## 11. Signed capabilityとprofile metadata contract
 

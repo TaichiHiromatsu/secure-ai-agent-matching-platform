@@ -29,6 +29,8 @@ AP2とA2A x402は競合する仕様ではない。AP2は「その決済を実行
 
 利用者が操作する入口は`payment_user_agent`だけである。これは画面と内部APIをつなぐ薄いadapterであり、決済判断や秘密鍵を持たない。状態、認可、Merchant呼出し、証跡、再試行の正本は`secure_mediation_agent`内の決定論的なworkflowである。
 
+このデモで利用者が支払意思を確定する相手は、画面を提供する仲介workflowである。ただし仲介はpayee（受取人）ではない。payeeは`demo-merchant`で、仲介側のSQLite simulation ledgerが`demo-customer`から`demo-merchant`への処理を記録する。実際の資金引当・送金や後日精算はない。仲介が外部Agentへ渡す署名付き保証も、法的保証やsettledの証明ではないsimulation commitmentである。
+
 ```mermaid
 flowchart LR
     U[利用者] --> UI[payment_user_agent]
@@ -80,14 +82,19 @@ sequenceDiagram
     M-->>W: Checkoutと支払条件
     W-->>UI: 決済内容を提示
     U->>UI: 承認（決済）
-    W->>W: AP2 Mandate・Credentialを発行、検証
-    W->>M: A2A上で支払payloadを提出
-    W->>W: ローカルsimulationを実行
-    M-->>W: 完了Artifact
+    W->>W: AP2 Mandate・内部envelopeを生成、検証
+    W->>W: simulation保証を発行
+    W->>M: 保証・capability・Task相関・安全なAP2要約
+    M-->>W: 保証等を検証し同一Taskをworkingで返す
+    W->>W: SQLite simulationをsettle
+    W->>M: settlement receipt付きcommit Message
+    M-->>W: receiptを検証し、同一Taskの完了Artifact
     W-->>UI: AP2 Receiptと処理結果
 ```
 
 承認メッセージは単一text partの完全一致`承認`だけを受け付ける。`はい`、`yes`、`承認します`、前後に空白がある`承認`は、認可境界では承認として扱わない。
+
+承認、Mandate、pre-payment envelope、保証、台帳更新は決定論的handlerだけが扱う。LLMとorchestratorはこれらを発行・変更できない。外部Agentへraw Mandateは送らず、外部Agentは保証等を検証して業務を履行するだけで、決済／settlementを行わない。責務の正本は[アーキテクチャ](ARCHITECTURE.md#actorと責務の正本)を参照する。
 
 無料タスクでは計画承認だけを行い、決済承認、AP2 Mandate、仲介保証、settlementを作らない。仲介エージェントは選択した外部エージェントのA2A Taskが`completed`となり、空でないtextまたはfile artifactを返したことを検証して完了する。有料タスクではこの無料向け判定へfallbackせず、二回目の決済承認、AP2認可、仲介保証、同一Taskへの支払提出と相関検証を必須とする。
 

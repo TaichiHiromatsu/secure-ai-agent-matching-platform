@@ -267,7 +267,7 @@ redactionは「見つけた値を隠す」denylistだけに依存せず、公開
 
 ephemeral demo keyはinstance置換で失われてよいが、消失後に旧evidenceの署名を成功と推測しない。key IDとpublic JWK snapshotをevidence bundleへ残し、private keyをbundleへ含めない。
 
-Merchantへ送れるは `merchant-payment-submission/v1` のallowlistだけである。具体的にopaque/HMAC correlation binding、canonical task/context/order/quote/terms、Merchantが必要なCheckout/Payment Mandate、scoped credential/proof、operation capability、profile payloadに限定する。Firebase subject、tenant、ADK/mediation session、internal endpoint、raw plan、raw authorization envelope、completion manifest、offline bundle、別Merchantのevidenceを渡さない。Merchantはopaque bindingを呼出し元に再照会できず、それをuser identityとして使用しない。
+Merchantへ送れるのは最小guarantee submission allowlistだけである。具体的にopaque/HMAC correlation binding、canonical task/context/order/quote/terms、signed simulation guarantee、operation capability、安全なAP2 digest要約、profile payloadに限定する。raw Checkout／Payment Mandate、credential、proof、Firebase subject、tenant、session、internal endpoint、raw plan、raw authorization envelope、completion manifest、offline bundle、別Merchantのevidenceを渡さない。Merchantはopaque bindingをuser identityとして使用しない。
 
 ## 10. Failure・timeout・review policy
 

@@ -104,8 +104,8 @@ Release-1の実経event chainは、表示labelではなく以下のsymbolをtype
 | `integration/adapters.py:TypedPlannerAdapter.create` | `subagents/planning_agent.py:create_structured_plan`, `planner_change_approval_gate` | subject bindingを含むplan DTOへ変換。text-only planは拒否 |
 | `integration/adapters.py:OrchestratorAdapter.execute` | `subagents/orchestration_agent.py:execute_plan_step`, `invoke_a2a_agent`, `orchestrator_approval_gate` | approved snapshotだけを入力にし、任意URL連結は置換 |
 | `integration/adapters.py:OrchestratorSecurityHook.before/after` | `subagents/orchestration_agent.py:a2a_security_callback` とorchestrator tool callback/hook | 全A2A前後の実enforcement、fail closed。realtime防御の主体 |
-| `integration/adapters.py:SemanticAnomalyReviewer.review` | `subagents/anomaly_detector.py:compare_with_plan`, `detect_deviation_patterns`, `detect_suspicious_behavior`, `calculate_deviation_score`, `should_stop_execution` | 意味判断が必要な不確定・高riskの `REVIEW` escalation。各境界の必須呼出しではない |
-| `integration/adapters.py:FinalValidationAdapter.check` | `subagents/final_anomaly_detector.py:verify_request_fulfillment`, `detect_prompt_injection`, `detect_hallucination_chain`, `calculate_overall_safety_score` | final resultのACCEPT／REJECT／REVIEWを固定 |
+| `integration/adapters.py:SemanticAnomalyReviewer.review` | orchestrator callback／Judgeと`subagents/anomaly_detection_agent.py`の利用可能なsemantic checks | 意味判断が必要な不確定・高riskの `REVIEW` escalation。各境界の必須呼出しではない |
+| `integration/adapters.py:FinalValidationAdapter.check` | callback／Judge、決定論的validator、`subagents/final_anomaly_detection_agent.py`の利用可能なfinal checks | final resultのACCEPT／REJECT／REVIEWを固定。特定sub-agent名の呼出しを唯一のenforcementにしない |
 
 `secure_mediation_agent/mediation/controller.py:MediationController` が上記interfaceとPaymentBridgeを注入され、呼出しごとに `{componentId, layer=callback-hook|deterministic-validator|semantic-reviewer|final-validator, implementationSymbol, implementationRevision, operationId, inputDigest, outputDigest, callOrdinal, startedAt, completedAt, decision}` をappend-only eventに書く。callback実行とanomaly subagent判断は別eventとし、一方のlabelで他方を代用しない。`componentId`の置換、順序抜け、mockだけの通過は `PAID-HAPPY-01` と `FREE-HAPPY-01` で失敗させる。
 
@@ -115,8 +115,8 @@ Release-1の実経event chainは、表示labelではなく以下のsymbolをtype
 
 1. matcherからplannerへはimmutable `SelectedAgentSnapshot` を渡す。plannerがendpoint、skill、trustを再解釈しない。
 2. plan approvalからorchestratorへはapproved `plan_id/version/digest` とstep snapshotを渡す。自然言語の「承認済み」フラグを使わない。
-3. orchestratorからPaymentBridgeへは、初回A2A応答を保持した `MediationContinuation` と検証済み `PaymentRequirementSnapshot` をattachする。bridgeは新規Taskを作らない。
-4. PaymentBridgeからorchestratorへは同じtask/context/order/quoteとresult digestを返す。相関一致後だけ同じstepを完了できる。
+3. controllerからPaymentBridgeへ、初回A2A応答、検証済みpayment requirement、承認済みplan／step／ownerを`attach`する。bridgeは新規Taskを作らず、continuationとwaiting payment contextをcontrollerへ返す。controllerが`WaitingForPaymentApproval`とcard dataを保存・表示する。
+4. 次turnの完全一致承認後、controllerがbridgeの`approve`と`execute_approved_payment`を呼び、同じtask/context/order/quoteのresult digestを受け取る。相関一致後だけcontrollerが同じstepを完了する。orchestrator／LLMはこのbridge往復へ参加しない。
 
 依存はdomain interfaceへ向け、UI、wire、persistenceの型を互いに直接流用しない。変換ownerは [06](06_API_A2A_CONTRACTS.md#3-contract共通規約とversioning) と [08](08_PERSISTENCE_RECOVERY.md#4-logical-modelからphysical-storeへのmapping) に限定する。
 

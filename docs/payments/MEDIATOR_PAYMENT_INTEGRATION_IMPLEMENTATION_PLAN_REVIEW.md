@@ -1,5 +1,8 @@
 # 仲介エージェント決済統合：Release-1実装計画レビュー
 
+> [!WARNING]
+> この文書は作成時点の引継ぎ／レビューsnapshotであり、現在仕様の正本ではない。現行責務は[アーキテクチャ](ARCHITECTURE.md#actorと責務の正本)と[Payment Bridge設計](mediator-payment-integration-design/04_PAYMENT_BRIDGE_AP2_X402.md)を参照する。本文は履歴証跡として変更しない。
+
 - review date: 2026-08-16
 - reviewed plan: `MEDIATOR_PAYMENT_INTEGRATION_IMPLEMENTATION_PLAN.md`
 - reviewed inputs: 最新 `MEDIATOR_PAYMENT_INTEGRATION_REQUIREMENTS.md`、`mediator-payment-integration-design/README.md` と `01`〜`12`、`MEDIATOR_PAYMENT_INTEGRATION_DESIGN_REVIEW_SECURITY.md` §10
