@@ -2,7 +2,7 @@
 
 ## 1. 目的と制約
 
-このページは、公開Cloud Run環境で有料・無料の正常系を短時間で実演するための正本である。入口は[決済デモ](https://payment-user-agent-demo-kzeuhywicq-an.a.run.app)。稼働revision、image、環境境界は[deployment evidence](../../artifacts/cloud-run-deployment-399750d686a8.json)で確認できる。
+このページは、公開Cloud Run環境で有料・無料の正常系を短時間で実演するための正本である。入口は[決済デモ](https://payment-user-agent-demo-kzeuhywicq-an.a.run.app)。稼働revision、image、環境境界は[deployment evidence](../../artifacts/cloud-run-deployment-81f3f41940c5.json)で確認できる。
 
 - 公式x402、wallet、facilitator、on-chain処理、実資産の移動は実行しない。A2A x402部分はproject-local simulationで、公式profileには **NOT CONFORMANT**。
 - 状態はephemeral（一時的）で、revisionの再起動・置換後の保持は保証しない。

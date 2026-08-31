@@ -1,0 +1,46 @@
+{
+  "authentication": "Firebase reviewer login PASS; credential values omitted",
+  "browser": "fresh-headless-chromium-cdp-real-ui",
+  "case": "readiness",
+  "checks": {
+    "free": null,
+    "isolatedProfileCleanup": "PASS_ON_CONTAINER_EXIT",
+    "logout": "PASS",
+    "paid": null
+  },
+  "credentialMaterialStored": false,
+  "deploymentProfile": {
+    "durability": "NOT PROVIDED",
+    "officialX402": "NOT RUN",
+    "onChainSettlement": "NOT RUN",
+    "target": "ephemeral-cloud-run-demo"
+  },
+  "durationMs": 8925,
+  "finishedAtEpochMs": 1788200302216,
+  "imageDigest": "sha256:81f3f41940c5ecc4a0f11476d84b6e6f5fa772eb930ed8d0a8e84316af88e646",
+  "promptOrModelOutputStored": false,
+  "readiness": {
+    "checks": {
+      "mediationStoreMode": true,
+      "mediationStoreProbe": true,
+      "mediationStoreProfile": true,
+      "mediationStoreSchema": true,
+      "vertexAdcConfiguration": true
+    },
+    "durability": "NOT PROVIDED",
+    "mediationStore": {
+      "decryptable": true,
+      "durabilityProfile": "ephemeral-demo",
+      "mode": "memory",
+      "schemaVersion": null,
+      "writable": true
+    },
+    "status": "ready",
+    "target": "ephemeral-cloud-run-demo"
+  },
+  "revision": "payment-user-agent-demo-00015-foj",
+  "schemaVersion": "cloud-run-browser-e2e/2",
+  "serviceUrl": "https://pc-81f3f41940c5---payment-user-agent-demo-kzeuhywicq-an.a.run.app",
+  "startedAtEpochMs": 1788200293291,
+  "status": "PASS"
+}
