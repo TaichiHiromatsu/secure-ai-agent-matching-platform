@@ -36,11 +36,11 @@ def test_validator_binds_exact_image_manifest_regression_and_browser(tmp_path: P
         "listApps": ["payment_user_agent"],
         "appSelected": "payment_user_agent",
         "interactions": [
-            "paid payment booking",
+            "有料の外部エージェントに、デモ予約商品を1件シミュレーション購入し、デモの予約確認を発行するよう依頼してください。",
             "承認",
             "承認",
             "refresh",
-            "hotel search",
+            "東京で2026年9月12日から9月14日まで、2名で宿泊できるホテル候補を検索してください。",
             "承認",
             "paid refund-required booking",
             "承認",

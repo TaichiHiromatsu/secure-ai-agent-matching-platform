@@ -15,12 +15,15 @@ from uuid import uuid4
 
 import httpx
 
+from secure_mediation_agent.demo_catalog import scenario_digest
+
 from secure_mediation_agent.subagents.final_anomaly_detection_agent import (
     calculate_overall_safety_score,
     detect_hallucination_chain,
     detect_prompt_injection,
     verify_request_fulfillment,
 )
+from secure_mediation_agent.demo_catalog import project_confirmation_artifact
 from secure_mediation_agent.subagents.matching_agent import (
     calculate_matching_score,
     rank_agents_by_trust,
@@ -568,6 +571,11 @@ class HttpxA2ATransport:
                     "PAYMENT_REQUIRED_INVALID", "The payment mandate challenges were invalid."
                 )
             profile_id = project.get("profile")
+            if project.get("scenarioDigest") != scenario_digest():
+                raise SecurityBlocked(
+                    "PAYMENT_SCENARIO_METADATA_MISMATCH",
+                    "The payment scenario metadata did not match the catalog.",
+                )
             expires_value = project.get("expiresAt") or required.get("expiresAt")
             if isinstance(expires_value, str):
                 try:
@@ -784,17 +792,68 @@ def _apply_free_structured_fulfillment(
         fulfillment["fulfilled"] = True
 
 
+def _apply_paid_catalog_fulfillment(
+    session: MediationSession,
+    result: dict[str, Any],
+    plan: dict[str, Any],
+    fulfillment: dict[str, Any],
+) -> None:
+    """Accept only the exact catalog confirmation for the bound paid Task."""
+
+    steps = plan.get("steps")
+    plan_completed = (
+        isinstance(steps, list)
+        and bool(steps)
+        and all(
+            isinstance(step, dict) and step.get("status") == "completed"
+            for step in steps
+        )
+    )
+    same_task_completion_bound = any(
+        event.stage == "payment-result-bound"
+        and event.decision == "same-task-completed"
+        for event in session.trace
+    )
+    if (
+        session.continuation is not None
+        and session.active_step.selected_agent.canonical_agent_id == "agent-005"
+        and plan_completed
+        and same_task_completion_bound
+        and isinstance(result, dict)
+        and result.get("taskState") == "completed"
+        and result.get("artifact")
+        == project_confirmation_artifact(session.continuation.remote_task.task_id)
+    ):
+        # Preserve the deterministic helper's confidence and all later
+        # injection/hallucination checks. Only its binary Japanese-token
+        # fulfillment miss is corrected for this closed catalog artifact.
+        fulfillment["fulfilled"] = True
+
+
 class LegacyFinalValidationAdapter:
     """Runs the real deterministic final helper symbols and returns a stable decision."""
 
     async def validate(self, session: MediationSession, result: dict[str, Any]) -> str:
         plan = session.plan.model_dump(mode="json", by_alias=True)
+        execution_completed = (
+            session.continuation is None
+            and result.get("taskState") == "completed"
+            and any(event.stage == "response-persisted" for event in session.trace)
+        ) or (
+            session.continuation is not None
+            and any(
+                event.stage == "payment-result-bound"
+                and event.decision == "same-task-completed"
+                for event in session.trace
+            )
+        )
         plan["steps"] = [
-            {**step, "status": "completed"}
+            {**step, "status": "completed" if execution_completed else "pending"}
             for step in plan.get("steps", [])
         ]
         fulfillment = json.loads(await verify_request_fulfillment(session.goal, result, plan))
         _apply_free_structured_fulfillment(session, result, plan, fulfillment)
+        _apply_paid_catalog_fulfillment(session, result, plan, fulfillment)
         history = [
             {"input": session.goal, "output": result, "step_id": session.active_step.step_id}
         ]

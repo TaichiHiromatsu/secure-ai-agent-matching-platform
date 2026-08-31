@@ -15,6 +15,7 @@ from a2a.types import (
     AgentExtension,
     AgentSkill,
     Artifact,
+    DataPart,
     Message,
     Part,
     Role,
@@ -27,6 +28,14 @@ from ap2.sdk.jwt_helper import create_jwt, verify_jwt
 
 from secure_mediation_agent.ap2.keys import DemoKeySet, public_key
 from secure_mediation_agent.ap2.verification import b64url_sha256, verify_terminal_presentation
+from secure_mediation_agent.demo_catalog import (
+    PRODUCT_ID,
+    confirmation_reference,
+    project_confirmation,
+    project_payment_requirement,
+    scenario_digest,
+    validate_payment_requirement,
+)
 from secure_mediation_agent.payment_profiles.a2a import (
     PAYMENT_PAYLOAD,
     PAYMENT_STATUS,
@@ -120,7 +129,11 @@ class PaidBookingMerchant:
     def agent_card(self) -> AgentCard:
         return AgentCard(
             name="paid-booking-agent",
-            description="AP2 v0.2 Human Present demo Merchant; local simulation only.",
+            description=(
+                "Tokyo business-trip hotel arrangement simulation for 2026-09-12 "
+                "through 2026-09-14, two guests. The 12.50 USD arrangement fee "
+                "excludes lodging; no real booking or payment."
+            ),
             url="http://127.0.0.1:8005/a2a",
             version="2.0.0-simulation",
             protocolVersion="0.3.0",
@@ -143,9 +156,13 @@ class PaidBookingMerchant:
             skills=[
                 AgentSkill(
                     id="paid-booking",
-                    name="Demo paid booking",
-                    description="One fixed local simulation booking product.",
-                    tags=["booking", "payment", "simulation"],
+                    name="Tokyo business hotel arrangement simulation",
+                    description=(
+                        "Issue one simulated confirmation for the fixed Tokyo "
+                        "business-trip scenario after the 12.50 USD arrangement-fee "
+                        "simulation; lodging is excluded and no real booking occurs."
+                    ),
+                    tags=["tokyo", "business-trip", "hotel-arrangement", "payment", "simulation"],
                 )
             ],
             defaultInputModes=["text/plain", "application/json"],
@@ -192,7 +209,7 @@ class PaidBookingMerchant:
             .replace("+00:00", "Z")
         )
         requirements = {
-            **self._profile.build_required(amount=1250),
+            **project_payment_requirement(self._profile.build_required(amount=1250)),
             "orderId": order_id,
             "quoteId": quote_id,
             "expiresAt": expires_at_text,
@@ -216,7 +233,8 @@ class PaidBookingMerchant:
                 "quoteId": quote_id,
                 "taskId": task_id,
                 "merchantId": self.merchant_id,
-                "productId": "demo-paid-booking",
+                "productId": PRODUCT_ID,
+                "scenarioDigest": scenario_digest(),
                 "quantity": 1,
                 "amount": 1250,
                 "currency": "USD",
@@ -238,6 +256,7 @@ class PaidBookingMerchant:
             "quoteId": quote_id,
             "expiresAt": expires_at_text,
             "checkoutJwtDigest": canonical_digest(checkout_jwt),
+            "scenarioDigest": scenario_digest(),
             "checkoutMandateChallenge": {
                 "aud": self.merchant_id,
                 "nonce": checkout_challenge,
@@ -294,7 +313,8 @@ class PaidBookingMerchant:
             "planDigest": plan_digest,
             "taskId": task_id,
             "merchantId": self.merchant_id,
-            "productId": "demo-paid-booking",
+            "productId": PRODUCT_ID,
+            "scenarioDigest": scenario_digest(),
             "quantity": 1,
             "amount": 1250,
             "currency": "USD",
@@ -769,6 +789,14 @@ class PaidBookingMerchant:
         if existing["state"] == "completed":
             return Task.model_validate(existing["task"])
         stored_requirements = existing["requirement"]["requirements"]
+        try:
+            validate_payment_requirement(stored_requirements)
+        except ValueError as error:
+            raise DomainError(
+                "PAYMENT_REQUIREMENT_INVALID",
+                "Stored Merchant payment requirements do not match the demo catalog.",
+                task_id,
+            ) from error
         stored_order_id = existing["order_id"]
         stored_quote_id = stored_requirements.get("quoteId")
         if (
@@ -790,11 +818,18 @@ class PaidBookingMerchant:
         )
         current_project = current_metadata.get(PROJECT_METADATA)
         current_project = current_project if isinstance(current_project, dict) else {}
+        confirmation = project_confirmation(task_id)
         artifact = Artifact(
             artifactId=f"artifact:{task_id}",
-            name="Demo booking confirmation",
-            parts=[Part(root=TextPart(text="Demo booking confirmed."))],
-            metadata={"simulated": True, "externalCommit": False},
+            name="デモ予約確認（シミュレーション）",
+            parts=[Part(root=DataPart(data=confirmation))],
+            metadata={
+                "schemaVersion": confirmation["schemaVersion"],
+                "scenarioDigest": scenario_digest(),
+                "confirmationReference": confirmation_reference(task_id),
+                "simulated": True,
+                "externalCommit": False,
+            },
         )
         message = Message(
             messageId=f"message:completed:{task_id}",
@@ -812,6 +847,7 @@ class PaidBookingMerchant:
                     "planDigest": current_project.get("planDigest"),
                     "orderId": stored_order_id,
                     "quoteId": stored_quote_id,
+                    "scenarioDigest": scenario_digest(),
                     "checkoutReceiptId": checkout_receipt_id,
                     "paymentReceiptId": payment_receipt_id,
                 },

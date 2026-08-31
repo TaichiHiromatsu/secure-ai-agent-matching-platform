@@ -1,0 +1,67 @@
+{
+  "authentication": "Firebase reviewer login PASS; credential values omitted",
+  "browser": "fresh-headless-chromium-cdp-real-ui",
+  "case": "paid",
+  "checks": {
+    "free": null,
+    "isolatedProfileCleanup": "PASS_ON_CONTAINER_EXIT",
+    "logout": "PASS",
+    "paid": {
+      "callbackTrace": {
+        "operations": 3,
+        "orderedStages": [
+          "legacy-callback-before",
+          "transport",
+          "response-persisted",
+          "legacy-callback-after"
+        ],
+        "reasonCodeExposed": false
+      },
+      "completedAfterReload": true,
+      "confirmationProjection": "PASS",
+      "exactApprovals": 2,
+      "scenarioProjection": "PASS",
+      "states": [
+        "WaitingForPlanApproval",
+        "WaitingForPaymentApproval",
+        "Completed"
+      ],
+      "status": "PASS"
+    }
+  },
+  "credentialMaterialStored": false,
+  "deploymentProfile": {
+    "durability": "NOT PROVIDED",
+    "officialX402": "NOT RUN",
+    "onChainSettlement": "NOT RUN",
+    "target": "ephemeral-cloud-run-demo"
+  },
+  "durationMs": 34126,
+  "finishedAtEpochMs": 1788200484902,
+  "imageDigest": "sha256:81f3f41940c5ecc4a0f11476d84b6e6f5fa772eb930ed8d0a8e84316af88e646",
+  "promptOrModelOutputStored": false,
+  "readiness": {
+    "checks": {
+      "mediationStoreMode": true,
+      "mediationStoreProbe": true,
+      "mediationStoreProfile": true,
+      "mediationStoreSchema": true,
+      "vertexAdcConfiguration": true
+    },
+    "durability": "NOT PROVIDED",
+    "mediationStore": {
+      "decryptable": true,
+      "durabilityProfile": "ephemeral-demo",
+      "mode": "memory",
+      "schemaVersion": null,
+      "writable": true
+    },
+    "status": "ready",
+    "target": "ephemeral-cloud-run-demo"
+  },
+  "revision": "payment-user-agent-demo-00015-foj",
+  "schemaVersion": "cloud-run-browser-e2e/2",
+  "serviceUrl": "https://payment-user-agent-demo-kzeuhywicq-an.a.run.app",
+  "startedAtEpochMs": 1788200450776,
+  "status": "PASS"
+}

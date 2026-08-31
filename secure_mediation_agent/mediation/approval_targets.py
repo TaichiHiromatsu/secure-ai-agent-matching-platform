@@ -5,6 +5,11 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
+from secure_mediation_agent.demo_catalog import (
+    REQUIREMENT_SCHEMA_VERSION,
+    validate_payment_requirement,
+)
+
 from .canonical import canonical_digest, safe_ref
 from .errors import SecurityBlocked
 from .models import (
@@ -18,7 +23,8 @@ from .models import (
 
 
 APPROVAL_TOKEN = "承認"
-PAYMENT_PRODUCT = "Demo paid booking"
+PAYMENT_PRODUCT = "デモホテル予約手配サービス（宿泊代を含まないシミュレーション）"
+LEGACY_PAYMENT_PRODUCT = "Demo paid booking"
 PAYMENT_METHOD = "signed-simulated-payment-guarantee"
 
 
@@ -109,6 +115,25 @@ def build_payment_approval_target(
     requirement_digest: str,
     checkout_digest: str,
 ) -> PaymentApprovalTarget:
+    schema_version = payment_required.get("schemaVersion")
+    if schema_version is None:
+        # Compatibility is reachable only for a requirement already persisted by
+        # the pre-v2 runtime; fresh remote responses are rejected by controller.
+        product = LEGACY_PAYMENT_PRODUCT
+    elif schema_version == REQUIREMENT_SCHEMA_VERSION:
+        try:
+            validate_payment_requirement(payment_required)
+        except ValueError as error:
+            raise SecurityBlocked(
+                "PAYMENT_APPROVAL_SCENARIO_INVALID",
+                "支払い承認対象のデモシナリオが一致しません。",
+            ) from error
+        product = PAYMENT_PRODUCT
+    else:
+        raise SecurityBlocked(
+            "PAYMENT_APPROVAL_SCENARIO_VERSION_UNSUPPORTED",
+            "支払い承認対象のデモシナリオversionを利用できません。",
+        )
     accepts = payment_required.get("accepts")
     if not isinstance(accepts, list) or len(accepts) != 1:
         raise SecurityBlocked(
@@ -137,7 +162,7 @@ def build_payment_approval_target(
         planDigest=plan_digest,
         bridgeDisplay=display,
         bridgeDisplayDigest=canonical_digest(display),
-        product=PAYMENT_PRODUCT,
+        product=product,
         expiresAt=expires_at,
         paymentMethod=PAYMENT_METHOD,
         scheme=str(accept.get("scheme") or ""),

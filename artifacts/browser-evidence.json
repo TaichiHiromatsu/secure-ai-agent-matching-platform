@@ -1,19 +1,34 @@
 {
   "appSelected": "payment_user_agent",
   "browser": "chromium-cdp-real-ui",
+  "cases": [
+    "free",
+    "paid",
+    "privacy",
+    "refund"
+  ],
   "completedAfterRefresh": true,
-  "imageDigest": "sha256:a22c3e696299c3c73dcf2391cba3df16c4e95c9333e72ad3ed8c0a19851a38bc",
+  "imageDigest": "sha256:81f3f41940c5ecc4a0f11476d84b6e6f5fa772eb930ed8d0a8e84316af88e646",
   "interactions": [
-    "browser booking",
+    "\u6709\u6599\u306e\u5916\u90e8\u30a8\u30fc\u30b8\u30a7\u30f3\u30c8\u306b\u3001\u30c7\u30e2\u4e88\u7d04\u5546\u54c1\u30921\u4ef6\u30b7\u30df\u30e5\u30ec\u30fc\u30b7\u30e7\u30f3\u8cfc\u5165\u3057\u3001\u30c7\u30e2\u306e\u4e88\u7d04\u78ba\u8a8d\u3092\u767a\u884c\u3059\u308b\u3088\u3046\u4f9d\u983c\u3057\u3066\u304f\u3060\u3055\u3044\u3002",
     "\u627f\u8a8d",
     "\u627f\u8a8d",
-    "refresh"
+    "refresh",
+    "\u6771\u4eac\u30672026\u5e749\u670812\u65e5\u304b\u30899\u670814\u65e5\u307e\u3067\u30012\u540d\u3067\u5bbf\u6cca\u3067\u304d\u308b\u30db\u30c6\u30eb\u5019\u88dc\u3092\u691c\u7d22\u3057\u3066\u304f\u3060\u3055\u3044\u3002",
+    "\u627f\u8a8d",
+    "paid refund-required booking",
+    "\u627f\u8a8d",
+    "\u627f\u8a8d",
+    "\u627f\u8a8d",
+    "paid privacy booking",
+    "\u627f\u8a8d"
   ],
   "listApps": [
     "payment_user_agent"
   ],
-  "releaseManifestDigest": "sha256:701f2b1a66af81b9fe6dacefbb1a713fb35c181571621f8fda85296e363d3495",
-  "schemaVersion": "ap2-x402-browser-evidence/1",
-  "status": "PASS",
-  "workflowId": "workflow:82dc6864f4384916951b642b49068073"
+  "privateMaterialExposed": false,
+  "productionEdge": "nginx-auth-csrf-adk-workflow",
+  "releaseManifestDigest": "sha256:277f688f307036ee7549cb0871e69539c6a8fc759beb8e471348bb76d9c28a63",
+  "schemaVersion": "ap2-x402-browser-evidence/2",
+  "status": "PASS"
 }

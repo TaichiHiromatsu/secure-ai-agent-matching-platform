@@ -19,12 +19,24 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from pydantic import ValidationError
 
+from secure_mediation_agent.demo_catalog import (
+    REQUIREMENT_SCHEMA_VERSION,
+    project_confirmation_artifact,
+    validate_confirmation,
+    validate_payment_requirement,
+)
 from secure_mediation_agent.workflow.migrations import SCHEMA_VERSION, utc_now
 from secure_mediation_agent.workflow.repository import WorkflowRepository
 
 from .canonical import canonical_bytes, canonical_digest
 from .errors import MediationError, SecurityBlocked
-from .models import ACTIVE_STATES, MediationPublicView, MediationSession, SubjectScope
+from .models import (
+    ACTIVE_STATES,
+    MediationPublicView,
+    MediationSession,
+    MediationState,
+    SubjectScope,
+)
 from .persistence_models import (
     RequestReservation,
     StoreReadiness,
@@ -146,7 +158,25 @@ def _safe_payment_required(requirement: dict[str, Any]) -> dict[str, Any]:
             "MEDIATION_STORE_INTEGRITY",
             "The persisted payment requirement is not an allowed public projection.",
         )
-    return {"x402Version": 1, "accepts": [expected]}
+    schema_version = raw.get("schemaVersion")
+    if schema_version == REQUIREMENT_SCHEMA_VERSION:
+        try:
+            validate_payment_requirement(raw)
+        except ValueError as error:
+            raise MediationError(
+                "MEDIATION_STORE_INTEGRITY",
+                "The persisted v2 payment scenario is invalid.",
+            ) from error
+        # Full canonical required bytes are part of the authorization evidence;
+        # do not strip the v2 scenario binding during durable projection.
+        return json.loads(canonical_bytes(raw))
+    if schema_version is None:
+        # Explicit compatibility for pre-upgrade persisted v1 records only.
+        return {"x402Version": 1, "accepts": [expected]}
+    raise MediationError(
+        "MEDIATION_STORE_INTEGRITY",
+        "The persisted payment requirement schema is unsupported.",
+    )
 
 
 def _project_requirement(requirement: dict[str, Any]) -> None:
@@ -178,6 +208,35 @@ def _session_projection(session: MediationSession) -> dict[str, Any]:
                 _project_requirement(remote_requirement)
             artifact = remote.get("artifact")
             if artifact is not None:
+                paid_confirmation = (
+                    session.state == MediationState.COMPLETED
+                    and session.active_step.selected_agent.canonical_agent_id
+                    == "agent-005"
+                    and any(
+                        event.stage == "final-validation"
+                        and event.decision == "ACCEPT"
+                        for event in session.trace
+                    )
+                )
+                if paid_confirmation:
+                    expected_artifact = project_confirmation_artifact(remote["taskId"])
+                    try:
+                        part = artifact["parts"][0]
+                        validate_confirmation(
+                            part["data"], remote_task_id=remote["taskId"]
+                        )
+                    except (KeyError, IndexError, TypeError, ValueError) as error:
+                        raise MediationError(
+                            "MEDIATION_STORE_INTEGRITY",
+                            "The paid completion artifact is invalid.",
+                        ) from error
+                    if artifact != expected_artifact:
+                        raise MediationError(
+                            "MEDIATION_STORE_INTEGRITY",
+                            "The paid completion artifact is not the exact catalog projection.",
+                        )
+                    remote["artifact"] = expected_artifact
+                    artifact = remote["artifact"]
                 already_projected = (
                     isinstance(artifact, dict)
                     and set(artifact) == {"artifactDigest"}
@@ -185,12 +244,41 @@ def _session_projection(session: MediationSession) -> dict[str, Any]:
                     and artifact["artifactDigest"].startswith("sha256:")
                     and len(artifact["artifactDigest"]) == 71
                 )
-                if not already_projected:
+                if not already_projected and not paid_confirmation:
                     remote["artifact"] = {
                         "artifactDigest": canonical_digest(artifact)
                     }
     if payload.get("result") is not None:
-        payload["result"] = _safe_result(payload["result"])
+        source_result = payload["result"]
+        paid_final_accept = (
+            session.state == MediationState.COMPLETED
+            and session.active_step.selected_agent.canonical_agent_id == "agent-005"
+            and session.continuation is not None
+            and any(
+                event.stage == "final-validation" and event.decision == "ACCEPT"
+                for event in session.trace
+            )
+        )
+        if paid_final_accept:
+            expected_artifact = project_confirmation_artifact(
+                session.continuation.remote_task.task_id
+            )
+            source_artifact = (
+                source_result.get("artifact")
+                if isinstance(source_result, dict)
+                else None
+            )
+            if source_artifact != expected_artifact:
+                raise MediationError(
+                    "MEDIATION_STORE_INTEGRITY",
+                    "The paid result artifact is not the exact catalog projection.",
+                )
+            safe_source = dict(source_result)
+            safe_source.pop("artifact", None)
+            payload["result"] = _safe_result(safe_source)
+            payload["result"]["artifact"] = expected_artifact
+        else:
+            payload["result"] = _safe_result(source_result)
     return payload
 
 

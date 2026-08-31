@@ -326,7 +326,7 @@ def _run_paid(
         base_url=base_url,
         boundary=boundary,
         request_id=f"verify-paid-goal-{suffix}",
-        text="paid payment booking",
+        text="有料の外部エージェントに、デモ予約商品を1件シミュレーション購入し、デモの予約確認を発行するよう依頼してください。",
     )
     _assert_state(planned, "WaitingForPlanApproval")
     _assert_approval(planned, "plan")
@@ -429,7 +429,7 @@ def _run_free(
         base_url=base_url,
         boundary=boundary,
         request_id=f"verify-free-goal-{suffix}",
-        text="hotel search",
+        text="東京で2026年9月12日から9月14日まで、2名で宿泊できるホテル候補を検索してください。",
     )
     _assert_state(planned, "WaitingForPlanApproval")
     _assert_approval(planned, "plan")

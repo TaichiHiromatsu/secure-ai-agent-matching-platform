@@ -155,6 +155,7 @@ sequenceDiagram
     C->>P: payment_bridge.attach(Task／requirement)
     P-->>C: continuation＋WaitingForPaymentApproval
     C-->>UA: payment card（12.50 USD）
+    Note over C,UA: 宿泊代ではなくデモ予約手配サービス料
     UA-->>U: 支払条件を表示
     U->>UA: 完全一致「承認」（決済）
     UA->>C: 決定論的payment approval route
@@ -176,6 +177,7 @@ sequenceDiagram
     G-->>P: PASS
     P->>A: operation 2 receipt-backed fulfillment commit
     A-->>P: receipt検証＋業務履行＋same Task completed
+    Note over P,A: 厳格なデモ予約確認Artifact（実予約ではない）
     P->>P: structured responseを保存
     P->>G: callback（after）＋POST_PAYMENT_RESULT（operation 2）
     G-->>P: PASS

@@ -34,8 +34,10 @@
 | [`artifacts/browser-evidence.json`](../../artifacts/browser-evidence.json) | 固定imageでの実Browser操作 | ローカルcandidate上のUI証跡である |
 | [`artifacts/cloud-run-candidate.json`](../../artifacts/cloud-run-candidate.json) | source、platform、image、embedded suite、artifactのbinding | build／push／deploy間で同一candidateを固定する |
 | [`artifacts/cloud-run-deployment.json`](../../artifacts/cloud-run-deployment.json) | deploy後のrevision、traffic、remote browser、ephemeral境界 | post-deploy観測。release validatorの入力ではない |
-| [`artifacts/cloud-run-deployment-399750d686a8.json`](../../artifacts/cloud-run-deployment-399750d686a8.json) | exact deployed image、revision、exact 7 env、Vertex probe、traffic、Cloud log、制約 | 対象deploymentのimmutable post-deploy観測 |
-| [`artifacts/cloud-run-browser-e2e-399750d686a8.json`](../../artifacts/cloud-run-browser-e2e-399750d686a8.json) | Firebase認証後のpaid／free／reload／logoutとcallback順序 | credential、prompt／model output、console、network、screenshotを保存しない最小証跡 |
+| [`artifacts/cloud-run-deployment-81f3f41940c5.json`](../../artifacts/cloud-run-deployment-81f3f41940c5.json) | 現行公開revision、exact image、exact 7 env、Vertex probe、100% traffic、Cloud log、制約 | 現行deploymentのimmutable post-deploy観測 |
+| [`artifacts/cloud-run-tag-e2e-81f3f41940c5.json`](../../artifacts/cloud-run-tag-e2e-81f3f41940c5.json) | 0% candidate tagでのreadiness、Vertex、paid／free browser、Cloud log | traffic切替前のcandidate-bound観測 |
+| [`artifacts/cloud-run-public-paid-81f3f419.json`](../../artifacts/cloud-run-public-paid-81f3f419.json)／[`free`](../../artifacts/cloud-run-public-free-81f3f419.json) | 100%切替後の通常URLでのFirebase認証、paid／free、reload／logout、callback順序 | credential、任意prompt／model output、console、network、screenshotを保存しない最小証跡 |
+| [`artifacts/cloud-run-deployment-399750d686a8.json`](../../artifacts/cloud-run-deployment-399750d686a8.json) | 直前revisionのdeployment観測 | 現行値ではなく履歴として保持 |
 
 ### リリース候補とデプロイを分ける理由
 
@@ -71,7 +73,7 @@ release validatorは、status文字列だけでなく、指定されたartifact�
 
 post-deploy observationは、ready revisionのfull immutable image URIがcandidateのregistry imageと一致することを記録する。ただし、この観測JSON自体は現在のvalidatorへ組み込まれていないため、release artifactの暗号学的bindingと同じ強さだと解釈しない。
 
-Cloudブラウザ証跡では認証情報そのものを保存せず、認証結果、状態遷移、承認回数、callbackの順序、reload／logout、非保存判定だけを記録する。prompt、model output、browser console、network body、screenshotを後から証跡へ追加しない。
+Cloudブラウザ証跡では認証情報そのものを保存せず、認証結果、状態遷移、承認回数、固定catalogの表示検証、callbackの順序、reload／logout、非保存判定だけを記録する。公開デモ用にmanifestで固定したcanonical prompt以外の利用者入力、model output、browser console、network body、screenshotを後から証跡へ追加しない。
 
 ## 検証の層
 

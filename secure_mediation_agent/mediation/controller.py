@@ -9,6 +9,11 @@ from uuid import uuid4
 
 from pydantic import BaseModel
 
+from secure_mediation_agent.demo_catalog import (
+    project_confirmation_artifact,
+    validate_payment_requirement,
+)
+
 from .a2a_executor import A2AExecution, A2AOperation
 from .adapters import SIMULATION_EXTENSION, maybe_await
 from .approval_targets import (
@@ -45,7 +50,11 @@ from .ports import (
     PlannerPort,
     StableGatePort,
 )
-from .persistence_models import RequestReservation
+from .persistence_models import (
+    RequestReservation,
+    paid_completion_message,
+    paid_payment_approval_message,
+)
 
 
 APPROVAL_TEXT = "承認"
@@ -669,6 +678,13 @@ class MediationController:
             raise SecurityBlocked(
                 "PAYMENT_REQUIREMENT_MISSING", "支払い要件が見つかりません。"
             )
+        try:
+            scenario = validate_payment_requirement(requirement.payment_required)
+        except ValueError as error:
+            raise SecurityBlocked(
+                "PAYMENT_SCENARIO_INVALID",
+                "支払い要件のデモシナリオが一致しません。",
+            ) from error
         step = session.active_step
         expected_extensions = step.selected_agent.payment_extension_uris
         if expected_extensions != (SIMULATION_EXTENSION,):
@@ -707,6 +723,16 @@ class MediationController:
         if requirement.amount_minor > step.payment_limit_minor:
             raise SecurityBlocked(
                 "PAYMENT_LIMIT_EXCEEDED", "支払い金額が承認済み計画の上限を超えています。"
+            )
+        fee = scenario["arrangementFee"]
+        if (
+            requirement.amount_minor != fee["amountMinor"]
+            or requirement.currency != fee["currency"]
+            or requirement.payee != fee["payee"]
+        ):
+            raise SecurityBlocked(
+                "PAYMENT_SCENARIO_TERMS_MISMATCH",
+                "支払い条件が固定デモシナリオと一致しません。",
             )
         if requirement.expires_at <= datetime.now(timezone.utc):
             raise SecurityBlocked("PAYMENT_QUOTE_EXPIRED", "支払い見積もりは期限切れです。")
@@ -885,6 +911,15 @@ class MediationController:
                 raise ReviewRequired(
                     "PAYMENT_RESULT_UNKNOWN", "支払い結果を確定できません。"
                 )
+            artifact = remote.artifact
+            try:
+                if artifact != project_confirmation_artifact(remote.task_id):
+                    raise ValueError("confirmation artifact is invalid")
+            except (TypeError, ValueError) as error:
+                raise SecurityBlocked(
+                    "PAYMENT_CONFIRMATION_INVALID",
+                    "完了したデモ予約確認が固定シナリオと一致しません。",
+                ) from error
             for summary in result.a2a_executions:
                 layers = {
                     "legacy-callback-before": (
@@ -1170,13 +1205,10 @@ class MediationController:
         if session.state == MediationState.WAITING_FOR_PAYMENT_APPROVAL and continuation:
             requirement = continuation.requirement
             approval_target = MediationController._payment_approval_target(session)
-            message = (
-                "これは計画承認とは別の支払い承認です。"
-                f"Demo paid booking / {requirement.amount_minor} {requirement.currency} / "
-                f"{requirement.payee} / 期限 {requirement.expires_at.isoformat()}。"
-                "以下の承認対象を確認し、支払う場合のみメッセージ全体を"
-                "「承認」として送信してください。"
-            )
+            message = paid_payment_approval_message(requirement)
+        completion_message = paid_completion_message(session)
+        if completion_message is not None:
+            message = completion_message
         return MediationPublicView(
             state=session.state,
             version=session.version,

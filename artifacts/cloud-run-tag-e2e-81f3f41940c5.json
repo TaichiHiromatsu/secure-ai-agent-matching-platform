@@ -1,0 +1,91 @@
+{
+  "schemaVersion": "cloud-run-tag-e2e/2",
+  "status": "PASS",
+  "project": "gen-lang-client-0585901015",
+  "region": "asia-northeast1",
+  "service": "payment-user-agent-demo",
+  "revision": "payment-user-agent-demo-00015-foj",
+  "image": "asia-northeast1-docker.pkg.dev/gen-lang-client-0585901015/secure-mediation-agent/payment-user-agent-demo@sha256:81f3f41940c5ecc4a0f11476d84b6e6f5fa772eb930ed8d0a8e84316af88e646",
+  "url": "https://pc-81f3f41940c5---payment-user-agent-demo-kzeuhywicq-an.a.run.app",
+  "tag": "pc-81f3f41940c5",
+  "trafficAtValidation": {
+    "candidatePercent": 0,
+    "previousRevision": "payment-user-agent-demo-44fdfd-3997",
+    "previousPercent": 100
+  },
+  "publicDurabilityProfile": "ephemeral-demo",
+  "readiness": {
+    "status": "ready",
+    "target": "ephemeral-cloud-run-demo",
+    "durability": "NOT PROVIDED",
+    "mediationStore": {
+      "mode": "memory",
+      "durabilityProfile": "ephemeral-demo",
+      "schemaVersion": null,
+      "writable": true,
+      "decryptable": true
+    },
+    "checks": {
+      "mediationStoreMode": true,
+      "mediationStoreProfile": true,
+      "mediationStoreSchema": true,
+      "mediationStoreProbe": true,
+      "vertexAdcConfiguration": true
+    }
+  },
+  "checks": {
+    "readiness": "PASS",
+    "modelProbe": "PASS",
+    "paid": "PASS",
+    "free": "PASS",
+    "refund": "PASS_EXACT_IMAGE_LOCAL_NOT_RERUN_ON_CLOUD",
+    "browser": "PASS",
+    "publicBoundary": "PASS"
+  },
+  "modelProbe": {
+    "execution": "payment-vertex-probe-81f3f419-74mxq",
+    "startedAt": "2026-08-31T18:08:46.863817Z",
+    "completedAt": "2026-08-31T18:09:21.520283Z",
+    "models": [
+      {
+        "model": "gemini-2.5-flash",
+        "status": "PASS",
+        "latencyMs": 543
+      },
+      {
+        "model": "gemini-2.5-pro",
+        "status": "PASS",
+        "latencyMs": 126
+      }
+    ],
+    "temporaryJobDeleted": true,
+    "promptStored": false,
+    "modelOutputStored": false
+  },
+  "browser": {
+    "paidArtifact": "artifacts/cloud-run-browser-paid-81f3f419.json",
+    "paidArtifactSha256": "c8686d0986ce5b6e48fee76c251855aa0e11cc6c9228d4639cfd50133b7b4e8b",
+    "freeArtifact": "artifacts/cloud-run-browser-free-81f3f419.json",
+    "freeArtifactSha256": "8485ba1a284425d9507bbcedd0fdca4ec3c0c6ec7f83045e2ba442dc7d5946a7",
+    "readinessArtifact": "artifacts/cloud-run-browser-readiness-81f3f419.json",
+    "readinessArtifactSha256": "82c4b9b51d9531f42fb35f3b7cb17b3b1e03ca88d4687c69738ab105cda15b54",
+    "freshProfilePerFlow": true,
+    "firebaseReviewerLogin": "PASS",
+    "logout": "PASS",
+    "credentialsStored": false,
+    "promptOrModelOutputStored": false,
+    "consoleNetworkOrScreenshotStored": false
+  },
+  "cloudLogs": {
+    "windowStart": "2026-08-31T18:14:50Z",
+    "windowEnd": "2026-08-31T18:18:45Z",
+    "entries": 520,
+    "http5xx": 0,
+    "errorSeverity": 0,
+    "runSseHttp200": 5,
+    "logoutHttp204": 3,
+    "finalValidationBlocked": 0,
+    "reasonCodeMarkers": 0,
+    "taskStoreOrRpcErrorMarkers": 0
+  }
+}

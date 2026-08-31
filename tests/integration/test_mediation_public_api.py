@@ -37,6 +37,12 @@ from secure_mediation_agent.mediation.models import (
     TextPart,
     utc_now,
 )
+from secure_mediation_agent.demo_catalog import (
+    confirmation_reference,
+    project_confirmation,
+    project_payment_requirement,
+    scenario_digest,
+)
 from secure_mediation_agent.mediation.persistence import SqliteMediationStore
 from secure_mediation_agent.mediation.store import InMemoryMediationStore
 from secure_mediation_agent.workflow.api import create_app
@@ -180,6 +186,7 @@ class ApiPaymentBridge:
             remoteTask=self.completed,
             result={
                 "taskState": "completed",
+                "artifact": self.completed.artifact,
                 "refundEligible": False,
                 "simulation": True,
             },
@@ -209,7 +216,7 @@ def _paid_envelope() -> tuple[A2AResponseEnvelope, RemoteTaskSnapshot]:
     checkout_hash = base64.urlsafe_b64encode(
         hashlib.sha256(checkout_jwt.encode("utf-8")).digest()
     ).rstrip(b"=").decode("ascii")
-    required = {
+    required = project_payment_requirement({
         "x402Version": 1,
         "accepts": [
             {
@@ -220,7 +227,7 @@ def _paid_envelope() -> tuple[A2AResponseEnvelope, RemoteTaskSnapshot]:
                 "maxAmountRequired": "1250",
             }
         ],
-    }
+    })
     requirement = PaymentRequirementSnapshot(
         taskState="input-required",
         paymentStatus="payment-required",
@@ -256,7 +263,20 @@ def _paid_envelope() -> tuple[A2AResponseEnvelope, RemoteTaskSnapshot]:
         taskDigest=canonical_digest({"task": "paid-api-completed"}),
         orderId="order-api-1",
         quoteId="quote-api-1",
-        artifact={"booking": "confirmed"},
+        artifact={
+            "artifactId": "artifact:paid-task-api-1",
+            "name": "デモ予約確認（シミュレーション）",
+            "parts": [
+                {"kind": "data", "data": project_confirmation("paid-task-api-1")}
+            ],
+            "metadata": {
+                "schemaVersion": "demo-booking-confirmation/1",
+                "scenarioDigest": scenario_digest(),
+                "confirmationReference": confirmation_reference("paid-task-api-1"),
+                "simulated": True,
+                "externalCommit": False,
+            },
+        },
     )
     return (
         A2AResponseEnvelope(
@@ -665,6 +685,10 @@ def test_sqlite_restores_waiting_and_terminal_turns_across_controllers(
 
     if paid:
         assert first_approval["state"] == "WaitingForPaymentApproval"
+        assert "デモ東京ベイホテル" in first_approval["view"]["message"]
+        assert "2026-09-12" in first_approval["view"]["message"]
+        assert "2名" in first_approval["view"]["message"]
+        assert "実送金・法的保証はありません" in first_approval["view"]["message"]
         runtime, payment_controller, payment_bridge = _durable_runtime(
             workflow_fixture, paid, key
         )
@@ -683,8 +707,12 @@ def test_sqlite_restores_waiting_and_terminal_turns_across_controllers(
             )
             assert terminal_response.status_code == 200, terminal_response.text
             terminal = terminal_response.json()
-        assert payment_controller.executor.calls == 0
-        assert payment_bridge.approve_calls == payment_bridge.execute_calls == 1
+            assert payment_controller.executor.calls == 0
+            assert terminal["state"] == "Completed", [
+                (item["stage"], item["decision"])
+                for item in terminal["view"]["trace"][-5:]
+            ]
+            assert payment_bridge.approve_calls == payment_bridge.execute_calls == 1
     else:
         terminal = first_approval
 

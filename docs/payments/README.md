@@ -29,7 +29,9 @@ AP2とA2A x402は競合する仕様ではない。AP2は「その決済を実行
 
 利用者が操作する入口は`payment_user_agent`だけである。これは画面と内部APIをつなぐ薄いadapterであり、決済判断や秘密鍵を持たない。状態、認可、Merchant呼出し、証跡、再試行の正本は`secure_mediation_agent`内の決定論的なworkflowである。
 
-このデモで利用者が支払意思を確定する相手は、画面を提供する仲介workflowである。ただし仲介はpayee（受取人）ではない。payeeは`demo-merchant`で、仲介側のSQLite simulation ledgerが`demo-customer`から`demo-merchant`への処理を記録する。実際の資金引当・送金や後日精算はない。仲介が外部Agentへ渡す署名付き保証も、法的保証やsettledの証明ではないsimulation commitmentである。
+このデモで利用者が支払意思を確定する相手は、画面を提供する仲介workflowである。ただし仲介はpayee（受取人）ではない。payeeは`demo-merchant`で、仲介側のSQLite simulation ledgerが`demo-customer`から`demo-merchant`への処理を記録する。固定シナリオ`tokyo-business-hotel-arrangement-20260912-v1`のdigestには、simulation限定と、実予約・実在庫hold・実課金・実送金・法的保証を行わない条件を含める。実際の資金引当・送金や後日精算はない。仲介が外部Agentへ渡す署名付き保証も、法的保証やsettledの証明ではないsimulation commitmentである。
+
+有料正常系では、外部Booking Agentが「デモ東京ベイホテル」（2026年9月12日〜14日、2名）の予約手配simulationを提供する。`12.50 USD`は宿泊代ではなく予約手配サービス料で、完了時には実予約ではないことを明記したデモ予約確認を返す。具体的な実演手順は[貼り付け用プロンプト付きガイド](DEMO.md)を参照する。
 
 ```mermaid
 flowchart LR

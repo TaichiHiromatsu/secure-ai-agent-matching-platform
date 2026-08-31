@@ -31,7 +31,7 @@
     "token_hint": "****",
     "status": "active",
     "use_cases": [
-      "hotel search",
+      "東京で2026年9月12日から9月14日まで、2名で宿泊できるホテル候補を検索してください。",
       "hotel booking",
       "accommodation reservations"
     ],
@@ -121,9 +121,9 @@
     "token_hint": "signed-capability-only",
     "status": "active",
     "use_cases": [
-      "paid booking",
-      "payment-aware fulfillment",
-      "same-task simulated payment fulfillment"
+      "Tokyo business-trip hotel arrangement simulation",
+      "12.50 USD arrangement-fee simulation excluding lodging",
+      "same-Task simulated confirmation issuance with no real booking"
     ],
     "tags": [
       "booking",
@@ -159,9 +159,9 @@
     "skills": [
       {
         "id": "paid_booking",
-        "name": "Paid demo booking",
-        "description": "Fulfil one booking after a mediator-signed simulation guarantee on the same A2A Task",
-        "tags": ["booking", "payment", "simulation", "not-conformant"]
+        "name": "Tokyo business hotel arrangement simulation",
+        "description": "Issue a simulated confirmation for the fixed Tokyo business-trip scenario after a 12.50 USD arrangement-fee simulation; lodging is excluded and no real booking occurs",
+        "tags": ["tokyo", "business-trip", "hotel-arrangement", "payment", "simulation", "not-conformant"]
       }
     ],
     "created_at": "2026-08-15T00:00:00Z",

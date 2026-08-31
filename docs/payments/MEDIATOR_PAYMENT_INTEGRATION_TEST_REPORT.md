@@ -191,43 +191,48 @@ exact imageとthree final6 evidence artifactは保持した。このcleanup記�
 
 final6はlocal simulation baselineとして、後続のCloud Run revisionはephemeral normal-flow demoとして利用できる。いずれもproduction-ready、実決済、official x402適合ではない。per-ID ledger、raw W&B問題、production durability、公式profile、最終hotfix後のCloud refund再実行は未完了である。
 
-## 13. Cloud Run acceptance addendum（2026-08-30 JST）
+## 13. Cloud Run acceptance addendum（2026-09-01 JST）
 
 ### 13.1 Exact deployment binding
 
 | Item | Value |
 | --- | --- |
-| source commit | `44fdfdb1bd62b58b3885eb2ace5274138597b15b` |
-| image digest | `sha256:399750d686a89d26aacea9908bcb7cc6a5c213fe23ffa4817b98873e263ac50e` |
-| revision | `payment-user-agent-demo-44fdfd-3997` |
+| source commit | `69cea4da680f3d61d5d2c05d747e90111ca7a829` |
+| image digest | `sha256:81f3f41940c5ecc4a0f11476d84b6e6f5fa772eb930ed8d0a8e84316af88e646` |
+| revision | `payment-user-agent-demo-00015-foj` |
 | traffic | `100%` |
-| deployment evidence | `artifacts/cloud-run-deployment-399750d686a8.json`／SHA-256 `f625491ce008aa48166d7236d6089a4e891eddc301010e971a878dc2c4b55fed`／6780 bytes |
-| browser evidence | `artifacts/cloud-run-browser-e2e-399750d686a8.json`／SHA-256 `92c9dd4196e4be11f0181af407a8de5ccf55805557c706c81e1edb054587cba4`／1791 bytes |
+| candidate evidence | `artifacts/cloud-run-tag-e2e-81f3f41940c5.json`／SHA-256 `46ff561b67ce87ccef44b44ea9dcaef2d93132213b8619ab5c1f036f31849d09`／3001 bytes |
+| deployment evidence | `artifacts/cloud-run-deployment-81f3f41940c5.json`／SHA-256 `ba159cc5d73f9216a7f2cac04ca1c4bc954c8c6ffda5e8972e39ede8d982aa1e`／7252 bytes |
+| public paid browser evidence | `artifacts/cloud-run-public-paid-81f3f419.json`／SHA-256 `c961bc6f0c367c986026f9d9850f0a4a92acd3729ba41cb94eab5311522798df`／1954 bytes |
+| public free browser evidence | `artifacts/cloud-run-public-free-81f3f419.json`／SHA-256 `57c85de9aaae3445266586de3d5ec348c31115e98936c51bb15ea941e74f5eed`／1876 bytes |
 | canonical exact-7 environment | SHA-256 `sha256:5b9f4a885039fe3684555a5ec6c359018a5a9b7d394f1c91796dca5ad6dd723c`／actual equals expected |
 
-revisionはsingle container、memory ephemeral store、volumeなし、secret envなし、exact 7 user envでreadyとなった。deployment evidenceは期待allowlistのsource、期待値と実revision値のcanonical配列、両者のdigest、missing／unexpectedの空配列、secret reference 0、API-key-like env 0、`actualMatchesExpected=true`を保持するため、第三者がexact 7を再計算できる。readinessは17/17、focused testsは24 PASS、Cloud観測windowのHTTP 5xxとerror severityは0だった。service account provenanceはdefault Compute、`dedicatedLeastPrivilegeServiceAccount=false`で、今回IAM／bindingを変更していない。
+revisionはsingle container、memory ephemeral store、volumeなし、secret envなし、exact 7 user envでreadyとなった。deployment evidenceは期待allowlistのsource、期待値と実revision値のcanonical配列、両者のdigest、missing／unexpectedの空配列、secret reference 0、API-key-like env 0、`actualMatchesExpected=true`を保持するため、第三者がexact 7を再計算できる。release manifestはpayment release 371件、evaluation runner 17件、jury worker 13件をPASSし、exact image validatorの11 marker suiteは295件をPASSした。candidateと公開後のCloud観測windowはいずれもHTTP 5xxとerror severityが0だった。service account provenanceはdefault Compute、`dedicatedLeastPrivilegeServiceAccount=false`で、今回IAM／bindingを変更していない。
+
+表のsource commitは実際にbuild・deployしたcode commitである。PRの最終headは、このdeploy後に生成した機械可読evidenceと本書の更新commitを追加するため別SHAになる。最終headを同じimageとして扱わず、公開revisionのprovenanceはsource commit、source digest、immutable image digestの組で追跡する。docs/evidenceだけの後続commitはこのrevisionへ再deployしていない。
 
 環境digestは、`actualRevisionEnvironment`を`name`で昇順にし、JSON object keyも整列したcompact JSONを末尾改行なしでSHA-256へ入力する。次の再計算結果が表のcanonical digestと一致する。
 
 ```bash
 jq -cS '.configuration.environment.actualRevisionEnvironment | sort_by(.name)' \
-  artifacts/cloud-run-deployment-399750d686a8.json | tr -d '\n' | shasum -a 256
+  artifacts/cloud-run-deployment-81f3f41940c5.json | tr -d '\n' | shasum -a 256
 ```
 
 ### 13.2 Vertex ADCと実ブラウザ正常系
 
-pre-trafficの一時probeで`gemini-2.5-flash`と`gemini-2.5-pro`がいずれもPASSし、probe jobは削除した。API keyは使用せず、promptとmodel outputを保存していない。
+pre-trafficの一時probeで`gemini-2.5-flash`と`gemini-2.5-pro`がいずれもPASSし、probe jobは削除した。probeはcandidateと同じimmutable image、revision identity、default runtime service accountからVertex ADCの`count_tokens`だけを実行した。API key、生成prompt、model outputを使用・保存していない。
 
 fresh headless Chromium／CDPでFirebase reviewer login後に次を確認した。
 
 | Case | Result |
 | --- | --- |
-| paid | 計画承認、決済承認、`WaitingForPlanApproval -> WaitingForPaymentApproval -> Completed`、reload後もCompleted、callback 3 operation | `PASS` |
-| free | 計画承認だけ、payment approvalなし、`WaitingForPlanApproval -> Completed`、callback 1 operation | `PASS` |
+| paid | canonical日本語prompt、agent-005、計画承認、固定scenario支払表示、決済承認、`WaitingForPlanApproval -> WaitingForPaymentApproval -> Completed`、厳格なデモ確認Artifact、reload後もCompleted、callback 3 operation | `PASS` |
+| free | canonical日付入り日本語prompt、agent-002、計画承認だけ、payment approval／paid dataなし、`WaitingForPlanApproval -> Completed`、callback 1 operation | `PASS` |
 | callback order | 各operationで`legacy-callback-before -> transport -> response-persisted -> legacy-callback-after` | `PASS` |
-| logout／isolated profile cleanup | logoutとcontainer終了時cleanup | `PASS` |
+| fresh isolation | paid／freeを別profile・別loginで実行し、各caseでlogoutとcontainer終了時cleanup | `PASS` |
+| post-promotion | 通常service URLでpaid／free、readiness、reload、logoutを再実行 | `PASS` |
 
-reason codeは公開されず、reviewer credential、prompt／model output、browser console、network body、screenshotは保存していない。
+reason codeは公開されず、reviewer credential、任意の利用者prompt、model output、browser console、network body、screenshotは保存していない。公開デモのcanonical日本語promptだけはrelease manifestで定義された非機密入力としてlocal browser artifactに保持する。
 
 ### 13.3 Claim boundaryと残課題
 
@@ -237,3 +242,5 @@ reason codeは公開されず、reviewer credential、prompt／model output、br
 - refundは既存local browser coverageがあるが、最終正常系hotfix後のCloud revisionでは再実行していない。
 - current stable modelで正常系を確認したが、将来のmodel廃止／移行、IAM、quota、latencyの再検証は各releaseで必要である。
 - default Compute service accountから専用least-privilege service accountへの移行と不要権限除去は未完了のsecurity debtである。今回のVertex probe PASSをIAM hardening完了とは扱わない。
+- 最初のpost-push validatorは、計画表示直後にhostがsleepし、実時間で承認期限を越えたため正しく`Blocked`となった。sleepを抑止したfresh exact-image再実行は全suite PASSであり、Cloudへはその再検証後にだけdeployした。
+- release helperは旧100% revisionが同時にtraffic tagを持つCloud Run表現をrollback revisionとして認識できず、変更前に安全停止した。今回のno-traffic deployと明示100% shiftは同じ固定引数を個別実行し、before／afterでrevision、digest、trafficを照合した。helperのtagged-default対応は今後の運用改善事項である。

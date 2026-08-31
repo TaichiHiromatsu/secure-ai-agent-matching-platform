@@ -29,6 +29,7 @@ from secure_mediation_agent.mediation.models import (
 )
 from secure_mediation_agent.mediation.persistence import (
     SqliteMediationStore,
+    _safe_result,
     _session_projection,
     load_mediation_store_key,
 )
@@ -241,6 +242,17 @@ def test_five_stable_states_restart_with_exact_view_and_binding(
         assert restored.continuation is not None
         assert restored.continuation.requirement.checkout_nonce == "persisted-redacted-nonce"
         assert restored.continuation.requirement.payment_nonce == "persisted-redacted-nonce"
+        if state == MediationState.WAITING_FOR_PAYMENT_APPROVAL:
+            # Explicit provenance boundary: this fixture represents a v1 record
+            # persisted before the v2 scenario catalog was deployed.
+            assert "schemaVersion" not in restored.continuation.requirement.payment_required
+            legacy_view = build_local_durable_view(restored)
+            target = legacy_view.approval_target
+            assert target is not None and target.product == "Demo paid booking"
+            assert "Demo paid booking" in legacy_view.message
+            assert "デモ東京ベイホテル" not in legacy_view.message
+            assert "2026-09-12" not in legacy_view.message
+            assert "2名" not in legacy_view.message
     with sqlite3.connect(repository.paths.marketplace) as conn:
         digest = conn.execute(
             "SELECT session_digest FROM mediation_sessions_v4 WHERE scope_key=?",
@@ -321,6 +333,19 @@ def test_secret_free_projection_and_ciphertext(tmp_path: Path) -> None:
     persisted_blobs = bytes(row[0]) + bytes(row[1])
     assert b"visible-result" not in persisted_blobs
     assert b"subject-secrets" not in repository.paths.marketplace.read_bytes()
+
+
+def test_free_raw_artifact_is_never_projected_from_safe_result() -> None:
+    raw = {
+        "taskState": "completed",
+        "artifact": {"text": "untrusted free result", "credential": "secret"},
+    }
+    projected = _safe_result(raw)
+    assert projected == {
+        "schemaVersion": "mediation-safe-result/1",
+        "sourceDigest": canonical_digest(raw),
+        "taskState": "completed",
+    }
 
 
 @pytest.mark.concurrency

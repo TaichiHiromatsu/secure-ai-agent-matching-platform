@@ -95,8 +95,8 @@ def test_production_matcher_accepts_real_registry_and_free_paid_live_cards(
 
     async def exercise():
         matcher = LegacyMatcherAdapter()
-        free = await matcher.match("hotel search")
-        paid = await matcher.match("paid payment booking")
+        free = await matcher.match("東京で2026年9月12日から9月14日まで、2名で宿泊できるホテル候補を検索してください。")
+        paid = await matcher.match("有料の外部エージェントに、デモ予約商品を1件シミュレーション購入し、デモの予約確認を発行するよう依頼してください。")
         return free, paid
 
     free, paid = asyncio.run(exercise())

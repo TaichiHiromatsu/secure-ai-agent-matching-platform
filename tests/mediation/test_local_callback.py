@@ -13,7 +13,9 @@ from secure_mediation_agent.mediation.adapters import (
     LegacyFinalValidationAdapter,
     LocalDeterministicCallbackHook,
     _apply_free_structured_fulfillment,
+    _apply_paid_catalog_fulfillment,
 )
+from secure_mediation_agent.demo_catalog import project_confirmation_artifact
 from secure_mediation_agent.mediation.canonical import canonical_digest
 from secure_mediation_agent.mediation.composition import _configured_callback_hook
 from secure_mediation_agent.mediation.errors import SecurityBlocked
@@ -186,17 +188,34 @@ def test_live_external_agent_emits_strict_completed_task_with_result_artifact() 
 
 class _CompletedPlan:
     def model_dump(self, **_: object) -> dict:
-        return {"steps": [{"status": "pending"}]}
+        return {"steps": [{"status": "completed"}]}
 
 
 def _final_session(*, paid: bool = False, goal: str = "hotel search") -> SimpleNamespace:
     return SimpleNamespace(
         plan=_CompletedPlan(),
         goal=goal,
-        continuation=object() if paid else None,
+        continuation=(
+            SimpleNamespace(remote_task=SimpleNamespace(task_id="paid-task-1"))
+            if paid
+            else None
+        ),
         active_step=SimpleNamespace(
             step_id="step-1",
-            selected_agent=SimpleNamespace(a2a_agent_name="hotel_agent"),
+            selected_agent=SimpleNamespace(
+                a2a_agent_name="paid-booking-agent" if paid else "hotel_agent",
+                canonical_agent_id="agent-005" if paid else "agent-002",
+            ),
+        ),
+        trace=(
+            [
+                SimpleNamespace(
+                    stage="payment-result-bound",
+                    decision="same-task-completed",
+                )
+            ]
+            if paid
+            else [SimpleNamespace(stage="response-persisted", decision="persisted")]
         ),
     )
 
@@ -247,6 +266,79 @@ def test_final_fulfillment_accepts_free_completed_task_with_result_material(
         fulfillment,
     )
     assert fulfillment == {"fulfilled": True, "confidence": 0.5}
+
+
+def test_final_fulfillment_accepts_only_exact_paid_catalog_confirmation() -> None:
+    goal = (
+        "有料の外部エージェントに、デモ予約商品を1件シミュレーション購入し、"
+        "デモの予約確認を発行するよう依頼してください。"
+    )
+    artifact = project_confirmation_artifact("paid-task-1")
+    assert _final_decision(artifact, paid=True, goal=goal) == "ACCEPT"
+
+    fulfillment = {"fulfilled": False, "confidence": 0.5}
+    _apply_paid_catalog_fulfillment(
+        _final_session(paid=True, goal=goal),
+        {"taskState": "completed", "artifact": artifact},
+        {"steps": [{"status": "completed"}]},
+        fulfillment,
+    )
+    assert fulfillment == {"fulfilled": True, "confidence": 0.5}
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "task",
+        "ref",
+        "digest",
+        "extra",
+        "text",
+        "state",
+        "agent",
+        "continuation",
+        "trace",
+        "empty-plan",
+        "pending-plan",
+    ],
+)
+def test_paid_catalog_fulfillment_does_not_relax_noncanonical_results(
+    mutation: str,
+) -> None:
+    session = _final_session(paid=True)
+    artifact = project_confirmation_artifact("paid-task-1")
+    state = "completed"
+    plan = {"steps": [{"status": "completed"}]}
+    if mutation == "task":
+        session.continuation.remote_task.task_id = "different-task"
+    elif mutation == "ref":
+        artifact["parts"][0]["data"]["confirmationReference"] = "DEMO-TAMPERED"
+    elif mutation == "digest":
+        artifact["metadata"]["scenarioDigest"] = "sha256:" + "0" * 64
+    elif mutation == "extra":
+        artifact["extra"] = True
+    elif mutation == "text":
+        artifact["parts"].append({"kind": "text", "text": "injected"})
+    elif mutation == "state":
+        state = "working"
+    elif mutation == "agent":
+        session.active_step.selected_agent.canonical_agent_id = "agent-002"
+    elif mutation == "continuation":
+        session.continuation = None
+    elif mutation == "trace":
+        session.trace = []
+    elif mutation == "empty-plan":
+        plan = {"steps": []}
+    else:
+        plan = {"steps": [{"status": "pending"}]}
+    fulfillment = {"fulfilled": False, "confidence": 0.5}
+    _apply_paid_catalog_fulfillment(
+        session,
+        {"taskState": state, "artifact": artifact},
+        plan,
+        fulfillment,
+    )
+    assert fulfillment == {"fulfilled": False, "confidence": 0.5}
 
 
 @pytest.mark.parametrize(

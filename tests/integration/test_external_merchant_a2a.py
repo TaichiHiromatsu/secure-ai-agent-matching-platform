@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 import pytest
 from fastapi.testclient import TestClient
 
+from secure_mediation_agent.demo_catalog import project_confirmation, scenario_digest
 from secure_mediation_agent.merchant.api import MerchantRuntime, create_app
 from secure_mediation_agent.merchant.service import PaidBookingMerchant
 from secure_mediation_agent.payment_profiles.a2a import payment_message
@@ -145,6 +146,15 @@ def test_payment_required_quote_and_expiry_are_stable_and_checkout_bound(
     )
     authorization = AuthorizationService(keys.plan_authority)
     service = PaidBookingMerchant(workflow_fixture["repository"], keys, profile)
+    card = service.agent_card()
+    assert card.name == "paid-booking-agent"
+    assert "Tokyo business-trip hotel arrangement simulation" in card.description
+    assert "12.50 USD" in card.description
+    assert "lodging" in card.description
+    assert "no real booking" in card.description
+    skill = card.skills[0]
+    assert skill.name == "Tokyo business hotel arrangement simulation"
+    assert "12.50 USD" in skill.description
     app = create_app(
         MerchantRuntime(
             service=service,
@@ -188,6 +198,10 @@ def test_payment_required_quote_and_expiry_are_stable_and_checkout_bound(
     assert required["orderId"] == project["orderId"] == params["orderId"]
     assert required["quoteId"] == project["quoteId"] == expected_quote
     assert required["expiresAt"] == project["expiresAt"] == expected_expiry
+    assert required["schemaVersion"] == "demo-payment-requirement/2"
+    assert required["scenarioDigest"] == project["scenarioDigest"] == scenario_digest()
+    assert required["demoScenario"]["hotel"] == "デモ東京ベイホテル"
+    assert required["demoScenario"]["arrangementFee"]["lodgingExcluded"] is True
     assert "checkoutJwt" not in result and "checkoutHash" not in result
     private = result["privatePaymentMaterial"]
     checkout = service.verify_checkout(
@@ -198,6 +212,7 @@ def test_payment_required_quote_and_expiry_are_stable_and_checkout_bound(
     )
     assert checkout["quoteId"] == expected_quote
     assert checkout["exp"] == params["expiresAt"]
+    assert checkout["scenarioDigest"] == scenario_digest()
 
 
 def test_guaranteed_http_fulfillment_preserves_order_and_quote_on_completed_task(
@@ -367,6 +382,12 @@ def test_guaranteed_http_fulfillment_preserves_order_and_quote_on_completed_task
     assert completed_project["orderId"] == start_params["orderId"]
     assert completed_project["quoteId"] == project["quoteId"]
     assert completed_project["workflowId"] == start_params["workflowId"]
+    assert completed_project["scenarioDigest"] == scenario_digest()
+    artifact = task["artifacts"][0]
+    assert artifact["name"] == "デモ予約確認（シミュレーション）"
+    assert artifact["parts"] == [
+        {"data": project_confirmation(start_params["taskId"]), "kind": "data"}
+    ]
 
 
 @pytest.mark.parametrize(
